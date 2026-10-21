@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mulberry32, hash, cellsIn, key, rc, centre, nbrs, connected } from '../src/core.js';
+import { mulberry32, hash, cellsIn, key, rc, centre, nbrs, connected,
+  startState, deal, fire, won, lost, toSave, fromSave, validSave } from '../src/core.js';
 
 test('random is seeded and repeatable', () => {
   const a = mulberry32(hash(3, 4)), b = mulberry32(hash(3, 4));
@@ -58,4 +59,49 @@ test('view keeps the lowest bubble 4 rows above the shooter', () => {
 });
 test('aim is clamped and never points down', () => {
   assert.equal(clampAim(0.3), null); assert.equal(clampAim(-0.01), -0.12); assert.equal(clampAim(-3.1), -Math.PI + 0.12);
+});
+
+const board = (cols, cells) => new Map(cells.map(([r, c, col]) => [key(r, c), col]));
+const stateWith = (cols, cells, cur, next = cur) =>
+  Object.assign(startState(1, 0), { cols, grid: board(cols, cells), cur, next, hist: [], shots: 10, score: 0 });
+// Find an angle whose traced landing cell is [r, c]; tests never guess angles.
+const aimAt = (S, r, c) => { for (let a = -Math.PI + 0.12; a <= -0.12; a += 0.001) { const t = trace(S.grid, S.cols, a);
+  if (t.cell && t.cell[0] === r && t.cell[1] === c) return a; } throw new Error(`no angle reaches ${r},${c}`); };
+
+test('popping the anchor drops the chain below it', () => {
+  const S = stateWith(10, [[0, 0, 1], [0, 1, 1], [1, 0, 2], [2, 0, 2], [3, 0, 2]], 1);
+  const m = fire(S, aimAt(S, 0, 2));
+  assert.equal(m.popped.length, 3); assert.equal(m.dropped.length, 3);
+  assert.equal(S.grid.size, 0); assert.equal(m.points, 10 * 3 + 10 * 9);
+});
+test('two of a kind do not pop', () => {
+  const S = stateWith(10, [[0, 4, 1]], 1), m = fire(S, aimAt(S, 0, 5));
+  assert.equal(m.popped.length, 0); assert.equal(S.grid.size, 2); assert.equal(S.shots, 9);
+});
+test('clearing the board with the last shot is a win', () => {
+  const S = stateWith(10, [[0, 4, 1], [0, 5, 1]], 1); S.shots = 1;
+  const m = fire(S, aimAt(S, 1, 4));
+  assert.equal(m.popped.length, 3); assert.ok(won(S)); assert.ok(!lost(S));
+  assert.equal(fire(S, -1), null, 'no shots after a win');
+});
+test('the queue never holds a colour that left the board', () => {
+  const S = stateWith(10, [[0, 4, 1], [0, 5, 1], [0, 0, 2]], 1, 1);
+  fire(S, aimAt(S, 1, 4));
+  assert.equal(S.cur, 2); assert.equal(S.next, 2);
+});
+test('dealing: board colours only, never three in a row, off-screen colours rarer', () => {
+  const S = startState(12, 0), present = new Set(S.grid.values());
+  const seq = Array.from({ length: 3000 }, () => deal(S));
+  for (const c of seq) assert.ok(present.has(c));
+  for (let i = 2; i < seq.length; i++) assert.ok(!(seq[i] === seq[i - 1] && seq[i] === seq[i - 2]), `three in a row at ${i}`);
+  const S2 = startState(12, 0); assert.deepEqual(Array.from({ length: 50 }, () => deal(S2)), seq.slice(0, 50));
+});
+test('only one colour left: every packet is that colour', () => {
+  const S = stateWith(10, [[0, 4, 3]], 3);
+  for (let i = 0; i < 10; i++) assert.equal(deal(S), 3);
+});
+test('saves round-trip; broken saves are rejected', () => {
+  const S = startState(7, 2), o = JSON.parse(JSON.stringify(toSave(S)));
+  assert.ok(validSave(o)); assert.deepEqual(toSave(fromSave(o)), toSave(S));
+  for (const bad of [null, {}, { ...o, v: 2 }, { ...o, cols: 9 }, { ...o, grid: 'x' }, { ...o, level: 0 }]) assert.ok(!validSave(bad));
 });

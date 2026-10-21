@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeLayout, colourize, difficulty, winRows } from '../src/levels.js';
+import { makeLayout, colourize, difficulty, winRows, shotLimit, shotsFor } from '../src/levels.js';
 import { connected, rc } from '../src/core.js';
 
 const levels = Array.from({ length: 60 }, (_, i) => i + 1);
@@ -39,4 +39,12 @@ test('retry keeps the layout, recolours whole groups', () => {
     for (const [g, s] of byGroup) assert.equal(s.size, 1, `group ${g} has mixed colours`);
   }
   assert.ok(new Set(a.values()).size <= L.nColours);
+});
+
+test('shot limit is positive and grows with the level', () => {
+  for (const lv of levels) assert.ok(shotLimit(makeLayout(lv)) > 0);
+});
+test('fails 1 to 3 do not ease; from the 4th, +10% per fail up to +40%', () => {
+  for (const f of [0, 1, 2, 3]) assert.equal(shotsFor(50, f), 50);
+  assert.equal(shotsFor(50, 4), 55); assert.equal(shotsFor(50, 7), 70); assert.equal(shotsFor(50, 12), 70);
 });

@@ -26,7 +26,7 @@ export function connected(grid, cols) {
 }
 
 /* ---------- shots ---------- */
-import { winRows } from './levels.js';   // circular: used only inside function bodies
+import { winRows, makeLayout, colourize, shotLimit, shotsFor } from './levels.js';   // circular: used only inside function bodies
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
@@ -62,4 +62,56 @@ export function snap(grid, cols, x, y) {
   bd = Infinity;
   for (const [a, b] of nbrs(cols, ...occ)) if (!grid.has(key(a, b)) && near(a, b) < bd) { bd = near(a, b); best = [a, b]; }
   return best;
+}
+
+/* ---------- deal ---------- */
+export const OFFSCREEN_W = 0.3;
+export function startState(level, fails) {
+  const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
+    shots: shotsFor(shotLimit(L), fails), score: 0, cur: null, next: null, hist: [], draws: 0 };
+  S.cur = deal(S); S.next = deal(S); return S;
+}
+export function deal(S) {
+  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), top = viewTop(S.grid, S.cols), vis = new Set(), all = new Set();
+  for (const [k, c] of S.grid) { all.add(c); if (k >> 4 >= top) vis.add(c); }
+  if (!all.size) return null;
+  const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b);
+  const pool = h.length >= 2 && h[0] === last && l.some(c => c !== last) ? l.filter(c => c !== last) : l;
+  const draw = () => { const w = pool.map(c => vis.has(c) ? 1 : OFFSCREEN_W); let x = rnd() * w.reduce((a, b) => a + b);
+    for (let i = 0; i < pool.length; i++) if ((x -= w[i]) < 0) return pool[i]; return pool[pool.length - 1]; };
+  let c = draw(); if (c === last && pool.length > 1) c = draw();
+  h.push(c); if (h.length > 2) h.shift(); return c;
+}
+
+/* ---------- moves ---------- */
+export const swap = S => { [S.cur, S.next] = [S.next, S.cur]; };
+export const won = S => !S.grid.size;
+export const lost = S => !won(S) && S.shots <= 0;
+export function fire(S, ang) {
+  const a = clampAim(ang); if (a === null || S.shots <= 0 || won(S)) return null;
+  const { pts, cell } = trace(S.grid, S.cols, a); if (!cell) return null;
+  const [r, c] = cell, k0 = key(r, c), col = S.cur, grp = [k0], seen = new Set(grp);
+  S.grid.set(k0, col);
+  for (let i = 0; i < grp.length; i++) for (const [x, y] of nbrs(S.cols, ...rc(grp[i]))) {
+    const k = key(x, y); if (S.grid.get(k) === col && !seen.has(k)) { seen.add(k); grp.push(k); } }
+  const popped = grp.length >= 3 ? grp : [], dropped = [];
+  for (const k of popped) S.grid.delete(k);
+  if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { S.grid.delete(k); dropped.push(k); } }
+  const points = 10 * popped.length + 10 * dropped.length ** 2;
+  S.score += points; S.shots--; S.cur = S.next; S.next = deal(S);
+  if (S.grid.size) { const has = new Set(S.grid.values());
+    if (!has.has(S.cur)) S.cur = deal(S); if (!has.has(S.next)) S.next = deal(S); }
+  return { pts, cell, popped, dropped, points };
+}
+
+/* ---------- saves ---------- */
+export const toSave = S => ({ v: 1, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
+  shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws });
+export const fromSave = o => ({ ...o, grid: new Map(o.grid), hist: [...o.hist] });
+export function validSave(o) {
+  const col = c => Number.isInteger(c) && c >= 0 && c <= 5, nul = c => c === null || col(c);
+  return !!o && o.v === 1 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
+    [8, 10, 12].includes(o.cols) && Array.isArray(o.grid) &&
+    o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && col(e[1])) &&
+    nul(o.cur) && nul(o.next);
 }

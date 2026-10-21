@@ -12,6 +12,7 @@ test('offset rows: odd rows have one cell fewer and sit half a cell right', () =
   assert.deepEqual(centre(0, 0), { x: 1, y: 1 });
   assert.equal(centre(1, 0).x, 2); assert.ok(Math.abs(centre(1, 0).y - (1 + Math.sqrt(3))) < 1e-9);
   assert.deepEqual(rc(key(37, 11)), [37, 11]);
+  assert.equal(key(2, 3), 35);
 });
 test('neighbours: six inside, fewer on edges and the ceiling', () => {
   assert.equal(nbrs(10, 5, 4).length, 6);

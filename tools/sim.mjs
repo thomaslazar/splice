@@ -1,23 +1,26 @@
 // Balance bot: plays levels greedily and reports win rate / shots left per kind and per difficulty band.
 // Usage: node tools/sim.mjs [levels] [runs] [--unlimited]   (levels: 1,3,5 or a range 1-60)
 import { pathToFileURL } from 'node:url';
-import { startState, trace, fire, swap, won, lost, clampAim, MIN_ANGLE, key, nbrs } from '../src/core.js';
+import { startState, trace, fire, swap, won, lost, lossRow, clampAim, MIN_ANGLE, key, nbrs } from '../src/core.js';
 import { makeLayout, groupCount } from '../src/levels.js';
 
 const ANGLES = Array.from({ length: 120 }, (_, i) => -Math.PI + MIN_ANGLE + i * (Math.PI - 2 * MIN_ANGLE) / 119);
+
+const LOW = 20;
 
 // One shot: best of angles x (no swap, swap). Traces on the live state; clones only once per distinct (cell, colour).
 function bestShot(S) {
   const seen = new Map(); let best = null;
   for (const ang of ANGLES) {
-    const { cell } = trace(S.grid, S.cols, clampAim(ang)); if (!cell) continue;
+    const { cell } = trace(S.grid, S.cols, clampAim(ang), S.top); if (!cell) continue;
     for (const sw of [false, true]) {
       const col = sw ? S.next : S.cur, id = key(...cell) * 8 + col;
       if (seen.has(id)) continue; seen.set(id, 1);
       const T = structuredClone(S); if (sw) swap(T);
       const r = fire(T, ang); if (!r) continue;
       const side = nbrs(S.cols, ...cell).some(([a, b]) => S.grid.get(key(a, b)) === col) ? 0.1 : 0;
-      const sc = r.popped.length + 2 * r.dropped.length + side;
+      const low = T.grid.has(key(...cell)) && cell[0] >= lossRow(S) - 1 ? LOW : 0;   // sticking near the loss line
+      const sc = r.popped.length + 2 * r.dropped.length + side - low;
       if (!best || sc > best.sc) best = { sc, ang, sw, drop: r.dropped.length };
     }
   }

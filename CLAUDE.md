@@ -45,8 +45,12 @@ one fewer on odd rows.
 
 - **random**: `mulberry32`, `hash`. No `Math.random` anywhere in `src/`.
 - **geometry**: `nbrs(cols, r, c)`, `connected(grid, cols)` (flood fill from row 0).
-- **shots**: `viewTop`/`shooterPos` (`viewTop` is the top row shown, lowest bubble row minus
-  `winRows - 5`; the shooter sits at `viewTop + winRows - 1`, so the lowest bubble is 4 rows above it), `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the
+- **shots**: `viewTop`/`shooterPos` (`viewTop` is the ideal top row: lowest bubble row minus
+  `winRows - 5`). The real view is `S.top`: set by `startState`, then `min(S.top, viewTop)` after
+  every `fire`, so it moves toward the ceiling and never retracts when bubbles land lower. The
+  shooter sits at `S.top + winRows - 1`; `shooterPos` and `trace` take `top` (default `viewTop`),
+  `fire`/`deal` pass `S.top`. Loss line: `lossRow(S)` = `S.top + winRows - 2`, the row above the
+  shooter; `lost(S)` is no shots left or any bubble at or below it, `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the
   horizon), `trace(grid, cols, ang)` steps 0.25 radii with wall bounces and returns
   `{pts, cell}` (`HIT` is 0.82 of a bubble diameter), `snap` picks the nearest free cell
   that touches the ceiling or a bubble.
@@ -57,7 +61,8 @@ one fewer on odd rows.
 - **moves**: `swap`, `won`, `lost`, `fire(S, ang)` (returns `{pts, cell, popped, dropped,
   points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
   are re-dealt if their colour left the board).
-- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`).
+- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`; includes `top`, an old save without it fails
+  validation and restarts its level).
 
 `core.js` and `levels.js` import each other. Uses of the imported names stay inside
 function bodies, so keep it that way.
@@ -100,8 +105,8 @@ function bodies, so keep it that way.
 - Look: `THEMES` (accent and background, picked by level), six `HUES` with a symbol each
   (`sym`), so colour is never the only cue. `bubble()` draws one packet.
 - View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
-  `sc` is px per radius. `view` is the top row shown and eases toward `viewTop` (instantly
-  with reduced motion). The ceiling line is drawn only when row 0 is on screen.
+  `sc` is px per radius. `view` is the top row shown and eases toward `S.top` (instantly
+  with reduced motion). The ceiling line is drawn only when row 0 is on screen; a dashed loss line sits between `lossRow` and the row above.
 - Input: pointer drag aims (`setAim`), release fires (`shoot`). Only the pointer that started
   the aim (`aimId`) moves and fires it; a second pointer during an aim cancels it without a
   shot. A touch that starts in the strip at the shooter's height swaps `cur` and `next` and

@@ -1,5 +1,5 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
-import { hash, RH, key, rc, centre, viewTop, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
+import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
@@ -51,11 +51,11 @@ function bubble(x, y, col, a = 1, rr = sc) {   // x, y, rr in px
 }
 
 /* ---------- state ---------- */
-// Board units are bubble radii (core.js); sc is px per unit. view is the top row shown, eased toward viewTop.
+// Board units are bubble radii (core.js); sc is px per unit. view is the top row shown, eased toward S.top.
 let S, theme, sc = 1, W = 0, H = 0, view = 0, aim = null, aimId = null, asking = false, fly = null, fx = [];
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
 const X = u => u * sc, Y = u => (u - view * RH) * sc;
-const target = () => viewTop(S.grid, S.cols);
+const target = () => S.top;
 const ready = () => !fly && view === target() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
 function load() {   // an invalid save keeps its level (fresh board); unreadable means level 1
@@ -141,9 +141,12 @@ function draw() {
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
   for (const [k, col] of fly ? fly.pre : S.grid) { const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
   g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is
+  const ly = Y(1 + (lossRow(S) - .5) * RH);   // loss line: between the loss row and the row above it
+  g.strokeStyle = theme.a; g.globalAlpha = .5; g.lineWidth = 2; g.setLineDash([8, 6]);
+  g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
   const a = clampAim(aim ?? 0);
   if (aimId !== null && a !== null && ready()) {
-    const tr = trace(S.grid, S.cols, a);
+    const tr = trace(S.grid, S.cols, a, S.top);
     g.strokeStyle = theme.a; g.globalAlpha = .7; g.lineWidth = 2; g.setLineDash([2, 6]);
     g.beginPath(); tr.pts.forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
     if (tr.cell) { const c = centre(...tr.cell); g.strokeStyle = colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }

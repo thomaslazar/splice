@@ -32,10 +32,10 @@ export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
   return Math.max(0, low - (winRows(cols) - 5));
 }
-export const shooterPos = (grid, cols) => ({ x: cols, y: 1 + (viewTop(grid, cols) + winRows(cols) - 1) * RH });
+export const shooterPos = (grid, cols, top = viewTop(grid, cols)) => ({ x: cols, y: 1 + (top + winRows(cols) - 1) * RH });
 export const clampAim = ang => ang >= 0 ? null : Math.min(-MIN_ANGLE, Math.max(-Math.PI + MIN_ANGLE, ang));
-export function trace(grid, cols, ang) {
-  let { x, y } = shooterPos(grid, cols), dx = Math.cos(ang), dy = Math.sin(ang);
+export function trace(grid, cols, ang, top = viewTop(grid, cols)) {
+  let { x, y } = shooterPos(grid, cols, top), dx = Math.cos(ang), dy = Math.sin(ang);
   const pts = [{ x, y }], hit = HIT * HIT, lo = 1, hi = 2 * cols - 1;
   for (let i = 0; i < 8000; i++) {
     x += dx * .25; y += dy * .25;
@@ -69,10 +69,10 @@ export const OFFSCREEN_W = 0.3;
 export function startState(level, fails) {
   const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
     shots: shotsFor(shotLimit(L), fails), score: 0, cur: null, next: null, hist: [], draws: 0 };
-  S.cur = deal(S); S.next = deal(S); return S;
+  S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S); return S;
 }
 export function deal(S) {
-  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), top = viewTop(S.grid, S.cols), vis = new Set(), all = new Set();
+  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), top = S.top, vis = new Set(), all = new Set();
   for (const [k, c] of S.grid) { all.add(c); if (k >> 4 >= top) vis.add(c); }
   if (!all.size) return null;
   const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b);
@@ -86,10 +86,11 @@ export function deal(S) {
 /* ---------- moves ---------- */
 export const swap = S => { [S.cur, S.next] = [S.next, S.cur]; };
 export const won = S => !S.grid.size;
-export const lost = S => !won(S) && S.shots <= 0;
+export const lossRow = S => S.top + winRows(S.cols) - 2;   // the row directly above the shooter row
+export const lost = S => !won(S) && (S.shots <= 0 || [...S.grid.keys()].some(k => k >> 4 >= lossRow(S)));
 export function fire(S, ang) {
   const a = clampAim(ang); if (a === null || S.shots <= 0 || won(S)) return null;
-  const { pts, cell } = trace(S.grid, S.cols, a); if (!cell) return null;
+  const { pts, cell } = trace(S.grid, S.cols, a, S.top); if (!cell) return null;
   const [r, c] = cell, k0 = key(r, c), col = S.cur, grp = [k0], seen = new Set(grp);
   S.grid.set(k0, col);
   for (let i = 0; i < grp.length; i++) for (const [x, y] of nbrs(S.cols, ...rc(grp[i]))) {
@@ -98,6 +99,7 @@ export function fire(S, ang) {
   for (const k of popped) S.grid.delete(k);
   if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { S.grid.delete(k); dropped.push(k); } }
   const points = 10 * popped.length + 10 * dropped.length ** 2;
+  S.top = Math.min(S.top, viewTop(S.grid, S.cols));   // never retracts, only moves toward the ceiling
   S.score += points; S.shots--; S.cur = S.next; S.next = deal(S);
   if (S.grid.size) { const has = new Set(S.grid.values());
     if (!has.has(S.cur)) S.cur = deal(S); if (!has.has(S.next)) S.next = deal(S); }
@@ -106,7 +108,7 @@ export function fire(S, ang) {
 
 /* ---------- saves ---------- */
 export const toSave = S => ({ v: 1, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
-  shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws });
+  shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws, top: S.top });
 export const fromSave = o => ({ ...o, grid: new Map(o.grid), hist: [...o.hist] });
 export function validSave(o) {
   const col = c => Number.isInteger(c) && c >= 0 && c <= 5, nul = c => c === null || col(c);
@@ -114,5 +116,5 @@ export function validSave(o) {
     [8, 10, 12].includes(o.cols) && Array.isArray(o.grid) &&
     o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && col(e[1])) &&
     nul(o.cur) && nul(o.next) && ['designed', 'noise'].includes(o.kind) &&
-    Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws].every(n => Number.isInteger(n) && n >= 0);
+    Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws, o.top].every(n => Number.isInteger(n) && n >= 0);
 }

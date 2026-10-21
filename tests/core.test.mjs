@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mulberry32, hash, cellsIn, key, rc, centre, nbrs, connected,
-  startState, deal, fire, won, lost, toSave, fromSave, validSave } from '../src/core.js';
+  startState, deal, fire, won, lost, lossRow, toSave, fromSave, validSave } from '../src/core.js';
 
 test('random is seeded and repeatable', () => {
   const a = mulberry32(hash(3, 4)), b = mulberry32(hash(3, 4));
@@ -63,9 +63,9 @@ test('aim is clamped and never points down', () => {
 
 const board = (cols, cells) => new Map(cells.map(([r, c, col]) => [key(r, c), col]));
 const stateWith = (cols, cells, cur, next = cur) =>
-  Object.assign(startState(1, 0), { cols, grid: board(cols, cells), cur, next, hist: [], shots: 10, score: 0 });
+  Object.assign(startState(1, 0), { cols, grid: board(cols, cells), cur, next, hist: [], shots: 10, score: 0, top: viewTop(board(cols, cells), cols) });
 // Find an angle whose traced landing cell is [r, c]; tests never guess angles.
-const aimAt = (S, r, c) => { for (let a = -Math.PI + 0.12; a <= -0.12; a += 0.001) { const t = trace(S.grid, S.cols, a);
+const aimAt = (S, r, c) => { for (let a = -Math.PI + 0.12; a <= -0.12; a += 0.001) { const t = trace(S.grid, S.cols, a, S.top);
   if (t.cell && t.cell[0] === r && t.cell[1] === c) return a; } throw new Error(`no angle reaches ${r},${c}`); };
 
 test('popping the anchor drops the chain below it', () => {
@@ -105,4 +105,30 @@ test('saves round-trip; broken saves are rejected', () => {
   assert.ok(validSave(o)); assert.deepEqual(toSave(fromSave(o)), toSave(S));
   for (const bad of [null, {}, { ...o, v: 2 }, { ...o, cols: 9 }, { ...o, grid: 'x' }, { ...o, level: 0 },
     { ...o, hist: undefined }, { ...o, shots: 'x' }, { ...o, draws: -1 }, { ...o, kind: 'x' }, 'x', 42]) assert.ok(!validSave(bad));
+});
+
+test('the view never retracts when bubbles land lower', () => {
+  const S = stateWith(10, [[0, 4, 1], [1, 4, 2], [2, 4, 3]], 4); S.top = 0;
+  fire(S, aimAt(S, 3, 4));
+  assert.equal(S.top, 0);
+});
+test('clearing lets the view move toward the ceiling', () => {
+  const cells = []; for (let r = 0; r < 40; r++) cells.push([r, 0, 1 + (r % 3)]);
+  const S = stateWith(10, cells, 1); S.top = viewTop(S.grid, 10);
+  const before = S.top;
+  for (let r = 10; r < 40; r++) S.grid.delete(key(r, 0));   // as if cleared
+  fire(S, aimAt(S, 0, 5));
+  assert.ok(S.top < before);
+});
+test('a bubble on the loss line loses even with shots left', () => {
+  const S = stateWith(10, [[0, 4, 1]], 2); S.top = 0;
+  S.grid.set(key(lossRow(S), 4), 2);
+  assert.ok(lost(S)); assert.ok(S.shots > 0);
+  S.grid.delete(key(lossRow(S), 4)); S.grid.set(key(lossRow(S) - 1, 4), 2);
+  assert.ok(!lost(S));
+});
+test('saves keep the view top', () => {
+  const S = startState(7, 0); S.top = Math.max(0, S.top - 1);
+  const o = JSON.parse(JSON.stringify(toSave(S)));
+  assert.equal(fromSave(o).top, S.top); assert.ok(!validSave({ ...o, top: -1 })); assert.ok(!validSave({ ...o, top: undefined }));
 });

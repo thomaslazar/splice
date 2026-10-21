@@ -9,5 +9,6 @@
   "loseButton": "Try again",
   "restartAsk": "Restart this level?",
   "restartYes": "Restart",
-  "restartNo": "Keep playing"
+  "restartNo": "Keep playing",
+  "wip": "Prototype, work in progress"
 }

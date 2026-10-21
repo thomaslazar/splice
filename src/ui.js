@@ -64,10 +64,10 @@ function load() {   // an invalid save keeps its level (fresh board); unreadable
 }
 function hud() {
   $('#lvl').textContent = t('level', { n: S.level }); $('#shots').textContent = t('shots', { n: S.shots });
-  $('#score').textContent = t('score', { n: S.score }); $('#restart').textContent = t('restart');
+  $('#score').textContent = t('score', { n: S.score }); $('#restart').textContent = t('restart'); $('#wip').textContent = t('wip');
 }
 function fit() {
-  const hu = SY() + 2, w = Math.min(520, innerWidth, (innerHeight - $('#hud').offsetHeight - PAD) * 2 * S.cols / hu), dpr = devicePixelRatio || 1;
+  const hu = SY() + 2, w = Math.min(520, innerWidth, (innerHeight - $('#hud').offsetHeight - $('#wip').offsetHeight - 4 - PAD) * 2 * S.cols / hu), dpr = devicePixelRatio || 1;
   sc = w / (2 * S.cols); W = w; H = hu * sc;
   cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px'; $('#hud').style.width = W + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round((H + PAD) * dpr); g.setTransform(dpr, 0, 0, dpr, 0, PAD * dpr);
@@ -177,4 +177,7 @@ function draw() {
   });
   requestAnimationFrame(draw);
 }
+// No zoom: iOS ignores user-scalable=no, so block Safari's pinch gestures (double-tap is off via touch-action)
+for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault());
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});   // offline play
 start(load()); draw();

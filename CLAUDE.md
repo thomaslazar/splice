@@ -12,8 +12,11 @@ Read before changing behaviour:
 
 ## Commands
 
-- Run: serve the folder (`python3 -m http.server`) and open http://localhost:8000/.
-  `file://` does not work (ES modules, `fetch` for `lang/`).
+- Run: serve the folder (`python3 -m http.server 8080`) and open http://localhost:8080/.
+  `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
+  phone: Kiln's service worker controls that origin and mixes its files in.
+  The service worker is network first (revalidates, 3 s timeout, cache only as offline
+  fallback). If `sw.js` changes how it caches, rename `CACHE` so `activate` drops the old cache.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
 - Balance: `node tools/sim.mjs [levels] [runs] [--unlimited]`, e.g. `node tools/sim.mjs 3,25,50 3`
   or `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
@@ -33,6 +36,13 @@ Read before changing behaviour:
   now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
   `tests/lang.test.mjs` checks the lang files.
 - `tools/sim.mjs`: greedy bot over the core API. `tools/fit.mjs`: fits `SHOT_K` with it.
+- `manifest.webmanifest`, `sw.js`, `icons/`: PWA. `icons/icon.svg` is the source; the PNGs
+  are renders of it (192, 512, maskable 512 at 80% scale, 180 for Apple), made with
+  `qlmanage -t -s 512` and `sips -z`.
+- `.github/workflows/pages.yml`: runs `node --test` on pull requests and pushes; on push to
+  `master` it deploys the site files to https://thomaslazar.github.io/splice/. New site files
+  must be added to its copy step and, if needed offline, to `SHELL` in `sw.js`.
+- `LICENSE.md`: PolyForm Noncommercial 1.0.0, as Kiln.
 - `spike/`: the throwaway prototype the design numbers came from. Not part of the game.
 - `docs/superpowers/`: the spec and the plan for the core loop.
 
@@ -130,7 +140,8 @@ function bodies, so keep it that way.
 
 ## Not built yet
 
-No PWA or deploy, no self-hosted font (it still uses the system monospace), English only,
+The deployed build is a prototype (a "Prototype, work in progress" line under the board).
+No self-hosted font (it still uses the system monospace), English only,
 no sound.
 
 ## Theme

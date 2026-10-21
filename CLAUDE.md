@@ -41,8 +41,8 @@ one fewer on odd rows.
 
 - **random**: `mulberry32`, `hash`. No `Math.random` anywhere in `src/`.
 - **geometry**: `nbrs(cols, r, c)`, `connected(grid, cols)` (flood fill from row 0).
-- **shots**: `viewTop`/`shooterPos` (the view keeps the lowest bubble `winRows - 5` rows
-  above the shooter row), `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the
+- **shots**: `viewTop`/`shooterPos` (`viewTop` is the top row shown, lowest bubble row minus
+  `winRows - 5`; the shooter sits at `viewTop + winRows - 1`, so the lowest bubble is 4 rows above it), `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the
   horizon), `trace(grid, cols, ang)` steps 0.25 radii with wall bounces and returns
   `{pts, cell}` (`HIT` is 0.82 of a bubble diameter), `snap` picks the nearest free cell
   that touches the ceiling or a bubble.
@@ -64,8 +64,8 @@ function bodies, so keep it that way.
   `winRows(cols)` is the visible height in rows.
 - `makeLayout(level)` (cached) depends on the level only. Kind is `designed` or `noise`
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
-  Designed levels stack screens of seeded shapes (lines, rhombus, ring, triangle, chevron,
-  bar, shelf), optionally mirrored, each shape or band one group. `addStems` joins loose
+  Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
+  downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group. `addStems` joins loose
   parts to the ceiling. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours.
@@ -94,7 +94,7 @@ function bodies, so keep it that way.
   wheel also swaps (one swap per gesture). Input is ignored while a packet flies, the view
   is scrolling or a sheet is open (`ready()`).
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
-  jitter seeded from the key) and `-n` effects. With reduced motion, results show at once.
+  jitter seeded from the key) and a `-n` text (only for drops of 6 or more). With reduced motion, results show at once.
 - Sheets: one result sheet for win ("Root access") and loss ("Flatline"). Next level and
   Try again start a new state; Restart in the HUD restarts the level and does not count as
   a fail.

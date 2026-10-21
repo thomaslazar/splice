@@ -125,7 +125,7 @@ export function colourize(layout, level, fails) {
 }
 
 /* ---------- shot limit ---------- */
-export const SHOT_K = { designed: { a: 1.0, b: 0.6, c: 6 }, noise: { a: 0, b: 1.6, c: 6 } };
+export const SHOT_K = { designed: { a: 1.05, b: 0, c: 1 }, noise: { a: 0, b: 0.8, c: 32 } };
 export const groupCount = layout => new Set(layout.cells.values()).size;
 export const shotLimit = layout => { const { a, b, c } = SHOT_K[layout.kind];
   return Math.ceil(a * groupCount(layout) + b * layout.cells.size / layout.nColours + c); };

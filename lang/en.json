@@ -1,0 +1,10 @@
+{
+  "level": "Level {n}",
+  "shots": "Shots {n}",
+  "score": "Score {n}",
+  "restart": "Restart",
+  "winTitle": "Root access",
+  "winButton": "Next level",
+  "loseTitle": "Flatline",
+  "loseButton": "Try again"
+}

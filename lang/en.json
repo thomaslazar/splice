@@ -6,5 +6,8 @@
   "winTitle": "Root access",
   "winButton": "Next level",
   "loseTitle": "Flatline",
-  "loseButton": "Try again"
+  "loseButton": "Try again",
+  "restartAsk": "Restart this level?",
+  "restartYes": "Restart",
+  "restartNo": "Keep playing"
 }

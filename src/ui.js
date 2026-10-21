@@ -52,13 +52,16 @@ function bubble(x, y, col, a = 1, rr = sc) {   // x, y, rr in px
 
 /* ---------- state ---------- */
 // Board units are bubble radii (core.js); sc is px per unit. view is the top row shown, eased toward viewTop.
-let S, theme, sc = 1, W = 0, H = 0, view = 0, aim = null, aiming = false, swapping = false, fly = null, fx = [];
+let S, theme, sc = 1, W = 0, H = 0, view = 0, aim = null, aimId = null, asking = false, fly = null, fx = [];
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
 const X = u => u * sc, Y = u => (u - view * RH) * sc;
 const target = () => viewTop(S.grid, S.cols);
 const ready = () => !fly && view === target() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
-function load() { try { const o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {} return startState(1, 0); }
+function load() {   // an invalid save keeps its level (fresh board); unreadable means level 1
+  let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
+  return o && Number.isInteger(o.level) && o.level >= 1 ? startState(o.level, Number.isInteger(o.fails) && o.fails >= 0 ? o.fails : 0) : startState(1, 0);
+}
 function hud() {
   $('#lvl').textContent = t('level', { n: S.level }); $('#shots').textContent = t('shots', { n: S.shots });
   $('#score').textContent = t('score', { n: S.score }); $('#restart').textContent = t('restart');
@@ -69,18 +72,27 @@ function fit() {
   cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px'; $('#hud').style.width = W + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round((H + PAD) * dpr); g.setTransform(dpr, 0, 0, dpr, 0, PAD * dpr);
 }
-function sheet() {
-  const w = won(S), l = lost(S); $('#sheet').hidden = !w && !l; if (!w && !l) return;
+function sheet() {   // result sheet; a pending restart question stays open unless the level ended
+  const w = won(S), l = lost(S); if (asking && !w && !l) return;
+  asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = !w && !l; if (!w && !l) return;
   $('#sheetT').textContent = w ? t('winTitle') : t('loseTitle'); $('#sheetB').textContent = w ? t('winButton') : t('loseButton');
 }
 function start(s) {
-  S = s; view = target(); fly = null; fx = []; aim = null; aiming = swapping = false;
+  S = s; view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   theme = THEMES[hash(S.level, 3) % 6];
   document.documentElement.style.setProperty('--acc', theme.a); document.documentElement.style.setProperty('--bg', theme.bg);
   hud(); fit(); save(); sheet();
 }
-$('#restart').onclick = () => start(startState(S.level, S.fails));
-$('#sheetB').onclick = () => start(won(S) ? startState(S.level + 1, 0) : startState(S.level, S.fails + 1));
+const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; };
+$('#restart').onclick = () => {   // ask first; only the confirm button restarts (fails unchanged)
+  if (!$('#sheet').hidden) return;
+  asking = true; aim = aimId = null; $('#sheet').hidden = $('#sheetC').hidden = false;
+  $('#sheetT').textContent = t('restartAsk'); $('#sheetB').textContent = t('restartYes'); $('#sheetC').textContent = t('restartNo');
+};
+$('#sheetB').onclick = () => start(asking ? startState(S.level, S.fails) : won(S) ? startState(S.level + 1, 0) : startState(S.level, S.fails + 1));
+$('#sheetC').onclick = keep;
+$('#sheet').onclick = e => { if (asking && e.target === $('#sheet')) keep(); };
+addEventListener('keydown', e => { if (asking && e.key === 'Escape') keep(); });
 
 /* ---------- moves ---------- */
 function shoot() {
@@ -104,16 +116,19 @@ function land() {
 /* ---------- input ---------- */
 const pos = e => { const b = cv.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top - PAD }; };
 const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
+// Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
+// A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
   if (!$('#sheet').hidden) return;
+  if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
   // the whole strip at the shooter's height swaps; a touch that starts there never aims or fires
-  if (p.y > SY() * sc - Math.max(1.6 * sc, 22)) { aim = null; aiming = false; swapping = true; if (S.cur !== null) { swap(S); save(); } return; }
-  swapping = false; aiming = true; cv.setPointerCapture(e.pointerId); setAim(p);
+  if (p.y > SY() * sc - Math.max(1.6 * sc, 22)) { if (S.cur !== null) { swap(S); save(); } return; }
+  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); setAim(p);
 });
-cv.addEventListener('pointermove', e => { if (aiming && !swapping) setAim(pos(e)); });
-cv.addEventListener('pointerup', () => { if (swapping) swapping = false; else if (aiming) { aiming = false; shoot(); } });
-cv.addEventListener('pointercancel', () => { aiming = swapping = false; aim = null; });
+cv.addEventListener('pointermove', e => { if (e.pointerId === aimId) setAim(pos(e)); });
+cv.addEventListener('pointerup', e => { if (e.pointerId === aimId) { aimId = null; shoot(); } });
+cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
   if (n - wheelT > 150 && $('#sheet').hidden && S.cur !== null) { swap(S); save(); } wheelT = n; }, { passive: false });
@@ -123,11 +138,11 @@ addEventListener('resize', fit);
 function draw() {
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);
   g.fillStyle = '#ffffff06'; for (let y = -PAD; y < H; y += 3) g.fillRect(0, y, W, 1);   // scanlines
-  if (!fly) { const tg = target(); view = reduced || Math.abs(tg - view) < .01 ? tg : view + (tg - view) * .08; }
+  if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
   for (const [k, col] of fly ? fly.pre : S.grid) { const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
   g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is
   const a = clampAim(aim ?? 0);
-  if (aiming && a !== null && ready()) {
+  if (aimId !== null && a !== null && ready()) {
     const tr = trace(S.grid, S.cols, a);
     g.strokeStyle = theme.a; g.globalAlpha = .7; g.lineWidth = 2; g.setLineDash([2, 6]);
     g.beginPath(); tr.pts.forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
@@ -146,12 +161,13 @@ function draw() {
   if (S.cur !== null && S.grid.size) { const y = SY() * sc; bubble(X(S.cols), y, S.cur); if (S.next !== null) bubble(X(S.cols + 3), y, S.next, .8, sc * .75); }
   fx = fx.filter(a => {
     a.k++;
-    if (a.t === 'pop') { bubble(X(a.x), a.y * sc, a.col, 1 - a.k / 12, sc * (1 + a.k / 12)); return a.k < 12; }
+    const on = a.y * sc > -2 * sc && a.y * sc < H + 2 * sc;   // skip off-canvas effects (shadowBlur is costly)
+    if (a.t === 'pop') { if (on) bubble(X(a.x), a.y * sc, a.col, 1 - a.k / 12, sc * (1 + a.k / 12)); return a.k < 12; }
     if (a.t === 'fall') {   // glitch jitter seeded from the bubble key
       a.vy += .025; a.y += a.vy; a.x += a.vx + (a.k % 6 < 1 ? (hash(a.key, a.k) % 1000 / 1000 - .5) : 0);
-      bubble(X(a.x), a.y * sc, a.col, .9); return a.y * sc < H + sc;
+      if (on) bubble(X(a.x), a.y * sc, a.col, .9); return a.y * sc < H + sc;
     }
-    g.fillStyle = theme.a; g.font = `bold ${sc * 1.4}px ui-monospace, monospace`; g.textAlign = 'center';
+    g.fillStyle = theme.a; g.font = `bold ${sc * 1.4}px ui-monospace, Menlo, monospace`; g.textAlign = 'center';
     g.globalAlpha = Math.max(0, 1 - a.k / 50); g.fillText(a.s, X(a.x), a.y * sc - a.k); g.globalAlpha = 1; return a.k < 50;
   });
   requestAnimationFrame(draw);

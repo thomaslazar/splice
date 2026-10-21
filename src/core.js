@@ -27,7 +27,7 @@ export function connected(grid, cols) {
 
 /* ---------- shots ---------- */
 import { winRows, makeLayout, colourize, shotLimit, shotsFor } from './levels.js';   // circular: used only inside function bodies
-export const MIN_ANGLE = 0.12, HIT = 0.82 * 2;
+export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 8;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
   return Math.max(0, low - (winRows(cols) - 5));
@@ -65,21 +65,23 @@ export function snap(grid, cols, x, y) {
 }
 
 /* ---------- deal ---------- */
-export const OFFSCREEN_W = 0.3;
+export const OFFSCREEN_W = 0.3, VIS_W = 3;
 export function startState(level, fails) {
   const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
     shots: shotsFor(shotLimit(L), fails), score: 0, cur: null, next: null, hist: [], draws: 0 };
   S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S); return S;
 }
 export function deal(S) {
-  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), top = S.top, vis = new Set(), all = new Set();
-  for (const [k, c] of S.grid) { all.add(c); if (k >> 4 >= top) vis.add(c); }
+  // Visible colours weigh by their share of the visible bubbles; off-screen-only colours are rarer.
+  // No colour three times in a row and one reroll on a repeat, except for the only visible colour.
+  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), top = S.top, vis = new Map(), all = new Set();
+  let nv = 0; for (const [k, c] of S.grid) { all.add(c); if (k >> 4 >= top) { vis.set(c, (vis.get(c) || 0) + 1); nv++; } }
   if (!all.size) return null;
-  const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b);
-  const pool = h.length >= 2 && h[0] === last && l.some(c => c !== last) ? l.filter(c => c !== last) : l;
-  const draw = () => { const w = pool.map(c => vis.has(c) ? 1 : OFFSCREEN_W); let x = rnd() * w.reduce((a, b) => a + b);
+  const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b), only = vis.size === 1 ? [...vis.keys()][0] : null;
+  const pool = h.length >= 2 && h[0] === last && last !== only && l.some(c => c !== last) ? l.filter(c => c !== last) : l;
+  const draw = () => { const w = pool.map(c => vis.has(c) ? 1 + VIS_W * vis.get(c) / nv : OFFSCREEN_W); let x = rnd() * w.reduce((a, b) => a + b);
     for (let i = 0; i < pool.length; i++) if ((x -= w[i]) < 0) return pool[i]; return pool[pool.length - 1]; };
-  let c = draw(); if (c === last && pool.length > 1) c = draw();
+  let c = draw(); if (c === last && c !== only && pool.length > 1) c = draw();
   h.push(c); if (h.length > 2) h.shift(); return c;
 }
 
@@ -99,7 +101,10 @@ export function fire(S, ang) {
   for (const k of popped) S.grid.delete(k);
   if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { S.grid.delete(k); dropped.push(k); } }
   const points = 10 * popped.length + 10 * dropped.length ** 2;
-  S.top = Math.min(S.top, viewTop(S.grid, S.cols));   // never retracts, only moves toward the ceiling
+  // Never retracts; moves toward the ceiling only once just the top SCROLL_AT visible rows hold
+  // bubbles, or at most SCROLL_FEW bubbles are left on screen.
+  let low = -1, nv = 0; for (const k of S.grid.keys()) { low = Math.max(low, k >> 4); if (k >> 4 >= S.top) nv++; }
+  if (low < S.top + SCROLL_AT || nv <= SCROLL_FEW) S.top = Math.min(S.top, viewTop(S.grid, S.cols));
   S.score += points; S.shots--; S.cur = S.next; S.next = deal(S);
   if (S.grid.size) { const has = new Set(S.grid.values());
     if (!has.has(S.cur)) S.cur = deal(S); if (!has.has(S.next)) S.next = deal(S); }

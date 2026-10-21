@@ -122,6 +122,37 @@ test('clearing lets the view move toward the ceiling', () => {
   fire(S, aimAt(S, 0, 5));
   assert.ok(S.top < before);
 });
+test('the view waits until only the top two visible rows hold bubbles', () => {
+  const cells = []; for (let r = 0; r < 40; r++) cells.push([r, 0, 1 + (r % 3)]);
+  for (let r = 27; r < 30; r++) for (let c = 1; c < 5; c++) cells.push([r, c, 4]);
+  const S = stateWith(10, cells, 1); S.top = viewTop(S.grid, 10);
+  const top = S.top; assert.equal(top, 27);
+  for (let r = top + 3; r < 40; r++) S.grid.delete(key(r, 0));   // lowest bubble now in the third visible row, 15 on screen
+  fire(S, aimAt(S, 0, 7));
+  assert.equal(S.top, top);
+  for (let c = 0; c < 5; c++) S.grid.delete(key(top + 2, c));   // only the top two visible rows left
+  fire(S, aimAt(S, 0, 8));
+  assert.ok(S.top < top);
+});
+test('the view also moves once 8 or fewer bubbles are on screen', () => {
+  const cells = []; for (let r = 0; r < 40; r++) cells.push([r, 0, 1 + (r % 3)]);
+  const S = stateWith(10, cells, 1); S.top = viewTop(S.grid, 10);
+  const top = S.top;
+  for (let r = top + 9; r < 40; r++) S.grid.delete(key(r, 0));   // 9 on screen, lowest far below the top rows
+  fire(S, aimAt(S, 0, 7));
+  assert.equal(S.top, top);
+  S.grid.delete(key(top + 8, 0));   // 8 left on screen
+  fire(S, aimAt(S, 0, 8));
+  assert.ok(S.top < top);
+});
+test('dealing favours the colour that dominates the screen', () => {
+  const cells = []; for (let r = 0; r < 40; r++) cells.push([r, 0, r < 27 ? 1 + (r % 5) : 0]);
+  for (let r = 27; r < 40; r++) for (let c = 1; c < 3; c++) cells.push([r, c, 0]);
+  const S = stateWith(10, cells, 0); S.top = viewTop(S.grid, 10);
+  const seq = Array.from({ length: 3000 }, () => deal(S));
+  assert.ok(seq.filter(c => c === 0).length / seq.length > 0.6, 'the only visible colour should come most of the time');
+  assert.ok(seq.some(c => c !== 0), 'off-screen colours still come sometimes');
+});
 test('a bubble on the loss line loses even with shots left', () => {
   const S = stateWith(10, [[0, 4, 1]], 2); S.top = 0;
   S.grid.set(key(lossRow(S), 4), 2);

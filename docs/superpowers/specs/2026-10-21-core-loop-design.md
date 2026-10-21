@@ -62,8 +62,11 @@ prototype settled. Where the prototype's numbers are guesses, this says so.
   tall (17 at 10 columns). Taller phones show extra space or decoration, never more of the
   level. *My call*.
 - At the start of an attempt the view puts the lowest bubble at that fixed row, 4 rows
-  above the shooter. As bubbles are cleared, the level slides down smoothly to fill the
-  room. It never scrolls above the ceiling.
+  above the shooter. The view then stays put while the player clears. Only once
+  the screen is cleared down to its top two rows (or entirely), or 8 or fewer bubbles are
+  left on screen, does the level slide down
+  smoothly, bringing the lowest bubble back to 4 rows above the shooter. It never
+  scrolls above the ceiling.
 - The view only follows clearing: its top row can move toward the ceiling, never away
   from it. Bubbles the player sticks below
   the lowest row stay where they land and come closer to the shooter; the board does not
@@ -111,7 +114,10 @@ prototype settled. Where the prototype's numbers are guesses, this says so.
 ## Colour dealing
 
 - Colours come from those still on the board.
-- Colours present only off-screen get weight 0.3; colours visible on screen get weight 1.
+- Colours present only off-screen get weight 0.3. A colour visible on screen gets weight
+  1 + 3 × its share of the bubbles on screen, so a colour that dominates the screen comes
+  most often (owner's playtest: a one-colour line on screen went 5 packets without its colour).
+- The no-three-in-a-row rule and the repeat reroll do not apply to the only colour on screen.
   The owner wants the whole board in play but not to make it too easy.
 - Never the same colour three times in a row, unless it is the only colour left.
 - If a draw repeats the previous colour, draw once more (cuts repeats to about 11%).

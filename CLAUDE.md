@@ -47,8 +47,10 @@ one fewer on odd rows.
 - **geometry**: `nbrs(cols, r, c)`, `connected(grid, cols)` (flood fill from row 0).
 - **shots**: `viewTop`/`shooterPos` (`viewTop` is the ideal top row: lowest bubble row minus
   `winRows - 5`, so the lowest bubble starts 4 rows above the shooter). The real view is
-  `S.top`: set by `startState`, then `min(S.top, viewTop)` after every `fire`, so it moves toward
-  the ceiling and never retracts when bubbles land lower. The shooter sits at
+  `S.top`: set by `startState`. After a `fire` it becomes `min(S.top, viewTop)` only when the
+  lowest bubble is in the top `SCROLL_AT` (2) visible rows or above them, so the level slides down
+  in steps once the screen is nearly cleared (or once `SCROLL_FEW` (8) or fewer bubbles are on
+  screen), and never retracts when bubbles land lower. The shooter sits at
   `S.top + winRows - 1`; `shooterPos(grid, cols, top)` and `trace(grid, cols, ang, top)` default
   `top` to `viewTop`, `fire`/`deal` pass `S.top`. Loss line: `lossRow(S)` = `S.top + winRows - 2`,
   the row above the shooter; `lost(S)` is no shots left or any bubble at or below it.
@@ -57,8 +59,10 @@ one fewer on odd rows.
   `snap` picks the nearest free cell that touches the ceiling or a bubble.
 - **deal**: `startState(level, fails)` builds the state `S` (`grid, shots, score, cur, next,
   hist, draws, ...`). `deal(S)` draws a colour still on the board, seeded from
-  `(level, fails, draws)`. Colours not visible at the current view are 0.3 times as likely
-  (`OFFSCREEN_W`); the same colour three times in a row is avoided.
+  `(level, fails, draws)`. A visible colour weighs `1 + VIS_W * its share of the visible
+  bubbles` (`VIS_W` = 3), so a colour that dominates the screen comes most often; colours only
+  off-screen weigh `OFFSCREEN_W` (0.3). The same colour three times in a row is avoided, and a
+  repeat is rerolled once, except for the only colour on screen.
 - **moves**: `swap`, `won`, `lost`, `fire(S, ang)` (returns `{pts, cell, popped, dropped,
   points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
   are re-dealt if their colour left the board).

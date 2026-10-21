@@ -61,12 +61,17 @@ prototype settled. Where the prototype's numbers are guesses, this says so.
   shooter sits 4 rows below the lowest bubble, and the window is `round(1.7 × COLS)` rows
   tall (17 at 10 columns). Taller phones show extra space or decoration, never more of the
   level. *My call*.
-- The view keeps the lowest bubble at that fixed row just above the shooter. As bubbles are cleared, the level slides
-  down smoothly to fill the room. It never scrolls above the ceiling.
+- At the start of an attempt the view puts the lowest bubble at that fixed row, 4 rows
+  above the shooter. As bubbles are cleared, the level slides down smoothly to fill the
+  room. It never scrolls above the ceiling.
+- The view only follows clearing: its top row can move toward the ceiling, never away
+  from it. Bubbles the player sticks below
+  the lowest row stay where they land and come closer to the shooter; the board does not
+  retract to make room. The view's top row is part of the saved state.
 - When the ceiling (row 0) is on screen, a bright line marks it.
 - Aiming and firing wait until the scroll has settled.
-- There is no ceiling drop and no loss line: with the view following the lowest bubble,
-  the shot limit carries all the pressure.
+- There is no ceiling drop. A dashed loss line marks the row directly above the shooter
+  row; see Win and loss. Apart from that, the shot limit carries the pressure.
 
 ## Aiming and shots
 
@@ -175,7 +180,9 @@ Each section is generated on its own from the level's seeded PRNG:
 ## Win and loss
 
 - Win: board empty. Sheet: "Root access". Tap to go to the next level.
-- Loss: out of shots. Sheet: "Flatline". Tap to retry (fails + 1).
+- Loss: out of shots, or a bubble lands on or below the loss line (the row directly above
+  the shooter row or lower), so the player has closed off their own shooter. Sheet:
+  "Flatline". Tap to retry (fails + 1).
 - Restart: a small control in the HUD restarts the level at any time. It does not count
   as a fail, so it cannot be used to farm the easing. A restart replays the level exactly
   as this attempt started (same colours and dealing, since `fails` is unchanged).

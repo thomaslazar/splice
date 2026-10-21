@@ -15,9 +15,13 @@ Read before changing behaviour:
 - Run: serve the folder (`python3 -m http.server`) and open http://localhost:8000/.
   `file://` does not work (ES modules, `fetch` for `lang/`).
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
-- Balance: `node tools/sim.mjs [levels] [runs] [--unlimited]`, e.g. `node tools/sim.mjs 3,25,50 3`.
-  Without arguments it plays levels 1, 3, 5, 10 ... 60 once. `--unlimited` removes the shot
-  limit, to measure the shots a level really needs.
+- Balance: `node tools/sim.mjs [levels] [runs] [--unlimited]`, e.g. `node tools/sim.mjs 3,25,50 3`
+  or `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
+  Run `r` plays with `fails = r` (no easing below 4). It reports win rate and median shots
+  left per kind and per difficulty band (1-10, 11-25, 26-40, 41+). `--unlimited` removes
+  the shot limit, to measure the shots a level really needs.
+- Fit: `node tools/fit.mjs [levels] [runs]` (default `1-240 4`, about 12 minutes) plays the
+  sample without a limit, fits `SHOT_K` and prints it with per-band results.
 
 ## Files
 
@@ -28,7 +32,7 @@ Read before changing behaviour:
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
   now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
   `tests/lang.test.mjs` checks the lang files.
-- `tools/sim.mjs`: greedy bot over the core API.
+- `tools/sim.mjs`: greedy bot over the core API. `tools/fit.mjs`: fits `SHOT_K` with it.
 - `spike/`: the throwaway prototype the design numbers came from. Not part of the game.
 - `docs/superpowers/`: the spec and the plan for the core loop.
 
@@ -62,21 +66,30 @@ function bodies, so keep it that way.
 
 - `difficulty(level)` ramps to 1 at level 40. `isLong(level)`: every 5th level is longer.
   `winRows(cols)` is the visible height in rows.
-- `makeLayout(level)` (cached) depends on the level only. Kind is `designed` or `noise`
+- `makeLayout(level)` (cached, last 4 levels) depends on the level only. Kind is `designed` or `noise`
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
   downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group. `addStems` joins loose
   parts to the ceiling. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours.
-- Shot limit: `shotLimit(layout)` = `ceil(a * groups + b * cells / nColours + c)` with
-  `SHOT_K = { designed: {a: 1.05, b: 0, c: 1}, noise: {a: 0, b: 0.8, c: 32} }`.
-  `shotsFor(base, fails)` adds 10% per fail from the 4th, capped at +40%.
-- Calibration (sim): the bot wins about 95% of sampled designed levels and 96% of noise
-  levels, with median shots left about 39% and 21%. The spec's 5 to 15% target was not
-  reachable: the shots one level needs vary by up to 25% across colourings, and no layout
-  feature predicts that. Extra features overfit on held-out levels. If levels feel too easy,
-  tighten `SHOT_K` and rerun the sim.
+- Shot limit: `shotLimit(layout)` = `ceil(k * bubbles^cells * colours^colours * cols^cols)`
+  (at least 1) with `SHOT_K` per kind holding `k` and the exponents. More colours need far
+  more shots per bubble (the bot needs about 0.055 at 3 colours, 0.10 designed and 0.17
+  noise at 6), so the colour exponent is large (0.86 designed, 1.87 noise); wider boards
+  need fewer. Difficulty stops rising at level 40, so the features and limits stay in the
+  same range beyond it. `shotsFor(base, fails)`
+  adds 10% per fail from the 4th, capped at +40%.
+- Calibration (`tools/fit.mjs`, levels 1-240, 4 colourings each, alternate levels of each
+  kind held out): `k` is scaled until the bot wins at least 95% in every difficulty band of
+  the training half. Sim with the shipped constants, fails 0 to 3 (no easing):
+  designed 1-10 100% / 34% median shots left, 11-25 94% / 38%, 26-40 98% / 34%;
+  unseen levels 241-320: designed 96% / 35%, noise 100% / 31%; noise 1-40 100% / 22 to 50%
+  (only six noise levels exist below 41). The spec's 5 to 15% shots left is not reachable
+  at 95% wins: the shots one level needs vary by about 20% (log sd 0.2) across colourings
+  alone, so a 95% win rate needs a limit about 1.4 times the typical need. Noise wins 100%
+  because its few early levels set the scale; tighten the noise `k` if noise feels easy.
+  Rerun `node tools/fit.mjs` after any change to generation, rules or the bot.
 
 ## UI (`src/ui.js`)
 
@@ -89,17 +102,21 @@ function bodies, so keep it that way.
 - View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
   `sc` is px per radius. `view` is the top row shown and eases toward `viewTop` (instantly
   with reduced motion). The ceiling line is drawn only when row 0 is on screen.
-- Input: pointer drag aims (`setAim`), release fires (`shoot`). A touch that starts in the
-  strip at the shooter's height swaps `cur` and `next` and never aims or fires. The mouse
-  wheel also swaps (one swap per gesture). Input is ignored while a packet flies, the view
-  is scrolling or a sheet is open (`ready()`).
+- Input: pointer drag aims (`setAim`), release fires (`shoot`). Only the pointer that started
+  the aim (`aimId`) moves and fires it; a second pointer during an aim cancels it without a
+  shot. A touch that starts in the strip at the shooter's height swaps `cur` and `next` and
+  never aims or fires. The mouse wheel also swaps (one swap per gesture). Swapping works
+  any time no sheet is open, also while a packet flies. Aiming and firing wait until the
+  packet has landed, the view has settled and no sheet is open (`ready()`).
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
   jitter seeded from the key) and a `-n` text (only for drops of 6 or more). With reduced motion, results show at once.
-- Sheets: one result sheet for win ("Root access") and loss ("Flatline"). Next level and
-  Try again start a new state; Restart in the HUD restarts the level and does not count as
-  a fail.
+- Sheets: one sheet for win ("Root access"), loss ("Flatline") and the restart question.
+  Next level and Try again start a new state. Restart in the HUD asks first (`asking`);
+  only its confirm button restarts the level, which does not count as a fail. Keep
+  playing, a tap outside the card or Escape closes it.
 - Saving: `S` is saved whole to `localStorage['splice-v1']` after every shot and swap;
-  `load()` falls back to level 1 if the save is missing or fails `validSave`.
+  if the save fails `validSave` but holds an integer `level` >= 1, `load()` starts that
+  level fresh (keeping a valid `fails`); a missing or unreadable save starts level 1.
 
 ## Not built yet
 

@@ -1,16 +1,110 @@
-# Splice: handover notes
+# Splice: agent notes
 
-Splice is an ad-free, cyberpunk bubble shooter for phones. Aim at the bottom, fire a packet
-up into the hanging cluster at the top; three or more of one colour pop, and anything that
-loses its connection to the ceiling falls. Clear the level to move on. It is a personal
-hobby project and a sibling of Kiln (`../kiln`), built for fun, with endless generated
-levels that never strand the player through bad luck.
+Splice is an ad-free, cyberpunk bubble shooter for phones (vanilla HTML, CSS and ES modules,
+no build step, no dependencies). Aim at the bottom, fire a packet into the hanging cluster;
+three or more of one colour pop, and anything cut off from the ceiling falls. Levels are
+generated endlessly. It is a personal hobby project and a sibling of Kiln (`../kiln`).
 
-Nothing is built yet. This file is the starting brief; replace it with real agent notes
-(like `../kiln/CLAUDE.md`) once the code exists. The core loop design, with the numbers
-from the playtested prototype, is in
-`docs/superpowers/specs/2026-10-21-core-loop-design.md`; where they disagree, the design
-wins.
+Read before changing behaviour:
+- `docs/superpowers/specs/2026-10-21-core-loop-design.md`: the design and the numbers from the
+  playtested prototype. Where this file and the spec disagree, the spec wins.
+- `CONTRIBUTING.md`: code, copy and commit conventions. Follow them.
+
+## Commands
+
+- Run: serve the folder (`python3 -m http.server`) and open http://localhost:8000/.
+  `file://` does not work (ES modules, `fetch` for `lang/`).
+- Test: `node --test` (not `node --test tests/`, which fails on newer Node).
+- Balance: `node tools/sim.mjs [levels] [runs] [--unlimited]`, e.g. `node tools/sim.mjs 3,25,50 3`.
+  Without arguments it plays levels 1, 3, 5, 10 ... 60 once. `--unlimited` removes the shot
+  limit, to measure the shots a level really needs.
+
+## Files
+
+- `index.html`: markup (HUD, canvas, result sheet). `style.css`: all styles.
+- `src/core.js`: rules, pure (no DOM, no storage). Tested in `tests/core.test.mjs`.
+- `src/levels.js`: level generation, colouring, shot limit, pure. Tested in `tests/levels.test.mjs`.
+- `src/ui.js`: language, rendering, input, animation, sheets, saving.
+- `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
+  now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
+  `tests/lang.test.mjs` checks the lang files.
+- `tools/sim.mjs`: greedy bot over the core API.
+- `spike/`: the throwaway prototype the design numbers came from. Not part of the game.
+- `docs/superpowers/`: the spec and the plan for the core loop.
+
+## Core (`src/core.js`)
+
+Sections are marked `/* ---------- name ---------- */`. A level's board is a `Map` from
+`key(r, c)` (`r * 16 + c`) to a colour `0..5`. Positions are in bubble radii: `centre(r, c)`,
+row height `RH` = sqrt(3). Rows are offset: `cellsIn(cols, r)` is `cols` on even rows and
+one fewer on odd rows.
+
+- **random**: `mulberry32`, `hash`. No `Math.random` anywhere in `src/`.
+- **geometry**: `nbrs(cols, r, c)`, `connected(grid, cols)` (flood fill from row 0).
+- **shots**: `viewTop`/`shooterPos` (the view keeps the lowest bubble `winRows - 5` rows
+  above the shooter row), `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the
+  horizon), `trace(grid, cols, ang)` steps 0.25 radii with wall bounces and returns
+  `{pts, cell}` (`HIT` is 0.82 of a bubble diameter), `snap` picks the nearest free cell
+  that touches the ceiling or a bubble.
+- **deal**: `startState(level, fails)` builds the state `S` (`grid, shots, score, cur, next,
+  hist, draws, ...`). `deal(S)` draws a colour still on the board, seeded from
+  `(level, fails, draws)`. Colours not visible at the current view are 0.3 times as likely
+  (`OFFSCREEN_W`); the same colour three times in a row is avoided.
+- **moves**: `swap`, `won`, `lost`, `fire(S, ang)` (returns `{pts, cell, popped, dropped,
+  points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
+  are re-dealt if their colour left the board).
+- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`).
+
+`core.js` and `levels.js` import each other. Uses of the imported names stay inside
+function bodies, so keep it that way.
+
+## Levels (`src/levels.js`)
+
+- `difficulty(level)` ramps to 1 at level 40. `isLong(level)`: every 5th level is longer.
+  `winRows(cols)` is the visible height in rows.
+- `makeLayout(level)` (cached) depends on the level only. Kind is `designed` or `noise`
+  (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
+  Designed levels stack screens of seeded shapes (lines, rhombus, ring, triangle, chevron,
+  bar, shelf), optionally mirrored, each shape or band one group. `addStems` joins loose
+  parts to the ceiling. Noise is full rows, every bubble its own group.
+- `colourize(layout, level, fails)`: colours groups so touching groups differ where
+  possible. Retry (`fails`) keeps the layout and reshuffles the colours.
+- Shot limit: `shotLimit(layout)` = `ceil(a * groups + b * cells / nColours + c)` with
+  `SHOT_K = { designed: {a: 1.05, b: 0, c: 1}, noise: {a: 0, b: 0.8, c: 32} }`.
+  `shotsFor(base, fails)` adds 10% per fail from the 4th, capped at +40%.
+- Calibration (sim): the bot wins about 95% of sampled designed levels and 96% of noise
+  levels, with median shots left about 39% and 21%. The spec's 5 to 15% target was not
+  reachable: the shots one level needs vary by up to 25% across colourings, and no layout
+  feature predicts that. Extra features overfit on held-out levels. If levels feel too easy,
+  tighten `SHOT_K` and rerun the sim.
+
+## UI (`src/ui.js`)
+
+- Language: top-level `await` loads `lang/languages.json`, then `setLang(code)` merges
+  `en.json` with the chosen file into `T`. Choice: `localStorage['splice-lang']`, else the
+  first `navigator.languages` match, else English. `t('key', {n})` fills placeholders.
+  Never put visible text in code; add a key to every `lang/*.json` instead.
+- Look: `THEMES` (accent and background, picked by level), six `HUES` with a symbol each
+  (`sym`), so colour is never the only cue. `bubble()` draws one packet.
+- View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
+  `sc` is px per radius. `view` is the top row shown and eases toward `viewTop` (instantly
+  with reduced motion). The ceiling line is drawn only when row 0 is on screen.
+- Input: pointer drag aims (`setAim`), release fires (`shoot`). A touch that starts in the
+  strip at the shooter's height swaps `cur` and `next` and never aims or fires. The mouse
+  wheel also swaps (one swap per gesture). Input is ignored while a packet flies, the view
+  is scrolling or a sheet is open (`ready()`).
+- Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
+  jitter seeded from the key) and `-n` effects. With reduced motion, results show at once.
+- Sheets: one result sheet for win ("Root access") and loss ("Flatline"). Next level and
+  Try again start a new state; Restart in the HUD restarts the level and does not count as
+  a fail.
+- Saving: `S` is saved whole to `localStorage['splice-v1']` after every shot and swap;
+  `load()` falls back to level 1 if the save is missing or fails `validSave`.
+
+## Not built yet
+
+No PWA or deploy, no self-hosted font (it still uses the system monospace), English only,
+no sound.
 
 ## Theme
 
@@ -44,64 +138,6 @@ like an orphaned process.
 5. Short, plain UI copy in sentence case.
 6. Relaxed, not punishing. A human loses sometimes; a balance bot wins nearly always.
 
-## Core loop
-
-- Board: hex grid in offset rows (`COLS` bubbles on even rows, one fewer on odd). The
-  column count (8, 10 or 12) varies per level for variety.
-- Levels are many screens tall; the view keeps the lowest bubble just above the shooter
-  and scrolls down as room clears. Shots can land off-screen, unseen.
-- Aim: drag to aim, release to fire. The aim line shows the full path, through every
-  wall bounce, to the cell where the packet will land. Shots bounce off the side walls and stick to the ceiling or the first bubble hit,
-  snapping to the nearest free cell.
-- Collision radius a little smaller than the drawn bubble, so shots slip through gaps the
-  player expects them to.
-- Queue: current and next packet visible; tap the strip at the shooter's height (or use
-  the scroll wheel) to swap them.
-- Match: a connected group of three or more of the same colour, including the new packet,
-  pops. Then every bubble no longer connected to the ceiling falls (flood fill from the top
-  row). Dropped bubbles score more than popped ones.
-- Shots: each level has a limited number of shots, shown on screen. Running out with
-  bubbles left is a loss.
-- No ceiling drop: the shot limit is the pressure.
-- Restart any time; it does not count as a fail.
-- Win: board empty.
-- Levels: the seed from the level number defines the layout: which cells hold a bubble
-  and how they group into shapes. Size and number of colours grow with difficulty. The
-  shot limit follows from the layout, so every level is winnable with good aim (check
-  with the bot).
-- Layouts are designs, not just rows: some levels are geometric (for example hanging
-  lines side by side, each one colour, next to a square in another colour), others mix
-  varied forms and colours. Each shape is one group and is coloured as a whole.
-- Other levels are noise: full rows of random colours to grind through, shorter but
-  dense. Noise and designed parts are never mixed in one level.
-- Retry: the layout and its groups stay the same; only the colours are shuffled between
-  groups. A line that was green may be red next time, but it is still one colour. In
-  noise levels each bubble is its own group, so the colours reshuffle freely.
-
-## Architecture (learned from Kiln, start this way)
-
-- Vanilla HTML, CSS and ES modules. No frameworks, no dependencies, no build step.
-- `src/core.js`: all rules, pure (no DOM, no storage): grid and neighbours, shot path and
-  snapping, match and drop, colour dealing, level generation, difficulty. Unit tested with
-  `node --test`.
-- `src/ui.js`: rendering (canvas is fine for the board and aiming; DOM for sheets and
-  menus), input, animation, saving to `localStorage`.
-- Everything random is seeded (`mulberry32` and `hash`, as in Kiln), so a level is
-  reproducible from `(level, fails, salt)`. No `Math.random` in `src/`.
-- Shot physics in fixed steps, so the same aim always gives the same result in the core,
-  the UI and the bot.
-- `tools/sim.mjs`: a bot that plays the core (for example the shot that pops or drops
-  most) and reports win rate and shots per level. Rerun after any balance change.
-- All visible text in `lang/<code>.json`, read with `t('key', {placeholders})`, as in Kiln.
-- PWA (manifest, icons, network-first service worker) and GitHub Pages deploy with a
-  `node --test` check, copied from Kiln once the game is playable.
-- Respect reduced motion: no glitch or fall animations, results show at once.
-
-## Scope for now
-
-Only the core loop: generated levels, aiming, popping, dropping, shot limit, win and loss,
-retry. No special bubbles, goals or chapters yet.
-
 ## Later ideas (parked)
 
 - Hardened bubbles that need two hits.
@@ -109,9 +145,9 @@ retry. No special bubbles, goals or chapters yet.
 - Data cores embedded in the cluster as an alternative level goal, like Kiln's gems.
 - Chapters with their own palette, as in Kiln.
 
-## Conventions
+## Working rules
 
-- See `../kiln/CONTRIBUTING.md`; copy it over and adapt it when the repo starts.
+- Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
+  "Generated with" lines to commits or PR bodies.
 - No em-dashes in UI copy or docs. Use typographic apostrophes (’) in visible text.
-- Always ask before committing. Conventional Commits; never add `Co-Authored-By:` or
-  "Generated with" lines.
+- Rerun `node --test` and the sim after rule or balance changes.

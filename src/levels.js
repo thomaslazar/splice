@@ -98,8 +98,10 @@ function generate(level) {
   return { cols, kind, screens, nColours, cells };
 }
 
-const cache = new Map();
-export const makeLayout = level => { if (!cache.has(level)) cache.set(level, generate(level)); return cache.get(level); };
+const cache = new Map();   // the last few levels only (play asks for one level at a time)
+export const makeLayout = level => { let L = cache.get(level);
+  if (!L) { cache.set(level, L = generate(level)); if (cache.size > 4) cache.delete(cache.keys().next().value); }
+  return L; };
 
 // Colour groups so touching groups differ where possible; retry reshuffles.
 export function colourize(layout, level, fails) {
@@ -125,8 +127,9 @@ export function colourize(layout, level, fails) {
 }
 
 /* ---------- shot limit ---------- */
-export const SHOT_K = { designed: { a: 1.05, b: 0, c: 1 }, noise: { a: 0, b: 0.8, c: 32 } };
+// k * bubbles^cells * colours^colours * cols^cols per kind; fitted by tools/fit.mjs (bot wins ~95%).
+export const SHOT_K = { designed: { k: 0.5989, cells: 1.042, colours: 0.864, cols: -1.415 }, noise: { k: 0.05063, cells: 0.708, colours: 1.873, cols: 0 } };
 export const groupCount = layout => new Set(layout.cells.values()).size;
-export const shotLimit = layout => { const { a, b, c } = SHOT_K[layout.kind];
-  return Math.ceil(a * groupCount(layout) + b * layout.cells.size / layout.nColours + c); };
+export const shotLimit = layout => { const K = SHOT_K[layout.kind];
+  return Math.max(1, Math.ceil(K.k * layout.cells.size ** K.cells * layout.nColours ** K.colours * layout.cols ** K.cols)); };
 export const shotsFor = (base, fails) => Math.round(base * (1 + 0.1 * Math.min(4, Math.max(0, fails - 3))));

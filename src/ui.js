@@ -141,7 +141,9 @@ function draw() {
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
   for (const [k, col] of fly ? fly.pre : S.grid) { const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
   g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is
-  const ly = Y(1 + (lossRow(S) - .5) * RH);   // loss line: between the loss row and the row above it
+  // loss line: between the loss row and the row above it; tied to the screen, not S.top, so it
+  // stays put while the view eases after a scroll (lossRow(S) - S.top is constant)
+  const ly = Y(1 + (view + lossRow(S) - S.top - .5) * RH);
   g.strokeStyle = theme.a; g.globalAlpha = .5; g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
   const a = clampAim(aim ?? 0);

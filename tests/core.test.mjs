@@ -108,9 +108,11 @@ test('saves round-trip; broken saves are rejected', () => {
 });
 
 test('the view never retracts when bubbles land lower', () => {
-  const S = stateWith(10, [[0, 4, 1], [1, 4, 2], [2, 4, 3]], 4); S.top = 0;
-  fire(S, aimAt(S, 3, 4));
-  assert.equal(S.top, 0);
+  const cells = []; for (let r = 0; r < 30; r++) cells.push([r, 0, 1 + (r % 3)]);
+  const S = stateWith(10, cells, 5); S.top = viewTop(S.grid, 10);
+  const top = S.top; assert.ok(top > 0);
+  fire(S, aimAt(S, 30, 0));
+  assert.equal(S.top, top); assert.ok(viewTop(S.grid, 10) > S.top, 'the old view would have moved down');
 });
 test('clearing lets the view move toward the ceiling', () => {
   const cells = []; for (let r = 0; r < 40; r++) cells.push([r, 0, 1 + (r % 3)]);
@@ -128,7 +130,7 @@ test('a bubble on the loss line loses even with shots left', () => {
   assert.ok(!lost(S));
 });
 test('saves keep the view top', () => {
-  const S = startState(7, 0); S.top = Math.max(0, S.top - 1);
+  const S = startState(7, 0); S.top = 3;
   const o = JSON.parse(JSON.stringify(toSave(S)));
   assert.equal(fromSave(o).top, S.top); assert.ok(!validSave({ ...o, top: -1 })); assert.ok(!validSave({ ...o, top: undefined }));
 });

@@ -46,14 +46,15 @@ one fewer on odd rows.
 - **random**: `mulberry32`, `hash`. No `Math.random` anywhere in `src/`.
 - **geometry**: `nbrs(cols, r, c)`, `connected(grid, cols)` (flood fill from row 0).
 - **shots**: `viewTop`/`shooterPos` (`viewTop` is the ideal top row: lowest bubble row minus
-  `winRows - 5`). The real view is `S.top`: set by `startState`, then `min(S.top, viewTop)` after
-  every `fire`, so it moves toward the ceiling and never retracts when bubbles land lower. The
-  shooter sits at `S.top + winRows - 1`; `shooterPos` and `trace` take `top` (default `viewTop`),
-  `fire`/`deal` pass `S.top`. Loss line: `lossRow(S)` = `S.top + winRows - 2`, the row above the
-  shooter; `lost(S)` is no shots left or any bubble at or below it, `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the
-  horizon), `trace(grid, cols, ang)` steps 0.25 radii with wall bounces and returns
-  `{pts, cell}` (`HIT` is 0.82 of a bubble diameter), `snap` picks the nearest free cell
-  that touches the ceiling or a bubble.
+  `winRows - 5`, so the lowest bubble starts 4 rows above the shooter). The real view is
+  `S.top`: set by `startState`, then `min(S.top, viewTop)` after every `fire`, so it moves toward
+  the ceiling and never retracts when bubbles land lower. The shooter sits at
+  `S.top + winRows - 1`; `shooterPos(grid, cols, top)` and `trace(grid, cols, ang, top)` default
+  `top` to `viewTop`, `fire`/`deal` pass `S.top`. Loss line: `lossRow(S)` = `S.top + winRows - 2`,
+  the row above the shooter; `lost(S)` is no shots left or any bubble at or below it.
+  `clampAim` (null if aiming down, else keeps `MIN_ANGLE` off the horizon); `trace` steps 0.25
+  radii with wall bounces and returns `{pts, cell}` (`HIT` is 0.82 of a bubble diameter);
+  `snap` picks the nearest free cell that touches the ceiling or a bubble.
 - **deal**: `startState(level, fails)` builds the state `S` (`grid, shots, score, cur, next,
   hist, draws, ...`). `deal(S)` draws a colour still on the board, seeded from
   `(level, fails, draws)`. Colours not visible at the current view are 0.3 times as likely
@@ -61,8 +62,8 @@ one fewer on odd rows.
 - **moves**: `swap`, `won`, `lost`, `fire(S, ang)` (returns `{pts, cell, popped, dropped,
   points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
   are re-dealt if their colour left the board).
-- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`; includes `top`, an old save without it fails
-  validation and restarts its level).
+- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`). Saves include `top`; an old save without it fails
+  validation and restarts its level.
 
 `core.js` and `levels.js` import each other. Uses of the imported names stay inside
 function bodies, so keep it that way.

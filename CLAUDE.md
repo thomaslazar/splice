@@ -7,7 +7,10 @@ hobby project and a sibling of Kiln (`../kiln`), built for fun, with endless gen
 levels that never strand the player through bad luck.
 
 Nothing is built yet. This file is the starting brief; replace it with real agent notes
-(like `../kiln/CLAUDE.md`) once the code exists.
+(like `../kiln/CLAUDE.md`) once the code exists. The core loop design, with the numbers
+from the playtested prototype, is in
+`docs/superpowers/specs/2026-10-21-core-loop-design.md`; where they disagree, the design
+wins.
 
 ## Theme
 
@@ -43,21 +46,24 @@ like an orphaned process.
 
 ## Core loop
 
-- Board: hex grid in offset rows (for example 8 bubbles on even rows, 7 on odd), stored as
-  a flat array like Kiln (`0` empty, `1..n` colour).
+- Board: hex grid in offset rows (`COLS` bubbles on even rows, one fewer on odd). The
+  column count (8, 10 or 12) varies per level for variety.
+- Levels are many screens tall; the view keeps the lowest bubble just above the shooter
+  and scrolls down as room clears. Shots can land off-screen, unseen.
 - Aim: drag to aim, release to fire. The aim line shows the full path, through every
   wall bounce, to the cell where the packet will land. Shots bounce off the side walls and stick to the ceiling or the first bubble hit,
   snapping to the nearest free cell.
 - Collision radius a little smaller than the drawn bubble, so shots slip through gaps the
   player expects them to.
-- Queue: current and next packet visible; tap to swap them.
+- Queue: current and next packet visible; tap the strip at the shooter's height (or use
+  the scroll wheel) to swap them.
 - Match: a connected group of three or more of the same colour, including the new packet,
   pops. Then every bubble no longer connected to the ceiling falls (flood fill from the top
   row). Dropped bubbles score more than popped ones.
 - Shots: each level has a limited number of shots, shown on screen. Running out with
   bubbles left is a loss.
-- Pressure: after a set number of shots that pop nothing, the ceiling drops one row. A
-  bubble crossing the line above the shooter is a loss.
+- No ceiling drop: the shot limit is the pressure.
+- Restart any time; it does not count as a fail.
 - Win: board empty.
 - Levels: the seed from the level number defines the layout: which cells hold a bubble
   and how they group into shapes. Size and number of colours grow with difficulty. The
@@ -66,8 +72,8 @@ like an orphaned process.
 - Layouts are designs, not just rows: some levels are geometric (for example hanging
   lines side by side, each one colour, next to a square in another colour), others mix
   varied forms and colours. Each shape is one group and is coloured as a whole.
-- Other levels are noise: full rows of random colours to grind through. The generator
-  mixes both kinds, so some levels play strategically and others are a slog.
+- Other levels are noise: full rows of random colours to grind through, shorter but
+  dense. Noise and designed parts are never mixed in one level.
 - Retry: the layout and its groups stay the same; only the colours are shuffled between
   groups. A line that was green may be red next time, but it is still one colour. In
   noise levels each bubble is its own group, so the colours reshuffle freely.

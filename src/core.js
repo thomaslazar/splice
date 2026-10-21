@@ -113,5 +113,6 @@ export function validSave(o) {
   return !!o && o.v === 1 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
     [8, 10, 12].includes(o.cols) && Array.isArray(o.grid) &&
     o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && col(e[1])) &&
-    nul(o.cur) && nul(o.next);
+    nul(o.cur) && nul(o.next) && ['designed', 'noise'].includes(o.kind) &&
+    Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws].every(n => Number.isInteger(n) && n >= 0);
 }

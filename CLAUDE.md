@@ -178,6 +178,15 @@ label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and 
   over `STRIP_MS` (400 ms, instant with reduced motion) to `STRIP` (two rows), refitting every
   frame; it opens only when no packet flies, and `ready()` waits until it is fully open. Open at
   once when a level starts or loads at the ceiling.
+- Running out of shots: at 25% or fewer the packets bar, its number and the loss line turn amber;
+  at 3 or fewer they turn red and pulse (colours only with reduced motion). Same thresholds as the
+  trace log lines; fixed colours in every theme. The two trace events also flash once, big, in the
+  middle of the screen (`#alert`, "Trace rising" amber / "Trace critical" red, about 1.4 s, never
+  blocks taps; static with reduced motion).
+- No zoom and no landscape: the viewport sets `maximum-scale=1, user-scalable=no`, `gesturestart` and
+  `gesturechange` are blocked (iOS ignores the meta), the second touchend of a quick double tap is
+  cancelled outside buttons (iOS double-tap zoom), and phones held sideways (landscape, height
+  500 px or less) get a full-screen "Turn your phone upright to play." card, as in Kiln.
 - Win sequence (`win`): after the winning shot lands, the root access log line, `QUIET` (600 ms),
   `GLITCH` (1200 ms: the host bursts apart sideways in horizontal slices, quick at first then
   slowing, flickering into the accent colour, and stays in pieces; a reload on a won board shows

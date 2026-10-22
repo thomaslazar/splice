@@ -24,6 +24,7 @@ function pickLang() {
   return 'en';
 }
 await setLang(pickLang());
+$('#turnText').textContent = t('turnPhone');
 
 /* ---------- look ---------- */
 const HUES = [330, 185, 95, 42, 270, 5];   // magenta, cyan, acid, amber, violet, red
@@ -83,13 +84,16 @@ async function begin(level, fails) {
   await new Promise(r => setTimeout(r, Math.max(0, LOAD_MIN - (performance.now() - t0))));
   $('#load').hidden = true; loading = false; start(s);
 }
+// Running out: 'low' at 25% of the shots or fewer, 'crit' at 3 or fewer (same thresholds as the trace log lines).
+const warn = () => S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
+const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#host').textContent = hostFor(S.level).label;
   $('#lvl').textContent = t('lvl', { n: S.level }); $('#score').textContent = S.score;
   $('#restart').textContent = t('restart'); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
   const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
-  $('#pk').textContent = t('packets'); $('#shots').textContent = S.shots;
+  $('#pk').textContent = t('packets'); $('#shots').textContent = S.shots; $('#bar').dataset.warn = warn();
   $('#segs').innerHTML = '<i class="on"></i>'.repeat(lit) + '<i></i>'.repeat(n - lit);
 }
 function fit() {
@@ -123,6 +127,13 @@ function setTheme(level) {
 /* ---------- run log ---------- */
 // Two visible lines, newest on top, in memory only. Once-flags: host, trace rising, trace critical.
 let lines = [], seen = {}, logTop = 0, logPct = 0;
+// A trace warning also flashes once, big, in the middle of the screen (amber, then red).
+let alertT;
+function flash(kind) {
+  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : t('alertTrace'); a.dataset.kind = kind;
+  a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
+  clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 1400);
+}
 function log(text) { lines.unshift(text); lines.length = Math.min(lines.length, 2); showLog(); }
 function showLog() {
   const el = $('#log'); el.textContent = '';
@@ -140,7 +151,8 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
   if (dropped >= 6) log(t('logBreach', { n: dropped }));
   const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
   const f = flagged();
-  for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) { seen[n] = true; log(text); }
+  for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) {
+    seen[n] = true; log(text); if (n !== 'host') flash(n); }
   if (lost(S)) log(t('logLost')); else if (won(S)) log(t('logRoot', { host: hostFor(S.level).owner }));
 }
 function start(s) {
@@ -237,7 +249,9 @@ function draw() {
   // loss line: between the loss row and the row above it; tied to the screen, not S.top, so it
   // stays put while the view eases after a scroll (lossRow(S) - S.top is constant)
   const ly = Y(1 + (view + lossRow(S) - S.top - .5) * RH);
-  g.strokeStyle = theme.a; g.globalAlpha = .5; g.lineWidth = 2; g.setLineDash([8, 6]);
+  const w = warn();   // the loss line turns amber, then pulses red, as shots run out
+  g.strokeStyle = WARN[w] || theme.a; g.globalAlpha = w === 'crit' && !reduced ? .45 + .4 * Math.sin(performance.now() / 160) : .5;
+  g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
   const a = clampAim(aim ?? 0);
   if (aimId !== null && a !== null && ready()) {
@@ -272,5 +286,9 @@ function draw() {
 }
 // No zoom: iOS ignores user-scalable=no, so block Safari's pinch gestures (double-tap is off via touch-action)
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault());
+// iOS can still zoom on a quick double tap despite touch-action: cancel the second touchend of a
+// double tap (buttons keep their clicks; the board uses pointer events, which still arrive)
+let lastTap = 0;
+document.addEventListener('touchend', e => { if (e.timeStamp - lastTap < 350 && !e.target.closest('button')) e.preventDefault(); lastTap = e.timeStamp; }, { passive: false });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});   // offline play
 { const l = load(); Array.isArray(l) ? begin(...l) : start(l); } draw();

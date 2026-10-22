@@ -33,6 +33,26 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
 #segs { display: flex; gap: 3px; }
 #segs i { width: 6px; height: 10px; background: var(--acc); opacity: .18; }
 #segs i.on { opacity: 1; }
+#bar[data-warn=low] b, #bar[data-warn=low] #pk { color: #ffb020; } #bar[data-warn=low] #segs i { background: #ffb020; }
+#bar[data-warn=crit] b, #bar[data-warn=crit] #pk { color: #ff2a4a; } #bar[data-warn=crit] #segs i { background: #ff2a4a; }
+#bar[data-warn=crit] { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+/* trace warning flash: once, centred, never blocks taps */
+#alert { position: fixed; left: 0; right: 0; top: 40%; z-index: 20; pointer-events: none; text-align: center; padding: 14px 0;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,.75) 20%, rgba(0,0,0,.75) 80%, transparent);
+  font-size: 30px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #ffb020; text-shadow: 0 0 18px #ffb020;
+  animation: flash 1.4s ease-out forwards; }
+#alert[data-kind=critical] { color: #ff2a4a; text-shadow: 0 0 18px #ff2a4a; }
+#alert[hidden] { display: none; }
+@keyframes flash { 0% { opacity: 0; transform: scale(1.25); } 12% { opacity: 1; transform: scale(1); } 22% { opacity: .35; } 32% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #alert { animation: none; } }
+/* phones held sideways: the board does not fit, so ask to turn upright (iOS ignores the manifest lock) */
+#turn { display: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  #turn { display: flex; position: fixed; inset: 0; z-index: 100; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
+  #turn p { margin: 0; max-width: 22em; text-align: center; font-size: 1.2rem; font-weight: 600; color: var(--fg); }
+}
+@media (prefers-reduced-motion: reduce) { #bar[data-warn=crit] { animation: none; } }
 /* run log: two lines reserved */
 #log { height: 2.8em; padding: 2px 12px; font: 11px/1.4 ui-monospace, Menlo, monospace; }
 #log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

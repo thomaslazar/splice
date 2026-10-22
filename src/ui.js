@@ -192,7 +192,7 @@ const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
-  if (!$('#sheet').hidden || e.timeStamp < calmAt || busy()) return;
+  if (e.button !== 0 || !$('#sheet').hidden || e.timeStamp < calmAt || busy()) return;   // left button, touch or pen only
   if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
   // the whole strip at the shooter's height swaps; a touch that starts there never aims or fires

@@ -121,8 +121,8 @@ function pool(tier, stretch) {   // 24 recurring corporations per tier and 30-le
 function rawHost(level, r) {
   const tier = tierFor(level);
   if (r() < 1 / 6) {
-    const list = Object.entries(GOV_SYSTEMS[tier]), system = weighted(r, list);
-    return { owner: govName(r, system), gov: true, industry: 'gov', tier, list, system };
+    const list = Object.entries(GOV_SYSTEMS[tier]);   // named in settle, once the system is final
+    return { owner: null, gov: true, industry: 'gov', tier, list, system: weighted(r, list) };
   }
   const P = pool(tier, Math.floor((level - 1) / 30)), i = Math.floor(r() * 24);
   const list = systemsOf(tier, P[i].industry);
@@ -146,6 +146,7 @@ function settle(level, recent) {
       if (h.owner !== prev.owner || h.system !== prev.system) break;
     }
   }
+  while (h.gov && (!h.owner || prev?.owner === h.owner && prev.system === h.system)) h.owner = govName(r, h.system);
   const theme = themeFor(level).hue; let hue = Math.floor(r() * 5); if (hue >= theme) hue++;
   const { owner, gov, industry, system, tier } = h;
   return { owner, gov, industry, system, tier, label: `${owner} // ${system}`.toUpperCase(), shape: shapeOf(system), hue,

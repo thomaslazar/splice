@@ -53,3 +53,11 @@ test('labels are short: 95% within 40 characters, none over 52', () => {
   assert.ok(L.filter(x => x <= 40).length / N >= 0.95);
   assert.ok(Math.max(...L) <= 52, `max ${Math.max(...L)}`);
 });
+test('label limits hold everywhere: none over 52, a government jurisdiction only within 40', () => {
+  const BASE = /^(Ministry of|Bureau of|Office of|Department of|Commission for) |^Directorate \d+$|^[A-Z]{4}$/;
+  for (let lv = 1; lv <= 20000; lv++) {
+    const h = hostFor(lv);
+    assert.ok(h.label.length <= 52, `level ${lv}: ${h.label}`);
+    if (h.gov && !BASE.test(h.owner)) assert.ok(h.label.length <= 40, `level ${lv}: ${h.label}`);
+  }
+});

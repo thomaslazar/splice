@@ -172,3 +172,18 @@ test('saves keep the view top', () => {
   const o = JSON.parse(JSON.stringify(toSave(S)));
   assert.equal(fromSave(o).top, S.top); assert.ok(!validSave({ ...o, top: -1 })); assert.ok(!validSave({ ...o, top: undefined }));
 });
+
+test('the state keeps its starting shots and lowest row', () => {
+  const S = startState(3, 0);
+  assert.equal(S.maxShots, S.shots);
+  assert.equal(S.startLow, Math.max(...[...S.grid.keys()].map(k => k >> 4)));
+  const o = JSON.parse(JSON.stringify(toSave(S)));
+  assert.equal(fromSave(o).maxShots, S.maxShots); assert.equal(fromSave(o).startLow, S.startLow);
+});
+test('older saves without the new fields still load', () => {
+  const S = startState(3, 0), o = JSON.parse(JSON.stringify(toSave(S)));
+  delete o.maxShots; delete o.startLow; o.shots = 5;
+  assert.ok(validSave(o));
+  const L = fromSave(o); assert.equal(L.maxShots, 5); assert.equal(L.startLow, S.startLow);
+  assert.ok(!validSave({ ...toSave(S), maxShots: 0 }));
+});

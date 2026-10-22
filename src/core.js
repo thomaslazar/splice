@@ -69,6 +69,7 @@ export function snap(grid, cols, x, y) {
 export const OFFSCREEN_W = 0.3, BLOCKED_W = 0.9, VIS_W = 3;
 // The shot limit comes from the bot playing this exact attempt (see bot.js); cached, since restart replays it.
 const need = new Map();
+const lowRow = grid => { let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4); return low; };
 export function startState(level, fails) {
   const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
     shots: Infinity, score: 0, cur: null, next: null, hist: [], draws: 0 };
@@ -76,7 +77,8 @@ export function startState(level, fails) {
   const id = `${level}/${fails}`;
   if (!need.has(id)) { const r = solve(S); need.set(id, r.won ? r.used : Math.max(r.used, Math.ceil(S.grid.size / 3)));
     if (need.size > 8) need.delete(need.keys().next().value); }
-  S.shots = shotsFor(limitFor(need.get(id)), fails); return S;
+  S.shots = shotsFor(limitFor(need.get(id)), fails);
+  S.maxShots = S.shots; S.startLow = lowRow(S.grid); return S;
 }
 // Bubbles the shooter can reach: on screen and touching the open space that connects to the
 // row above the loss line (flood fill through empty cells).
@@ -134,13 +136,15 @@ export function fire(S, ang) {
 
 /* ---------- saves ---------- */
 export const toSave = S => ({ v: 1, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
-  shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws, top: S.top });
-export const fromSave = o => ({ ...o, grid: new Map(o.grid), hist: [...o.hist] });
+  shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws, top: S.top,
+  maxShots: S.maxShots, startLow: S.startLow });
+export const fromSave = o => ({ maxShots: Math.max(o.shots, 1), startLow: lowRow(new Map(o.grid)), ...o, grid: new Map(o.grid), hist: [...o.hist] });
 export function validSave(o) {
   const col = c => Number.isInteger(c) && c >= 0 && c <= 5, nul = c => c === null || col(c);
   return !!o && o.v === 1 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
     [8, 10, 12].includes(o.cols) && Array.isArray(o.grid) &&
     o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && col(e[1])) &&
     nul(o.cur) && nul(o.next) && ['designed', 'noise'].includes(o.kind) &&
-    Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws, o.top].every(n => Number.isInteger(n) && n >= 0);
+    Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws, o.top].every(n => Number.isInteger(n) && n >= 0) &&
+    (o.maxShots === undefined || Number.isInteger(o.maxShots) && o.maxShots >= 1) && (o.startLow === undefined || Number.isInteger(o.startLow) && o.startLow >= 0);
 }

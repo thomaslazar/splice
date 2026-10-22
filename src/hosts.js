@@ -48,14 +48,12 @@ const INDUSTRIES = {
   energy: [['Energy', 'Power'], { 'reactor control': 4, 'grid control': 4, telemetry: 2 }],
   ai: [['AI', 'Systems', 'Cognition'], { core: 4, 'training cluster': 3, 'r&d node': 2 }],
 };
-const LOW = ['payroll', 'shipping manifest', 'archive', 'ad engine', 'claims db', 'subscriber db'];
 const TOP = ['command', 'weapons r&d', 'launch command', 'core', 'training cluster', 'reactor control', 'surveillance grid'];
-// tier -> industry -> which of its systems that tier may hit
+// tier -> industry weights, and which systems that tier may hit
 const TIERS = {
-  small: { industries: ['logistics', 'media', 'insurance', 'telecom'], ok: s => LOW.includes(s) },
-  corporate: { industries: ['finance', 'biotech', 'pharma', 'energy', 'security', 'telecom'],
-    ok: s => s === 'surveillance grid' || !TOP.includes(s) },   // the grid is also a corporate security system
-  high: { industries: ['defense', 'ai', 'aerospace', 'security', 'energy'],
+  small: { industries: { logistics: 1, media: 1, insurance: 1, telecom: 1 }, ok: s => !TOP.includes(s) },
+  corporate: { industries: { finance: 1, biotech: 1, pharma: 1, energy: 1, security: 1, telecom: 1 }, ok: s => !TOP.includes(s) },
+  high: { industries: { defense: 3, ai: 3, aerospace: 3, security: 1, energy: 1 },
     ok: (s, ind) => !['security', 'energy'].includes(ind) || TOP.includes(s) },
 };
 const systemsOf = (tier, ind) => Object.entries(INDUSTRIES[ind][1]).filter(([s]) => TIERS[tier].ok(s, ind));
@@ -71,10 +69,15 @@ const GOV_SYSTEMS = {
   corporate: { 'tax records': 4, 'census db': 3, customs: 3, 'police records': 3, 'benefits db': 2 },
   high: { 'signals intelligence': 4, 'black archive': 3, 'border command': 3, 'satellite uplink': 2, 'defence command': 2 },
 };
-function govName(r) {
-  const x = r(), base = x < 0.6 ? `${pick(r, GOV_BODIES)} ${pick(r, GOV_TOPICS)}`
-    : x < 0.8 ? `Directorate ${1 + Math.floor(r() * 19)}` : initials(r, 4);
-  return r() < 0.5 ? `${pick(r, JURISDICTIONS)} ${base}` : base;
+const fits = (owner, system, n) => `${owner} // ${system}`.length <= n;
+function govName(r, system) {   // phone-readable: up to 4 tries for a label within 40, never over 52
+  let base;
+  for (let t = 0; !base || !fits(base, system, t < 4 ? 40 : 52); t++) {
+    const x = r();
+    base = x < 0.6 ? `${pick(r, GOV_BODIES)} ${pick(r, GOV_TOPICS)}` : x < 0.8 ? `Directorate ${1 + Math.floor(r() * 19)}` : initials(r, 4);
+  }
+  const full = `${pick(r, JURISDICTIONS)} ${base}`;   // a jurisdiction only when the label stays within 40
+  return r() < 0.5 && fits(full, system, 40) ? full : base;
 }
 
 /* ---------- hosts ---------- */
@@ -107,15 +110,19 @@ function pool(tier, stretch) {   // 24 recurring corporations per tier and 30-le
   const k = `${tier} ${stretch}`; if (pools.has(k)) return pools.get(k);
   const r = mulberry32(hash(stretch, ['small', 'corporate', 'high'].indexOf(tier), 13));
   return pools.set(k, Array.from({ length: 24 }, () => {
-    const industry = pick(r, TIERS[tier].industries);
-    return { owner: `${NAMES[pick(r, PATTERNS[tier])](r)} ${pick(r, INDUSTRIES[industry][0])}`, industry };
+    const industry = weighted(r, Object.entries(TIERS[tier].industries));
+    const longest = systemsOf(tier, industry).reduce((a, [s]) => s.length > a.length ? s : a, '');
+    let owner;   // up to 4 tries for a label within 40 characters, never over 52
+    for (let t = 0; !owner || !fits(owner, longest, t < 4 ? 40 : 52); t++)
+      owner = `${NAMES[pick(r, PATTERNS[tier])](r)} ${pick(r, INDUSTRIES[industry][0])}`;
+    return { owner, industry };
   })).get(k);
 }
 function rawHost(level, r) {
   const tier = tierFor(level);
   if (r() < 1 / 6) {
-    const list = Object.entries(GOV_SYSTEMS[tier]);
-    return { owner: govName(r), gov: true, industry: 'gov', tier, list, system: weighted(r, list) };
+    const list = Object.entries(GOV_SYSTEMS[tier]), system = weighted(r, list);
+    return { owner: govName(r, system), gov: true, industry: 'gov', tier, list, system };
   }
   const P = pool(tier, Math.floor((level - 1) / 30)), i = Math.floor(r() * 24);
   const list = systemsOf(tier, P[i].industry);
@@ -125,18 +132,18 @@ function rawHost(level, r) {
 // so hosts are settled in level order and cached.
 const hosts = [null];
 export function hostFor(level) {
-  for (let k = hosts.length; k <= level; k++) hosts[k] = settle(k, hosts[k - 1]);
+  for (let k = hosts.length; k <= level; k++) hosts[k] = settle(k, hosts.slice(Math.max(1, k - 3), k));
   return hosts[level];
 }
-function settle(level, prev) {
-  const r = mulberry32(hash(level, 11)), h = rawHost(level, r);
+function settle(level, recent) {
+  const r = mulberry32(hash(level, 11)), h = rawHost(level, r), prev = recent.at(-1);
+  // variety: up to three rerolls away from the last three levels' systems
+  for (let t = 0; t < 3 && recent.some(p => p.system === h.system); t++) h.system = weighted(r, h.list);
   if (prev && prev.owner === h.owner && prev.system === h.system) {
-    h.system = weighted(r, h.list);
-    if (h.system === prev.system) {
-      if (h.list.length > 1) h.system = h.list[(h.list.findIndex(([s]) => s === prev.system) + 1) % h.list.length][0];
-      else {   // a one-system corporation: move to the next corporation in the pool
-        Object.assign(h, h.P[(h.i + 1) % 24]); h.list = systemsOf(h.tier, h.industry); h.system = weighted(r, h.list);
-      }
+    if (h.list.length > 1) h.system = h.list[(h.list.findIndex(([s]) => s === prev.system) + 1) % h.list.length][0];
+    else for (let j = 1; j < 24; j++) {   // a one-system corporation: move to the next corporation in the pool that differs
+      Object.assign(h, h.P[(h.i + j) % 24]); h.list = systemsOf(h.tier, h.industry); h.system = weighted(r, h.list);
+      if (h.owner !== prev.owner || h.system !== prev.system) break;
     }
   }
   const theme = themeFor(level).hue; let hue = Math.floor(r() * 5); if (hue >= theme) hue++;

@@ -41,3 +41,15 @@ test('no real brands or agencies', () => {
   const DENY = /\b(NSA|CIA|FBI|MI6|GCHQ|KGB|FSB|Google|Apple|Microsoft|Amazon|Meta|Tesla|Pfizer|Boeing|Lockheed|Raytheon|Siemens|Sony|Samsung|Mitsubishi|Toyota|Arasaka|Militech|Weyland)\b/i;
   for (const h of hosts) assert.ok(!DENY.test(h.owner), h.owner);
 });
+test('systems are spread: within each tier no system exceeds 25% of its hosts', () => {
+  for (const t of ['small', 'corporate', 'high']) {
+    const T = hosts.filter(h => h.tier === t), n = {};
+    for (const h of T) n[h.system] = (n[h.system] || 0) + 1;
+    for (const [s, c] of Object.entries(n)) assert.ok(c / T.length <= 0.25, `${t}: ${s} ${c}/${T.length}`);
+  }
+});
+test('labels are short: 95% within 40 characters, none over 52', () => {
+  const L = hosts.map(h => h.label.length);
+  assert.ok(L.filter(x => x <= 40).length / N >= 0.95);
+  assert.ok(Math.max(...L) <= 52, `max ${Math.max(...L)}`);
+});

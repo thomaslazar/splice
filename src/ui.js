@@ -75,7 +75,7 @@ function load() {   // a valid save, or [level, fails] to begin: an invalid save
 // begins behind a short loading card; it stays up at least LOAD_MIN so it never just flickers.
 const LOAD_MIN = 500; let loading = false;
 async function begin(level, fails) {
-  loading = true; aim = aimId = null; $('#sheet').hidden = true;
+  loading = true; aim = aimId = null; fly = win = null; $('#sheet').hidden = true;   // an old flight or win never reaches its sheet
   setTheme(level); $('#loadT').textContent = t('level', { n: level }); $('#loadM').textContent = t('loading'); $('#load').hidden = false;
   const t0 = performance.now();
   await new Promise(r => requestAnimationFrame(() => setTimeout(r)));   // let the card paint first
@@ -206,6 +206,8 @@ let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
   if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null && !busy()) { swap(S); save(); } wheelT = n; }, { passive: false });
 addEventListener('resize', () => S && fit());
+// the header can change height mid-level (score digits, font swap): refit next frame on a height change only
+let hudH = 0; new ResizeObserver(([e]) => { if (S && e.contentRect.height !== hudH) { hudH = e.contentRect.height; refit = true; } }).observe($('#hud'));
 
 /* ---------- draw ---------- */
 function drawStrip(now) {   // the host, base just above the board, fading in as the strip opens

@@ -8,6 +8,8 @@ generated endlessly. It is a personal hobby project and a sibling of Kiln (`../k
 Read before changing behaviour:
 - `docs/superpowers/specs/2026-10-21-core-loop-design.md`: the design and the numbers from the
   playtested prototype. Where this file and the spec disagree, the spec wins.
+- `docs/superpowers/specs/2026-10-22-visual-pass-design.md`: the HUD, hosts, run log, win
+  sequence and font.
 - `CONTRIBUTING.md`: code, copy and commit conventions. Follow them.
 
 ## Commands
@@ -16,7 +18,8 @@ Read before changing behaviour:
   `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
   phone: Kiln's service worker controls that origin and mixes its files in.
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
-  fallback). If `sw.js` changes how it caches, rename `CACHE` so `activate` drops the old cache.
+  fallback). `CACHE` is `splice-2`. Rename it when `sw.js` changes how it caches or the `SHELL`
+  list changes, so `activate` drops the old cache. The fonts are in `SHELL`.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
 - Balance: `node tools/sim.mjs [levels] [runs]`, e.g. `node tools/sim.mjs 3,25,50 3` or
   `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
@@ -25,10 +28,12 @@ Read before changing behaviour:
 
 ## Files
 
-- `index.html`: markup (HUD, canvas, result sheet). `style.css`: all styles.
+- `index.html`: markup (HUD, host strip, board, packets bar, log, sheets, scanline overlay). `style.css`: all styles.
 - `src/core.js`: rules, pure (no DOM, no storage). Tested in `tests/core.test.mjs`.
 - `src/levels.js`: level generation, colouring, fail easing, pure. Tested in `tests/levels.test.mjs`.
 - `src/ui.js`: language, rendering, input, animation, sheets, saving.
+- `src/hosts.js`: `hostFor(level)` (the host system for a level), `themeFor(level)` (accent and
+  background), `tierFor(level)`, pure. Tested in `tests/hosts.test.mjs`.
 - `src/hostdraw.js`: `drawHost(g, host, x, y, size, colour, glitch, t)`, the six host shapes on a 2D
   context, DOM-free. Tested in `tests/hostdraw.test.mjs` (a stub context).
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
@@ -36,15 +41,18 @@ Read before changing behaviour:
   `tests/lang.test.mjs` checks the lang files.
 - `src/bot.js`: greedy bot over the core API, pure; sets each attempt's shot limit. Tested in
   `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
+- `fonts/`: Chakra Petch (latin 400 and 600, woff2), self-hosted, with `OFL.txt`. `style.css`
+  declares it; `index.html` preloads the 600 weight.
 - `manifest.webmanifest`, `sw.js`, `icons/`: PWA. `icons/icon.svg` is the source; the PNGs
   are renders of it (192, 512, maskable 512 at 80% scale, 180 for Apple), made with
   `qlmanage -t -s 512` and `sips -z`.
 - `.github/workflows/pages.yml`: runs `node --test` on pull requests and pushes; on push to
   `master` it deploys the site files to https://thomaslazar.github.io/splice/. New site files
-  must be added to its copy step and, if needed offline, to `SHELL` in `sw.js`.
+  must be added to its copy step (`cp -r` of `index.html style.css manifest.webmanifest sw.js src
+  icons lang fonts`) and, if needed offline, to `SHELL` in `sw.js`.
 - `LICENSE.md`: PolyForm Noncommercial 1.0.0, as Kiln.
 - `spike/`: the throwaway prototype the design numbers came from. Not part of the game.
-- `docs/superpowers/`: the spec and the plan for the core loop.
+- `docs/superpowers/`: the specs and plans (core loop, visual pass).
 
 ## Core (`src/core.js`)
 
@@ -80,7 +88,9 @@ one fewer on odd rows.
   points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
   are re-dealt if their colour left the board).
 - **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`). Saves include `top`; an old save without it fails
-  validation and restarts its level.
+  validation and restarts its level. `S.maxShots` (the starting shot limit) and `S.startLow`
+  (the lowest bubble row at the start) feed the packets bar and the log; an older save without
+  them gets defaults in `fromSave`.
 
 `core.js` and `levels.js` import each other. Uses of the imported names stay inside
 function bodies, so keep it that way.
@@ -107,6 +117,28 @@ function bodies, so keep it that way.
   so formula limits were too tight on some levels and far too loose on others. Tune
   `HUMAN_K`/`HUMAN_C` by playtest.
 
+## Hosts (`src/hosts.js`)
+
+Each level breaks into a fictional host, `hostFor(level)`: `{owner, gov, industry, system, tier,
+label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and deterministic
+(seeded from the level), settled in level order and cached.
+
+- Tier (`tierFor`): `small` (small-time), `corporate` or `high` (high stakes) by `difficulty`:
+  under 0.35 small, under 0.75 corporate, above that corporate with a 30% chance of high. Long
+  levels (`isLong`) are always high. A tier has its own industries and the systems it may hit.
+- Corporations recur: each tier has a pool of 24 per 30-level stretch (`pool`), so a name comes
+  back within a stretch. Name patterns differ per tier (pair of surnames, coined, surname,
+  initials).
+- Government: about 1 level in 6 (`r() < 1/6`) targets a fictional body, with its own system
+  list per tier and a made-up jurisdiction.
+- Variety: a system is rerolled up to three times away from the last three levels'; the same
+  owner and system never appear on two levels in a row.
+- No real names. `tests/hosts.test.mjs` holds a deny list of real brands and agencies; the
+  initials use no vowels, B or G, and skip a hand list (`REAL`). Add to it if one slips through.
+- Labels stay within 52 characters (95% within 40); the header wraps to two lines at most.
+- Shape (`SHAPES`): from the system, one of six drawn by `hostdraw.js`. `hue` is a bubble hue
+  that is never the accent's hue.
+
 ## UI (`src/ui.js`)
 
 - Language: top-level `await` loads `lang/languages.json`, then `setLang(code)` merges
@@ -114,10 +146,12 @@ function bodies, so keep it that way.
   first `navigator.languages` match, else English. `t('key', {n})` fills placeholders.
   Never put visible text in code; add a key to every `lang/*.json` instead.
 - Look: `themeFor(level)` from `src/hosts.js` (accent and background), six `HUES` with a symbol each
-  (`sym`), so colour is never the only cue. `bubble()` draws one packet.
+  (`sym`), so colour is never the only cue. `bubble()` draws one packet. Text uses Chakra Petch
+  with a monospace fallback (the log stays monospace).
 - HUD (DOM): header ("Jacked in" over `hostFor(level).label`, wrapping to two lines at most;
   level over score; Restart), corner brackets (`#frame::after`), packets bar (up to 20 segments,
-  each `ceil(maxShots / 20)` shots), two reserved log lines, and a full-screen scanline overlay
+  each `ceil(maxShots / 20)` shots; lit ones are the shots left, `S.maxShots` is set by
+  `startState`), two reserved log lines, and a full-screen scanline overlay
   (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
 - View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
   `sc` is px per radius. `view` is the top row shown and eases toward `S.top` (instantly
@@ -131,6 +165,13 @@ function bodies, so keep it that way.
   never aims or fires. The mouse wheel also swaps (one swap per gesture). Swapping works
   any time no sheet is open, also while a packet flies. Aiming and firing wait until the
   packet has landed, the view has settled and no sheet is open (`ready()`).
+- Run log (in memory only, two lines, newest on top, all text in `lang/`): `connecting to
+  {host}` at level start; after each landed shot, in this order: `ice layer breached (n
+  nodes)` for 6 or more dropped, `deeper: p% of the way in` when the view scrolled and the
+  progress changed (`pct()`: lowest bubble against `S.startLow`, steps of 5), then once per
+  level `host in range` (`S.top === 0`), `trace rising` (shots at or under 25% of `maxShots`) and
+  `trace critical` (3 or fewer); then `connection lost` or `root access: {host}`. A flag that
+  already holds at level start is set silently.
 - Host strip (`#strip`, a canvas above the frame): zero height until `S.top === 0`, then opens
   over `STRIP_MS` (400 ms, instant with reduced motion) to `STRIP` (two rows), refitting every
   frame; it opens only when no packet flies, and `ready()` waits until it is fully open. Open at
@@ -152,8 +193,7 @@ function bodies, so keep it that way.
 ## Not built yet
 
 The deployed build is a prototype (a "Prototype, work in progress" line under the board).
-No self-hosted font (it still uses the system monospace), English only,
-no sound.
+English only, no sound.
 
 ## Theme
 
@@ -170,8 +210,7 @@ like an orphaned process.
   Everything else stays short and plain, in sentence case.
 - Every colour also carries a symbol, so the game works for colour-blind players and in
   bright light. Never two look-alike colours or symbols on the same board.
-- Font: a self-hosted OFL font with a techy feel (for example Chakra Petch or Rajdhani),
-  shipped with its license like Kiln's `fonts/`.
+- Font: Chakra Petch, self-hosted in `fonts/` with its OFL license, like Kiln.
 
 ## Design goals (keep these)
 
@@ -197,7 +236,7 @@ like an orphaned process.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-1`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-2`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

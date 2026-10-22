@@ -56,7 +56,7 @@ let S, theme, sc = 1, W = 0, H = 0, view = 0, aim = null, aimId = null, asking =
 // Host strip above the board: closed until the view reaches the ceiling, then opens over STRIP_MS.
 // strip is how far open (0..1), stripAt when it started opening (null: closed).
 const STRIP = 2 * RH, STRIP_MS = 400, sv = $('#strip'), sg = sv.getContext('2d');
-let strip = 0, stripAt = null;
+let strip = 0, stripAt = null, refit = false;   // refit: fit() at the start of the next frame
 // Win sequence: log line, QUIET ms, GLITCH ms into the accent colour, then the sheet.
 // win: null, or { at, done }; done once the sheet is due (a reload on a won board starts done).
 const QUIET = 600, GLITCH = 500;
@@ -107,9 +107,9 @@ function fit() {
   const sh = strip * STRIP * sc; sv.style.width = W + 'px'; sv.style.height = sh + 'px';
   sv.width = Math.round(W * dpr); sv.height = Math.round(sh * dpr); sg.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
-function reveal() {   // open the strip once the ceiling is in view and no packet flies
+function reveal() {   // open the strip once the ceiling is in view and no packet flies; draw() refits next frame
   if (stripAt !== null || fly || S.top !== 0) return;
-  stripAt = performance.now(); strip = reduced ? 1 : 0; fit();
+  stripAt = performance.now(); strip = 0;
 }
 function sheet() {   // result sheet; a pending restart question stays open unless the level ended
   const w = won(S), l = lost(S); if (asking && !w && !l) return;
@@ -220,7 +220,9 @@ function drawStrip(now) {   // the host, base just above the board, fading in as
 function draw() {
   if (!S) return requestAnimationFrame(draw);   // first level still loading
   const now = performance.now();
-  if (stripAt !== null && strip < 1) { const k = Math.min(1, (now - stripAt) / STRIP_MS); strip = 1 - (1 - k) ** 2; fit(); }   // ease out
+  // fit() clears the canvases, so code that runs mid-frame sets refit and fit() runs here, before any drawing
+  if (stripAt !== null && strip < 1) { const k = reduced ? 1 : Math.min(1, (now - stripAt) / STRIP_MS); strip = 1 - (1 - k) ** 2; refit = true; }   // ease out
+  if (refit) { refit = false; fit(); }
   if (busy() && now - win.at >= QUIET + (reduced ? 0 : GLITCH)) { win.done = true; sheet(); }
   drawStrip(now);
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);

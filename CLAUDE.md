@@ -34,7 +34,7 @@ Read before changing behaviour:
 - `src/ui.js`: language, rendering, input, animation, sheets, saving.
 - `src/hosts.js`: `hostFor(level)` (the host system for a level), `themeFor(level)` (accent and
   background), `tierFor(level)`, pure. Tested in `tests/hosts.test.mjs`.
-- `src/hostdraw.js`: `drawHost(g, host, x, y, size, colour, glitch, t)`, the six host shapes on a 2D
+- `src/hostdraw.js`: `drawHost(g, host, x, y, size, colour, glitch, t, apart)`, the six host shapes on a 2D
   context, DOM-free. Tested in `tests/hostdraw.test.mjs` (a stub context).
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
   now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
@@ -179,7 +179,9 @@ label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and 
   frame; it opens only when no packet flies, and `ready()` waits until it is fully open. Open at
   once when a level starts or loads at the ceiling.
 - Win sequence (`win`): after the winning shot lands, the root access log line, `QUIET` (600 ms),
-  `GLITCH` (500 ms, the host flickers into the accent colour; reduced motion switches at once),
+  `GLITCH` (1200 ms: the host bursts apart sideways in horizontal slices, quick at first then
+  slowing, flickering into the accent colour, and stays in pieces; a reload on a won board shows
+  the pieces in the accent; reduced motion switches colour at once),
   then the sheet. Swaps, wheel and Restart are ignored meanwhile (`busy()`). A reload on a won
   board shows the sheet at once with the host in the accent colour.
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch

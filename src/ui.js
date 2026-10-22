@@ -59,7 +59,7 @@ const STRIP = 2 * RH, STRIP_MS = 400, sv = $('#strip'), sg = sv.getContext('2d')
 let strip = 0, stripAt = null, refit = false;   // refit: fit() at the start of the next frame
 // Win sequence: log line, QUIET ms, GLITCH ms into the accent colour, then the sheet.
 // win: null, or { at, done }; done once the sheet is due (a reload on a won board starts done).
-const QUIET = 600, GLITCH = 500;
+const QUIET = 600, GLITCH = 1200;   // the glitch: bursts apart and turns the accent colour
 let win = null;
 const busy = () => win !== null && !win.done;
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
@@ -214,9 +214,12 @@ function drawStrip(now) {   // the host, base just above the board, fading in as
   if (!strip) return;
   const sh = strip * STRIP * sc, host = hostFor(S.level), p = win ? (now - win.at - QUIET) / GLITCH : -1;
   sg.clearRect(0, 0, W, sh); sg.globalAlpha = strip;
-  // the glitch flickers between the host colour and the accent, more accent as it goes; reduced motion switches at once
-  const acc = p >= 1 || p >= 0 && (reduced || Math.sin(now / 1000 * 55) > 1 - 2 * p);
-  drawHost(sg, host, W / 2, sh - 3, STRIP * sc * .78, acc ? theme.a : colour(host.hue), p >= 0 && p < 1 && !reduced ? Math.sin(Math.PI * p) : 0, now / 1000);
+  // the glitch: the host bursts apart sideways in horizontal slices (quick start, slowing down),
+  // flickering into the accent colour on the way, and stays in pieces; reduced motion: colour only
+  const q = Math.min(1, Math.max(0, p)), go = p >= 0 && !reduced;
+  const acc = p >= 1 || p >= 0 && (reduced || Math.sin(now / 1000 * 55) > 1 - 2.5 * q);
+  drawHost(sg, host, W / 2, sh - 3, STRIP * sc * .78, acc ? theme.a : colour(host.hue),
+    go && p < 1 ? .5 * (1 - q) : 0, now / 1000, go ? 1 - (1 - q) ** 2 : 0);
   sg.globalAlpha = 1;
 }
 function draw() {

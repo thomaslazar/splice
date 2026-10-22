@@ -44,16 +44,19 @@ const SHAPES = {
   },
 };
 
-// glitch 0..1: horizontal slices shift by up to about 14 px and the outline flickers; t in seconds
-export function drawHost(g, host, x, y, size, colour, glitch = 0, t = 0) {
+// glitch 0..1: horizontal slices shift by up to about 14 px and the outline flickers; t in seconds.
+// apart 0..1: the slices fly sideways in alternating directions, each its own distance, and fade,
+// so the host bursts apart; 0 is whole.
+export function drawHost(g, host, x, y, size, colour, glitch = 0, t = 0, apart = 0) {
   const s = size * host.params.size, shape = SHAPES[host.shape];
   g.save(); g.strokeStyle = colour; g.shadowColor = colour; g.shadowBlur = Math.max(6, s * .15); g.lineWidth = 1.4;
-  if (glitch) {
-    if (Math.sin(t * 61) > .6) g.globalAlpha *= .35;   // flicker
+  if (glitch || apart) {
+    if (glitch && Math.sin(t * 61) > .6) g.globalAlpha *= .35;   // flicker
     const n = 6, top = y - s * 1.2, sh = (s * 1.2 + 4) / n;
     for (let i = 0; i < n; i++) {
-      g.save(); g.beginPath(); g.rect(x - s * 2, top + i * sh, s * 4, sh); g.clip();
-      g.translate(Math.sin(t * 40 + i * 9) * glitch * 14, 0); shape(g, x, y, s, host.params); g.restore();
+      const dx = Math.sin(t * 40 + i * 9) * glitch * 14 + (i % 2 ? 1 : -1) * apart * s * (.9 + .6 * Math.abs(Math.sin(i * 7.3)));   // uneven, like a burst
+      g.save(); g.globalAlpha *= 1 - .4 * apart; g.beginPath(); g.rect(x - s * 4, top + i * sh, s * 8, sh); g.clip();
+      g.translate(dx, 0); shape(g, x, y, s, host.params); g.restore();
     }
   } else shape(g, x, y, s, host.params);
   g.restore();

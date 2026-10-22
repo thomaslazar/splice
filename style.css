@@ -8,12 +8,36 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
   font: 14px/1.3 'Chakra Petch', ui-monospace, Menlo, monospace; overscroll-behavior: none; touch-action: none;
   -webkit-user-select: none; user-select: none; }
 body { display: flex; flex-direction: column; align-items: center; justify-content: center; }
-#hud { box-sizing: border-box; width: 100%; max-width: 520px; padding: 8px 12px; display: flex; gap: 12px; align-items: center; }
-#hud #restart { margin-left: auto; }
+#deck { max-width: 100%; }
+small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); opacity: .7; }
+/* header: "Jacked in" over the host label (wraps to two lines at most), level over score, restart */
+#hud { box-sizing: border-box; padding: 8px 12px 6px; display: flex; gap: 12px; align-items: flex-end; }
+#hud .l { flex: 1; min-width: 0; }
+#hud .r { text-align: right; }
+#hud b { display: block; font-weight: 600; font-size: 12px; color: #fff; }
+#host { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#restart { border: 0; padding: 4px 0 1px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+/* corner brackets around board and shooter zone, drawn over the canvas edges */
+#frame { position: relative; padding: 6px 0; }
+#frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; --l: linear-gradient(var(--acc), var(--acc));
+  background: var(--l) 0 0 / 14px 2px, var(--l) 0 0 / 2px 14px, var(--l) 100% 0 / 14px 2px, var(--l) 100% 0 / 2px 14px,
+    var(--l) 0 100% / 14px 2px, var(--l) 0 100% / 2px 14px, var(--l) 100% 100% / 14px 2px, var(--l) 100% 100% / 2px 14px;
+  background-repeat: no-repeat; }
+/* packets bar: label, shots left, up to 20 segments */
+#bar { padding: 6px 12px 4px; display: flex; gap: 10px; align-items: center; }
+#bar b { font-weight: 600; font-size: 12px; color: #fff; min-width: 2ch; }
+#segs { display: flex; gap: 3px; }
+#segs i { width: 6px; height: 10px; background: var(--acc); opacity: .18; }
+#segs i.on { opacity: 1; }
+/* run log: two lines reserved */
+#log { height: 2.8em; padding: 2px 12px; font: 11px/1.4 ui-monospace, Menlo, monospace; }
+/* scanlines over the whole screen; never takes taps */
+#scan { position: fixed; inset: 0; z-index: 9; pointer-events: none;
+  background: repeating-linear-gradient(transparent 0 2px, #ffffff06 2px 3px); }
 button { background: transparent; color: var(--acc); border: 1px solid var(--acc); font: inherit; font-family: inherit; padding: 6px 10px;
   border-radius: 2px; cursor: pointer; }
 canvas { display: block; touch-action: none; }
-#wip { margin: 4px 0 0; font-size: 11px; opacity: .45; }
+#wip { margin: 0; padding-top: 2px; font-size: 11px; opacity: .45; }
 #sheet { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--dim); }
 #sheet[hidden], #load[hidden] { display: none; }
 #load { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); }

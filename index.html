@@ -12,14 +12,20 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Splice">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preload" href="fonts/chakra-petch-latin-600.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 <script type="module" src="src/ui.js"></script>
 </head>
 <body>
-<div id="hud"><span id="lvl"></span><span id="shots"></span><span id="score"></span><button id="restart"></button></div>
-<canvas id="board"></canvas>
+<main id="deck">
+<header id="hud"><div class="l"><small id="jack"></small><b id="host"></b></div><div class="r"><small id="lvl"></small><b id="score"></b></div><button id="restart"></button></header>
+<div id="frame"><canvas id="board"></canvas></div>
+<div id="bar"><small id="pk"></small><b id="shots"></b><span id="segs"></span></div>
+<div id="log"></div>
+</main>
 <p id="wip"></p>
 <div id="load" hidden><div class="card"><h2 id="loadT"></h2><p id="loadM"></p></div></div>
 <div id="sheet" hidden><div class="card"><h2 id="sheetT"></h2><button id="sheetB"></button><button id="sheetC" hidden></button></div></div>
+<div id="scan"></div>
 </body>
 </html>

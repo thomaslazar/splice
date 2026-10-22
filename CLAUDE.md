@@ -111,8 +111,12 @@ function bodies, so keep it that way.
   `en.json` with the chosen file into `T`. Choice: `localStorage['splice-lang']`, else the
   first `navigator.languages` match, else English. `t('key', {n})` fills placeholders.
   Never put visible text in code; add a key to every `lang/*.json` instead.
-- Look: `THEMES` (accent and background, picked by level), six `HUES` with a symbol each
+- Look: `themeFor(level)` from `src/hosts.js` (accent and background), six `HUES` with a symbol each
   (`sym`), so colour is never the only cue. `bubble()` draws one packet.
+- HUD (DOM): header ("Jacked in" over `hostFor(level).label`, wrapping to two lines at most;
+  level over score; Restart), corner brackets (`#frame::after`), packets bar (up to 20 segments,
+  each `ceil(maxShots / 20)` shots), two reserved log lines, and a full-screen scanline overlay
+  (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
 - View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
   `sc` is px per radius. `view` is the top row shown and eases toward `S.top` (instantly
   with reduced motion). The ceiling line is drawn only when row 0 is on screen; a dashed loss line sits between `lossRow` and the row above.

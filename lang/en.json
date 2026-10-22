@@ -1,7 +1,8 @@
 {
   "level": "Level {n}",
-  "shots": "Shots {n}",
-  "score": "Score {n}",
+  "jackedIn": "Jacked in",
+  "lvl": "Lvl {n}",
+  "packets": "Packets",
   "restart": "Restart",
   "winTitle": "Root access",
   "winButton": "Next level",

@@ -1,6 +1,7 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
+import { themeFor, hostFor } from './hosts.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -25,8 +26,6 @@ await setLang(pickLang());
 
 /* ---------- look ---------- */
 const HUES = [330, 185, 95, 42, 270, 5];   // magenta, cyan, acid, amber, violet, red
-const THEMES = [{ a: '#39ff88', bg: '#060a07' }, { a: '#ff2a4a', bg: '#0b0607' }, { a: '#20e8ff', bg: '#05090b' },
-  { a: '#b36bff', bg: '#08060b' }, { a: '#ffb020', bg: '#0b0905' }, { a: '#ff3df0', bg: '#0b050a' }];
 const cv = $('#board'), g = cv.getContext('2d'), PAD = 4;   // PAD: room for the ceiling line above row 0
 const colour = (i, l = 60) => `hsl(${HUES[i]} 100% ${l}%)`;
 function sym(i, x, y, s) {
@@ -75,13 +74,20 @@ async function begin(level, fails) {
   $('#load').hidden = true; loading = false; start(s);
 }
 function hud() {
-  $('#lvl').textContent = t('level', { n: S.level }); $('#shots').textContent = t('shots', { n: S.shots });
-  $('#score').textContent = t('score', { n: S.score }); $('#restart').textContent = t('restart'); $('#wip').textContent = t('wip');
+  $('#jack').textContent = t('jackedIn'); $('#host').textContent = hostFor(S.level).label;
+  $('#lvl').textContent = t('lvl', { n: S.level }); $('#score').textContent = S.score;
+  $('#restart').textContent = t('restart'); $('#wip').textContent = t('wip');
+  // packets bar: up to 20 segments, each standing for per shots
+  const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
+  $('#pk').textContent = t('packets'); $('#shots').textContent = S.shots;
+  $('#segs').innerHTML = '<i class="on"></i>'.repeat(lit) + '<i></i>'.repeat(n - lit);
 }
 function fit() {
-  const hu = SY() + 2, w = Math.min(520, innerWidth, (innerHeight - $('#hud').offsetHeight - $('#wip').offsetHeight - 4 - PAD) * 2 * S.cols / hu), dpr = devicePixelRatio || 1;
+  // everything but the canvas: header, frame padding, packets bar, log, wip line
+  const rest = $('#deck').offsetHeight - cv.offsetHeight + $('#wip').offsetHeight;
+  const hu = SY() + 2, w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / hu), dpr = devicePixelRatio || 1;
   sc = w / (2 * S.cols); W = w; H = hu * sc;
-  cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px'; $('#hud').style.width = W + 'px';
+  cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px'; $('#deck').style.width = W + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round((H + PAD) * dpr); g.setTransform(dpr, 0, 0, dpr, 0, PAD * dpr);
 }
 function sheet() {   // result sheet; a pending restart question stays open unless the level ended
@@ -90,7 +96,7 @@ function sheet() {   // result sheet; a pending restart question stays open unle
   $('#sheetT').textContent = w ? t('winTitle') : t('loseTitle'); $('#sheetB').textContent = w ? t('winButton') : t('loseButton');
 }
 function setTheme(level) {
-  theme = THEMES[hash(level, 3) % 6];
+  theme = themeFor(level);
   document.documentElement.style.setProperty('--acc', theme.a); document.documentElement.style.setProperty('--bg', theme.bg);
 }
 function start(s) {
@@ -157,7 +163,6 @@ addEventListener('resize', () => S && fit());
 function draw() {
   if (!S) return requestAnimationFrame(draw);   // first level still loading
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);
-  g.fillStyle = '#ffffff06'; for (let y = -PAD; y < H; y += 3) g.fillRect(0, y, W, 1);   // scanlines
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
   for (const [k, col] of fly ? fly.pre : S.grid) { const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
   g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is

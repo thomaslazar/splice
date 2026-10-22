@@ -29,6 +29,8 @@ Read before changing behaviour:
 - `src/core.js`: rules, pure (no DOM, no storage). Tested in `tests/core.test.mjs`.
 - `src/levels.js`: level generation, colouring, fail easing, pure. Tested in `tests/levels.test.mjs`.
 - `src/ui.js`: language, rendering, input, animation, sheets, saving.
+- `src/hostdraw.js`: `drawHost(g, host, x, y, size, colour, glitch, t)`, the six host shapes on a 2D
+  context, DOM-free. Tested in `tests/hostdraw.test.mjs` (a stub context).
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
   now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
   `tests/lang.test.mjs` checks the lang files.
@@ -129,6 +131,14 @@ function bodies, so keep it that way.
   never aims or fires. The mouse wheel also swaps (one swap per gesture). Swapping works
   any time no sheet is open, also while a packet flies. Aiming and firing wait until the
   packet has landed, the view has settled and no sheet is open (`ready()`).
+- Host strip (`#strip`, a canvas above the frame): zero height until `S.top === 0`, then opens
+  over `STRIP_MS` (400 ms, instant with reduced motion) to `STRIP` (two rows), refitting every
+  frame; it opens only when no packet flies, and `ready()` waits until it is fully open. Open at
+  once when a level starts or loads at the ceiling.
+- Win sequence (`win`): after the winning shot lands, the root access log line, `QUIET` (600 ms),
+  `GLITCH` (500 ms, the host flickers into the accent colour; reduced motion switches at once),
+  then the sheet. Swaps, wheel and Restart are ignored meanwhile (`busy()`). A reload on a won
+  board shows the sheet at once with the host in the accent colour.
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
   jitter seeded from the key) and a `-n` text (only for drops of 6 or more). With reduced motion, results show at once.
 - Sheets: one sheet for win ("Root access"), loss ("Flatline") and the restart question.

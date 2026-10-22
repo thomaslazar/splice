@@ -2,6 +2,7 @@
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor } from './hosts.js';
+import { drawHost } from './hostdraw.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -52,10 +53,19 @@ function bubble(x, y, col, a = 1, rr = sc) {   // x, y, rr in px
 /* ---------- state ---------- */
 // Board units are bubble radii (core.js); sc is px per unit. view is the top row shown, eased toward S.top.
 let S, theme, sc = 1, W = 0, H = 0, view = 0, aim = null, aimId = null, asking = false, fly = null, fx = [];
+// Host strip above the board: closed until the view reaches the ceiling, then opens over STRIP_MS.
+// strip is how far open (0..1), stripAt when it started opening (null: closed).
+const STRIP = 2 * RH, STRIP_MS = 400, sv = $('#strip'), sg = sv.getContext('2d');
+let strip = 0, stripAt = null;
+// Win sequence: log line, QUIET ms, GLITCH ms into the accent colour, then the sheet.
+// win: null, or { at, done }; done once the sheet is due (a reload on a won board starts done).
+const QUIET = 600, GLITCH = 500;
+let win = null;
+const busy = () => win !== null && !win.done;
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
 const X = u => u * sc, Y = u => (u - view * RH) * sc;
 const target = () => S.top;
-const ready = () => !fly && view === target() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
+const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
 function load() {   // a valid save, or [level, fails] to begin: an invalid save keeps its level, unreadable means level 1
   let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
@@ -83,12 +93,23 @@ function hud() {
   $('#segs').innerHTML = '<i class="on"></i>'.repeat(lit) + '<i></i>'.repeat(n - lit);
 }
 function fit() {
-  // everything but the canvas: header, frame padding, packets bar, log, wip line
-  const rest = $('#deck').offsetHeight - cv.offsetHeight + $('#wip').offsetHeight;
-  const hu = SY() + 2, w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / hu), dpr = devicePixelRatio || 1;
-  sc = w / (2 * S.cols); W = w; H = hu * sc;
-  cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px'; $('#deck').style.width = W + 'px';
+  // everything but the canvases: header, frame padding, packets bar, log, wip line. The host label
+  // wraps with the width, so set the width first, then measure (twice: the width shrinks once more).
+  const hu = SY() + 2, dpr = devicePixelRatio || 1; let w = Math.min(520, innerWidth);
+  for (let i = 0; i < 2; i++) {
+    $('#deck').style.width = w + 'px';
+    const rest = $('#deck').offsetHeight - cv.offsetHeight - sv.offsetHeight + $('#wip').offsetHeight;
+    w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / (hu + strip * STRIP));
+  }
+  sc = w / (2 * S.cols); W = w; H = hu * sc; $('#deck').style.width = W + 'px';
+  cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round((H + PAD) * dpr); g.setTransform(dpr, 0, 0, dpr, 0, PAD * dpr);
+  const sh = strip * STRIP * sc; sv.style.width = W + 'px'; sv.style.height = sh + 'px';
+  sv.width = Math.round(W * dpr); sv.height = Math.round(sh * dpr); sg.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+function reveal() {   // open the strip once the ceiling is in view and no packet flies
+  if (stripAt !== null || fly || S.top !== 0) return;
+  stripAt = performance.now(); strip = reduced ? 1 : 0; fit();
 }
 function sheet() {   // result sheet; a pending restart question stays open unless the level ended
   const w = won(S), l = lost(S); if (asking && !w && !l) return;
@@ -124,6 +145,8 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
 }
 function start(s) {
   S = s; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
+  win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
   hud(); fit(); save(); sheet(); calm();
 }
@@ -133,7 +156,7 @@ const GRACE = 400; let calmAt = 0;
 const calm = () => { calmAt = performance.now() + GRACE; };
 const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; calm(); };
 $('#restart').onclick = () => {   // ask first; only the confirm button restarts (fails unchanged)
-  if (!$('#sheet').hidden || loading) return;
+  if (!$('#sheet').hidden || loading || busy()) return;
   asking = true; aim = aimId = null; $('#sheet').hidden = $('#sheetC').hidden = false;
   $('#sheetT').textContent = t('restartAsk'); $('#sheetB').textContent = t('restartYes'); $('#sheetC').textContent = t('restartNo');
 };
@@ -158,7 +181,9 @@ function land() {
     for (const k of m.dropped) fx.push({ t: 'fall', ...at(k), col: pre.get(k), key: k, vx: (hash(k, 1) % 1000 / 1000 - .5) * .1, vy: -hash(k, 2) % 1000 / 1000 * .1, k: 0 });
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(key(...m.cell)), k: 0 });
   }
-  logShot(m.dropped.length); sheet();
+  logShot(m.dropped.length);
+  if (won(S)) { win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
+  reveal();
 }
 
 /* ---------- input ---------- */
@@ -167,7 +192,7 @@ const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
-  if (!$('#sheet').hidden || e.timeStamp < calmAt) return;
+  if (!$('#sheet').hidden || e.timeStamp < calmAt || busy()) return;
   if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
   // the whole strip at the shooter's height swaps; a touch that starts there never aims or fires
@@ -179,12 +204,25 @@ cv.addEventListener('pointerup', e => { if (e.pointerId === aimId) { aimId = nul
 cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
-  if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null) { swap(S); save(); } wheelT = n; }, { passive: false });
+  if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null && !busy()) { swap(S); save(); } wheelT = n; }, { passive: false });
 addEventListener('resize', () => S && fit());
 
 /* ---------- draw ---------- */
+function drawStrip(now) {   // the host, base just above the board, fading in as the strip opens
+  if (!strip) return;
+  const sh = strip * STRIP * sc, host = hostFor(S.level), p = win ? (now - win.at - QUIET) / GLITCH : -1;
+  sg.clearRect(0, 0, W, sh); sg.globalAlpha = strip;
+  // the glitch flickers between the host colour and the accent, more accent as it goes; reduced motion switches at once
+  const acc = p >= 1 || p >= 0 && (reduced || Math.sin(now / 1000 * 55) > 1 - 2 * p);
+  drawHost(sg, host, W / 2, sh - 3, STRIP * sc * .78, acc ? theme.a : colour(host.hue), p >= 0 && p < 1 && !reduced ? Math.sin(Math.PI * p) : 0, now / 1000);
+  sg.globalAlpha = 1;
+}
 function draw() {
   if (!S) return requestAnimationFrame(draw);   // first level still loading
+  const now = performance.now();
+  if (stripAt !== null && strip < 1) { const k = Math.min(1, (now - stripAt) / STRIP_MS); strip = 1 - (1 - k) ** 2; fit(); }   // ease out
+  if (busy() && now - win.at >= QUIET + (reduced ? 0 : GLITCH)) { win.done = true; sheet(); }
+  drawStrip(now);
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
   for (const [k, col] of fly ? fly.pre : S.grid) { const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }

@@ -17,6 +17,8 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
 #hud b { display: block; font-weight: 600; font-size: 12px; color: #fff; }
 #host { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 #restart { border: 0; padding: 4px 0 1px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+/* host strip: zero height until the ceiling is in view; ui.js sizes it */
+#strip { height: 0; }
 /* corner brackets around board and shooter zone, drawn over the canvas edges */
 #frame { position: relative; padding: 6px 0; }
 #frame::after { content: ""; position: absolute; inset: 0; pointer-events: none; --l: linear-gradient(var(--acc), var(--acc));

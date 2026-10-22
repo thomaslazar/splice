@@ -31,6 +31,8 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
 #segs i.on { opacity: 1; }
 /* run log: two lines reserved */
 #log { height: 2.8em; padding: 2px 12px; font: 11px/1.4 ui-monospace, Menlo, monospace; }
+#log .cur::after { content: "_"; animation: blink 1s steps(1) infinite; }
+@media (prefers-reduced-motion: reduce) { #log .cur::after { animation: none; } }
 /* scanlines over the whole screen; never takes taps */
 #scan { position: fixed; inset: 0; z-index: 9; pointer-events: none;
   background: repeating-linear-gradient(transparent 0 2px, #ffffff06 2px 3px); }

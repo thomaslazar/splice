@@ -12,5 +12,13 @@
   "restartYes": "Restart",
   "restartNo": "Keep playing",
   "wip": "Prototype, work in progress",
-  "loading": "Preparing new attack vector"
+  "loading": "Preparing new attack vector",
+  "logConnect": "> connecting to {host}",
+  "logBreach": "> ice layer breached ({n} nodes)",
+  "logDeeper": "> deeper: {pct}% of the way in",
+  "logHost": "> host in range",
+  "logTrace": "> trace rising",
+  "logCritical": "> trace critical",
+  "logLost": "> connection lost",
+  "logRoot": "> root access: {host}"
 }

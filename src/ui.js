@@ -99,8 +99,31 @@ function setTheme(level) {
   theme = themeFor(level);
   document.documentElement.style.setProperty('--acc', theme.a); document.documentElement.style.setProperty('--bg', theme.bg);
 }
+/* ---------- run log ---------- */
+// Two visible lines, newest on top, in memory only. Once-flags: host, trace rising, trace critical.
+let lines = [], seen = {}, logTop = 0, logPct = 0;
+function log(text) { lines.unshift(text); lines.length = Math.min(lines.length, 2); showLog(); }
+function showLog() {
+  const el = $('#log'); el.textContent = '';
+  lines.forEach((l, i) => { const d = document.createElement('div'); d.textContent = l; d.style.opacity = i ? .45 : 1; if (!i) d.className = 'cur'; el.append(d); });
+}
+function pct() {
+  let low = 0; for (const k of S.grid.keys()) low = Math.max(low, k >> 4);
+  return Math.min(100, Math.max(0, Math.round(20 * (S.startLow - low) / (S.startLow + 1)) * 5));
+}
+const flagged = () => ({ host: S.top === 0, rising: S.shots <= .25 * S.maxShots, critical: S.shots <= 3 });
+function logStart() {   // clear, connect, and set the once-flags that already hold without writing
+  lines = []; seen = flagged(); logTop = S.top; logPct = pct(); log(t('logConnect', { host: hostFor(S.level).owner }));
+}
+function logShot(dropped) {   // events in the spec's order, after a landed shot
+  if (dropped >= 6) log(t('logBreach', { n: dropped }));
+  const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
+  const f = flagged();
+  for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) { seen[n] = true; log(text); }
+  if (lost(S)) log(t('logLost')); else if (won(S)) log(t('logRoot', { host: hostFor(S.level).owner }));
+}
 function start(s) {
-  S = s; view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  S = s; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   setTheme(S.level);
   hud(); fit(); save(); sheet(); calm();
 }
@@ -135,7 +158,7 @@ function land() {
     for (const k of m.dropped) fx.push({ t: 'fall', ...at(k), col: pre.get(k), key: k, vx: (hash(k, 1) % 1000 / 1000 - .5) * .1, vy: -hash(k, 2) % 1000 / 1000 * .1, k: 0 });
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(key(...m.cell)), k: 0 });
   }
-  sheet();
+  logShot(m.dropped.length); sheet();
 }
 
 /* ---------- input ---------- */

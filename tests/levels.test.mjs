@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { makeLayout, colourize, difficulty, winRows, shotLimit, shotsFor } from '../src/levels.js';
+import { makeLayout, colourize, difficulty, winRows, shotsFor } from '../src/levels.js';
 import { connected, rc } from '../src/core.js';
 
 const levels = Array.from({ length: 60 }, (_, i) => i + 1);
@@ -41,15 +41,6 @@ test('retry keeps the layout, recolours whole groups', () => {
   assert.ok(new Set(a.values()).size <= L.nColours);
 });
 
-test('shot limit is positive and grows with the level', () => {
-  for (const lv of levels) assert.ok(shotLimit(makeLayout(lv)) > 0);
-});
-test('more colours need more shots per bubble', () => {
-  const L = makeLayout(levels.find(l => makeLayout(l).kind === 'noise'));
-  const perBubble = n => shotLimit({ ...L, nColours: n }) / L.cells.size;
-  assert.ok(perBubble(6) > 2 * perBubble(3), `${perBubble(6)} vs ${perBubble(3)}`);
-  assert.ok(shotLimit({ ...L, cells: new Map([[0, 0]]) }) >= 1);
-});
 test('the layout cache keeps only the last few levels', () => {
   const a = makeLayout(1);
   for (let lv = 100; lv < 110; lv++) makeLayout(lv);

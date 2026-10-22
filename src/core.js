@@ -26,7 +26,8 @@ export function connected(grid, cols) {
 }
 
 /* ---------- shots ---------- */
-import { winRows, makeLayout, colourize, shotLimit, shotsFor } from './levels.js';   // circular: used only inside function bodies
+import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
+import { solve, limitFor } from './bot.js';   // circular too
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 8;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
@@ -65,21 +66,41 @@ export function snap(grid, cols, x, y) {
 }
 
 /* ---------- deal ---------- */
-export const OFFSCREEN_W = 0.3, VIS_W = 3;
+export const OFFSCREEN_W = 0.3, BLOCKED_W = 0.9, VIS_W = 3;
+// The shot limit comes from the bot playing this exact attempt (see bot.js); cached, since restart replays it.
+const need = new Map();
 export function startState(level, fails) {
   const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
-    shots: shotsFor(shotLimit(L), fails), score: 0, cur: null, next: null, hist: [], draws: 0 };
-  S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S); return S;
+    shots: Infinity, score: 0, cur: null, next: null, hist: [], draws: 0 };
+  S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S);
+  const id = `${level}/${fails}`;
+  if (!need.has(id)) { const r = solve(S); need.set(id, r.won ? r.used : Math.max(r.used, Math.ceil(S.grid.size / 3)));
+    if (need.size > 8) need.delete(need.keys().next().value); }
+  S.shots = shotsFor(limitFor(need.get(id)), fails); return S;
+}
+// Bubbles the shooter can reach: on screen and touching the open space that connects to the
+// row above the loss line (flood fill through empty cells).
+function reachable(S) {
+  const out = new Map(), seen = new Set(), st = [], loss = lossRow(S);
+  for (let c = 0; c < cellsIn(S.cols, loss - 1); c++) { const k = key(loss - 1, c); if (!S.grid.has(k)) { seen.add(k); st.push([loss - 1, c]); } }
+  while (st.length) { const [r, c] = st.pop();
+    for (const [a, b] of nbrs(S.cols, r, c)) { const k = key(a, b); if (seen.has(k) || a >= loss) continue; seen.add(k);
+      if (!S.grid.has(k)) st.push([a, b]); else if (a >= S.top) out.set(S.grid.get(k), (out.get(S.grid.get(k)) || 0) + 1); } }
+  return out;
 }
 export function deal(S) {
-  // Visible colours weigh by their share of the visible bubbles; off-screen-only colours are rarer.
-  // No colour three times in a row and one reroll on a repeat, except for the only visible colour.
-  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), top = S.top, vis = new Map(), all = new Set();
-  let nv = 0; for (const [k, c] of S.grid) { all.add(c); if (k >> 4 >= top) { vis.set(c, (vis.get(c) || 0) + 1); nv++; } }
+  // Reachable colours weigh by their share of the reachable bubbles (visible ones if none are
+  // reachable); colours on screen but blocked weigh BLOCKED_W, off-screen-only ones OFFSCREEN_W. No colour three times in a row and
+  // one reroll on a repeat, except for the only reachable colour.
+  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), all = new Set(S.grid.values());
   if (!all.size) return null;
-  const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b), only = vis.size === 1 ? [...vis.keys()][0] : null;
+  let near = reachable(S);
+  if (!near.size) for (const [k, c] of S.grid) if (k >> 4 >= S.top) near.set(c, (near.get(c) || 0) + 1);
+  let n = 0; for (const v of near.values()) n += v;
+  const vis = new Set(); for (const [k, c] of S.grid) if (k >> 4 >= S.top) vis.add(c);
+  const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b), only = near.size === 1 ? [...near.keys()][0] : null;
   const pool = h.length >= 2 && h[0] === last && last !== only && l.some(c => c !== last) ? l.filter(c => c !== last) : l;
-  const draw = () => { const w = pool.map(c => vis.has(c) ? 1 + VIS_W * vis.get(c) / nv : OFFSCREEN_W); let x = rnd() * w.reduce((a, b) => a + b);
+  const draw = () => { const w = pool.map(c => near.has(c) ? 1 + VIS_W * near.get(c) / n : vis.has(c) ? BLOCKED_W : OFFSCREEN_W); let x = rnd() * w.reduce((a, b) => a + b);
     for (let i = 0; i < pool.length; i++) if ((x -= w[i]) < 0) return pool[i]; return pool[pool.length - 1]; };
   let c = draw(); if (c === last && c !== only && pool.length > 1) c = draw();
   h.push(c); if (h.length > 2) h.shift(); return c;

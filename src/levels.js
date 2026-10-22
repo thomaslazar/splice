@@ -127,9 +127,6 @@ export function colourize(layout, level, fails) {
 }
 
 /* ---------- shot limit ---------- */
-// k * bubbles^cells * colours^colours * cols^cols per kind; fitted by tools/fit.mjs (bot wins ~95%).
-export const SHOT_K = { designed: { k: 0.5989, cells: 1.042, colours: 0.864, cols: -1.415 }, noise: { k: 0.05063, cells: 0.708, colours: 1.873, cols: 0 } };
+// The base limit comes from the bot (bot.js); fails ease it here.
 export const groupCount = layout => new Set(layout.cells.values()).size;
-export const shotLimit = layout => { const K = SHOT_K[layout.kind];
-  return Math.max(1, Math.ceil(K.k * layout.cells.size ** K.cells * layout.nColours ** K.colours * layout.cols ** K.cols)); };
 export const shotsFor = (base, fails) => Math.round(base * (1 + 0.1 * Math.min(4, Math.max(0, fails - 3))));

@@ -3,7 +3,7 @@
 // with the server, so a deploy shows up on the next launch. Offline, or after 3 s, the
 // cached copy is used.
 const CACHE = 'splice-1';   // a new name drops the old cache, see activate; only splice- caches, the origin is shared with Kiln
-const SHELL = ['./', 'index.html', 'style.css', 'src/core.js', 'src/levels.js', 'src/ui.js', 'manifest.webmanifest',
+const SHELL = ['./', 'index.html', 'style.css', 'src/core.js', 'src/levels.js', 'src/bot.js', 'src/ui.js', 'manifest.webmanifest',
   'lang/languages.json', 'lang/en.json',   // other languages get cached the first time they load
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 

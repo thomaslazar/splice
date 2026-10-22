@@ -153,6 +153,13 @@ test('dealing favours the colour that dominates the screen', () => {
   assert.ok(seq.filter(c => c === 0).length / seq.length > 0.6, 'the only visible colour should come most of the time');
   assert.ok(seq.some(c => c !== 0), 'off-screen colours still come sometimes');
 });
+test('dealing favours the colours the shooter can reach', () => {
+  const cells = []; for (let r = 0; r < 8; r++) for (let c = 0; c < (r % 2 ? 9 : 10); c++) cells.push([r, c, r < 6 ? 1 : 3]);
+  const S = stateWith(10, cells, 3); S.top = 0;   // red fills most of the screen, but only the amber rows are reachable
+  const seq = Array.from({ length: 3000 }, () => deal(S));
+  const share = seq.filter(c => c === 3).length / seq.length;
+  assert.ok(share > 0.6 && share < 0.85, `the reachable colour should be likely, not certain: ${share}`);
+});
 test('a bubble on the loss line loses even with shots left', () => {
   const S = stateWith(10, [[0, 4, 1]], 2); S.top = 0;
   S.grid.set(key(lossRow(S), 4), 2);

@@ -114,10 +114,13 @@ prototype settled. Where the prototype's numbers are guesses, this says so.
 ## Colour dealing
 
 - Colours come from those still on the board.
-- Colours present only off-screen get weight 0.3. A colour visible on screen gets weight
-  1 + 3 × its share of the bubbles on screen, so a colour that dominates the screen comes
-  most often (owner's playtest: a one-colour line on screen went 5 packets without its colour).
-- The no-three-in-a-row rule and the repeat reroll do not apply to the only colour on screen.
+- A colour the shooter can reach (a bubble on screen that touches the open space below
+  the cluster) gets weight 1 + 3 × its share of the reachable bubbles; colours on screen but
+  blocked get 0.9, colours only off-screen 0.3. The reachable colour should be likely, not
+  certain: with one reachable and three blocked colours it comes about 60% of the time. If nothing is reachable, bubbles on screen count instead.
+  (Owner's playtests: a one-colour line on screen went 5 packets without its colour, and a
+  full yellow row blocking a red-filled screen went 10 packets without yellow.)
+- The no-three-in-a-row rule and the repeat reroll do not apply to the only reachable colour.
   The owner wants the whole board in play but not to make it too easy.
 - Never the same colour three times in a row, unless it is the only colour left.
 - If a draw repeats the previous colour, draw once more (cuts repeats to about 11%).
@@ -170,16 +173,12 @@ Each section is generated on its own from the level's seeded PRNG:
 ## Shot limit and easing
 
 - Every level has a shot limit, shown on screen. Running out with bubbles left is a loss.
-- The limit is a formula computed from the generated layout when the level is built, so
-  it works for every level, endlessly. It may use bubble count, colour groups, colours,
-  columns and level type (for example `a × groups + b × bubbles / colours + c`, with
-  separate constants per type).
-- The sim only calibrates the formula's constants, by playing a sample of levels across
-  types, lengths and column counts (as Kiln's sim samples levels like 3, 25 and 50). It
-  never runs per level at play time.
-- Calibration target: on the sample, the bot wins about 95% of levels on the first try
-  and finishes with 5 to 15% of its shots left. The owner will tighten it if it feels
-  too easy. The prototype's 38% of bubbles plus 4 was too generous.
+- The limit is measured, not guessed: when an attempt starts, the balance bot plays that
+  exact attempt (same layout, colours and dealing) with no limit, and the limit is its shot
+  count times 1.4 plus 3 (tunable). It is deterministic, so a retry with the same `fails`
+  and a restart get the same limit. (Revised after playtesting: a layout formula left some
+  levels nearly impossible and others with twice the shots needed, because the colour
+  shuffle alone moves a level's need by 20 to 40%.)
 - Easing (fails only, never restarts): from the 4th failed attempt each retry gets more shots, +10% of the original
   per fail, up to +40%.
 

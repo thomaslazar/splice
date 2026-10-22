@@ -58,9 +58,21 @@ const X = u => u * sc, Y = u => (u - view * RH) * sc;
 const target = () => S.top;
 const ready = () => !fly && view === target() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
-function load() {   // an invalid save keeps its level (fresh board); unreadable means level 1
+function load() {   // a valid save, or [level, fails] to begin: an invalid save keeps its level, unreadable means level 1
   let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
-  return o && Number.isInteger(o.level) && o.level >= 1 ? startState(o.level, Number.isInteger(o.fails) && o.fails >= 0 ? o.fails : 0) : startState(1, 0);
+  return o && Number.isInteger(o.level) && o.level >= 1 ? [o.level, Number.isInteger(o.fails) && o.fails >= 0 ? o.fails : 0] : [1, 0];
+}
+// startState runs the bot to set the shot limit (up to about a second on big levels), so a level
+// begins behind a short loading card; it stays up at least LOAD_MIN so it never just flickers.
+const LOAD_MIN = 500; let loading = false;
+async function begin(level, fails) {
+  loading = true; aim = aimId = null; $('#sheet').hidden = true;
+  setTheme(level); $('#loadT').textContent = t('level', { n: level }); $('#loadM').textContent = t('loading'); $('#load').hidden = false;
+  const t0 = performance.now();
+  await new Promise(r => requestAnimationFrame(() => setTimeout(r)));   // let the card paint first
+  const s = startState(level, fails);
+  await new Promise(r => setTimeout(r, Math.max(0, LOAD_MIN - (performance.now() - t0))));
+  $('#load').hidden = true; loading = false; start(s);
 }
 function hud() {
   $('#lvl').textContent = t('level', { n: S.level }); $('#shots').textContent = t('shots', { n: S.shots });
@@ -77,19 +89,26 @@ function sheet() {   // result sheet; a pending restart question stays open unle
   asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = !w && !l; if (!w && !l) return;
   $('#sheetT').textContent = w ? t('winTitle') : t('loseTitle'); $('#sheetB').textContent = w ? t('winButton') : t('loseButton');
 }
+function setTheme(level) {
+  theme = THEMES[hash(level, 3) % 6];
+  document.documentElement.style.setProperty('--acc', theme.a); document.documentElement.style.setProperty('--bg', theme.bg);
+}
 function start(s) {
   S = s; view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
-  theme = THEMES[hash(S.level, 3) % 6];
-  document.documentElement.style.setProperty('--acc', theme.a); document.documentElement.style.setProperty('--bg', theme.bg);
-  hud(); fit(); save(); sheet();
+  setTheme(S.level);
+  hud(); fit(); save(); sheet(); calm();
 }
-const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; };
+// Grace period after a sheet closes: a tap on its button can linger or repeat onto the board,
+// and touches queued while startState ran its bot carry earlier timestamps; both are ignored.
+const GRACE = 400; let calmAt = 0;
+const calm = () => { calmAt = performance.now() + GRACE; };
+const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; calm(); };
 $('#restart').onclick = () => {   // ask first; only the confirm button restarts (fails unchanged)
-  if (!$('#sheet').hidden) return;
+  if (!$('#sheet').hidden || loading) return;
   asking = true; aim = aimId = null; $('#sheet').hidden = $('#sheetC').hidden = false;
   $('#sheetT').textContent = t('restartAsk'); $('#sheetB').textContent = t('restartYes'); $('#sheetC').textContent = t('restartNo');
 };
-$('#sheetB').onclick = () => start(asking ? startState(S.level, S.fails) : won(S) ? startState(S.level + 1, 0) : startState(S.level, S.fails + 1));
+$('#sheetB').onclick = () => asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
 $('#sheetC').onclick = keep;
 $('#sheet').onclick = e => { if (asking && e.target === $('#sheet')) keep(); };
 addEventListener('keydown', e => { if (asking && e.key === 'Escape') keep(); });
@@ -119,7 +138,7 @@ const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
-  if (!$('#sheet').hidden) return;
+  if (!$('#sheet').hidden || e.timeStamp < calmAt) return;
   if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
   // the whole strip at the shooter's height swaps; a touch that starts there never aims or fires
@@ -131,11 +150,12 @@ cv.addEventListener('pointerup', e => { if (e.pointerId === aimId) { aimId = nul
 cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
-  if (n - wheelT > 150 && $('#sheet').hidden && S.cur !== null) { swap(S); save(); } wheelT = n; }, { passive: false });
-addEventListener('resize', fit);
+  if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null) { swap(S); save(); } wheelT = n; }, { passive: false });
+addEventListener('resize', () => S && fit());
 
 /* ---------- draw ---------- */
 function draw() {
+  if (!S) return requestAnimationFrame(draw);   // first level still loading
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);
   g.fillStyle = '#ffffff06'; for (let y = -PAD; y < H; y += 3) g.fillRect(0, y, W, 1);   // scanlines
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
@@ -180,4 +200,4 @@ function draw() {
 // No zoom: iOS ignores user-scalable=no, so block Safari's pinch gestures (double-tap is off via touch-action)
 for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev, e => e.preventDefault());
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});   // offline play
-start(load()); draw();
+{ const l = load(); Array.isArray(l) ? begin(...l) : start(l); } draw();

@@ -10,5 +10,6 @@
   "restartAsk": "Restart this level?",
   "restartYes": "Restart",
   "restartNo": "Keep playing",
-  "wip": "Prototype, work in progress"
+  "wip": "Prototype, work in progress",
+  "loading": "Preparing new attack vector"
 }

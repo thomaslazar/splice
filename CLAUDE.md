@@ -18,24 +18,22 @@ Read before changing behaviour:
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
   fallback). If `sw.js` changes how it caches, rename `CACHE` so `activate` drops the old cache.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
-- Balance: `node tools/sim.mjs [levels] [runs] [--unlimited]`, e.g. `node tools/sim.mjs 3,25,50 3`
-  or `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
-  Run `r` plays with `fails = r` (no easing below 4). It reports win rate and median shots
-  left per kind and per difficulty band (1-10, 11-25, 26-40, 41+). `--unlimited` removes
-  the shot limit, to measure the shots a level really needs.
-- Fit: `node tools/fit.mjs [levels] [runs]` (default `1-240 4`, about 12 minutes) plays the
-  sample without a limit, fits `SHOT_K` and prints it with per-band results.
+- Balance: `node tools/sim.mjs [levels] [runs]`, e.g. `node tools/sim.mjs 3,25,50 3` or
+  `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
+  Run `r` plays with `fails = r`. Per level it shows the limit, the shots the bot needed and
+  the margin; the bot always wins, since the limit comes from it.
 
 ## Files
 
 - `index.html`: markup (HUD, canvas, result sheet). `style.css`: all styles.
 - `src/core.js`: rules, pure (no DOM, no storage). Tested in `tests/core.test.mjs`.
-- `src/levels.js`: level generation, colouring, shot limit, pure. Tested in `tests/levels.test.mjs`.
+- `src/levels.js`: level generation, colouring, fail easing, pure. Tested in `tests/levels.test.mjs`.
 - `src/ui.js`: language, rendering, input, animation, sheets, saving.
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
   now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
   `tests/lang.test.mjs` checks the lang files.
-- `tools/sim.mjs`: greedy bot over the core API. `tools/fit.mjs`: fits `SHOT_K` with it.
+- `src/bot.js`: greedy bot over the core API, pure; sets each attempt's shot limit. Tested in
+  `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
 - `manifest.webmanifest`, `sw.js`, `icons/`: PWA. `icons/icon.svg` is the source; the PNGs
   are renders of it (192, 512, maskable 512 at 80% scale, 180 for Apple), made with
   `qlmanage -t -s 512` and `sips -z`.
@@ -69,10 +67,13 @@ one fewer on odd rows.
   `snap` picks the nearest free cell that touches the ceiling or a bubble.
 - **deal**: `startState(level, fails)` builds the state `S` (`grid, shots, score, cur, next,
   hist, draws, ...`). `deal(S)` draws a colour still on the board, seeded from
-  `(level, fails, draws)`. A visible colour weighs `1 + VIS_W * its share of the visible
-  bubbles` (`VIS_W` = 3), so a colour that dominates the screen comes most often; colours only
-  off-screen weigh `OFFSCREEN_W` (0.3). The same colour three times in a row is avoided, and a
-  repeat is rerolled once, except for the only colour on screen.
+  `(level, fails, draws)`. A reachable colour (a bubble on screen touching the open space that
+  connects to the row above the loss line, found by flood fill in `reachable(S)`) weighs
+  `1 + VIS_W * its share of the reachable bubbles` (`VIS_W` = 3); a colour on screen but blocked
+  weighs `BLOCKED_W` (0.9), one only off-screen `OFFSCREEN_W` (0.3). On a board like the owner's
+  playtest (one reachable colour, three blocked ones) the reachable colour comes about 60% of the time. If nothing is reachable, visible bubbles count instead. The
+  same colour three times in a row is avoided, and a repeat is rerolled once, except for the
+  only reachable colour.
 - **moves**: `swap`, `won`, `lost`, `fire(S, ang)` (returns `{pts, cell, popped, dropped,
   points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
   are re-dealt if their colour left the board).
@@ -93,23 +94,16 @@ function bodies, so keep it that way.
   parts to the ceiling. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours.
-- Shot limit: `shotLimit(layout)` = `ceil(k * bubbles^cells * colours^colours * cols^cols)`
-  (at least 1) with `SHOT_K` per kind holding `k` and the exponents. More colours need far
-  more shots per bubble (the bot needs about 0.055 at 3 colours, 0.10 designed and 0.17
-  noise at 6), so the colour exponent is large (0.86 designed, 1.87 noise); wider boards
-  need fewer. Difficulty stops rising at level 40, so the features and limits stay in the
-  same range beyond it. `shotsFor(base, fails)`
-  adds 10% per fail from the 4th, capped at +40%.
-- Calibration (`tools/fit.mjs`, levels 1-240, 4 colourings each, alternate levels of each
-  kind held out): `k` is scaled until the bot wins at least 95% in every difficulty band of
-  the training half. Sim with the shipped constants, fails 0 to 3 (no easing):
-  designed 1-10 100% / 34% median shots left, 11-25 94% / 38%, 26-40 98% / 34%;
-  unseen levels 241-320: designed 96% / 35%, noise 100% / 31%; noise 1-40 100% / 22 to 50%
-  (only six noise levels exist below 41). The spec's 5 to 15% shots left is not reachable
-  at 95% wins: the shots one level needs vary by about 20% (log sd 0.2) across colourings
-  alone, so a 95% win rate needs a limit about 1.4 times the typical need. Noise wins 100%
-  because its few early levels set the scale; tighten the noise `k` if noise feels easy.
-  Rerun `node tools/fit.mjs` after any change to generation, rules or the bot.
+- Shot limit (`src/bot.js`, called from `startState`): the bot plays a copy of the exact
+  attempt (layout, colours, dealing) with no limit; the limit is `limitFor(used)` =
+  `ceil(used * HUMAN_K + HUMAN_C)` (1.4 and 3), then `shotsFor(base, fails)` adds 10% per fail
+  from the 4th, capped at +40%. The bot tries 120 angles with and without a swap and scores
+  `popped + 2 * dropped`, minus a penalty near the loss line; it aims perfectly and sees
+  off-screen bubbles, hence the human factor. Results are cached per `(level, fails)` (restart
+  replays). It costs about 0.15 s early and up to about 1 s on the largest levels (Mac, node).
+  This replaced a layout formula: the colour shuffle alone moved a level's need by 20 to 40%,
+  so formula limits were too tight on some levels and far too loose on others. Tune
+  `HUMAN_K`/`HUMAN_C` by playtest.
 
 ## UI (`src/ui.js`)
 
@@ -124,7 +118,10 @@ function bodies, so keep it that way.
   with reduced motion). The ceiling line is drawn only when row 0 is on screen; a dashed loss line sits between `lossRow` and the row above.
 - Input: pointer drag aims (`setAim`), release fires (`shoot`). Only the pointer that started
   the aim (`aimId`) moves and fires it; a second pointer during an aim cancels it without a
-  shot. A touch that starts in the strip at the shooter's height swaps `cur` and `next` and
+  shot. Every level start (`begin(level, fails)`: next level, retry, confirmed restart, first load)
+  shows a full-screen loading card ("Level n" / "Preparing new attack vector" with a blinking
+  cursor) for at least `LOAD_MIN` (500 ms) while `startState` runs the bot. Board touches are ignored for `GRACE` (400 ms) after any sheet closes or a level starts, so a
+  lingering tap on a sheet button never fires. A touch that starts in the strip at the shooter's height swaps `cur` and `next` and
   never aims or fires. The mouse wheel also swaps (one swap per gesture). Swapping works
   any time no sheet is open, also while a packet flies. Aiming and firing wait until the
   packet has landed, the view has settled and no sheet is open (`ready()`).

@@ -1,0 +1,147 @@
+// Host systems: the fictional corporation or agency each level breaks into. Pure: no DOM, no storage.
+import { mulberry32, hash } from './core.js';
+import { difficulty, isLong } from './levels.js';   // circular: used only inside function bodies
+
+/* ---------- themes ---------- */
+// hue: the bubble hue each accent resembles (magenta 0, cyan 1, acid 2, amber 3, violet 4, red 5)
+export const THEMES = [{ a: '#39ff88', bg: '#060a07', hue: 2 }, { a: '#ff2a4a', bg: '#0b0607', hue: 5 },
+  { a: '#20e8ff', bg: '#05090b', hue: 1 }, { a: '#b36bff', bg: '#08060b', hue: 4 },
+  { a: '#ffb020', bg: '#0b0905', hue: 3 }, { a: '#ff3df0', bg: '#0b050a', hue: 0 }];
+export const themeFor = level => THEMES[hash(level, 3) % 6];
+
+/* ---------- names ---------- */
+const SURNAMES = ['Kessler', 'Hayashi', 'Okonkwo', 'Reyes', 'Lindqvist', 'Tanaka', 'Sato', 'Adeyemi', 'Novak', 'Mensah',
+  'Castellanos', 'Volkov', 'Nakamura', 'Haddad', 'Okafor', 'Brennan', 'Varga', 'Kowalczyk', 'Moreau', 'Achterberg',
+  'Delacroix', 'Petrov', 'Chaudhry', 'Iyer', 'Nguyen', 'Park', 'Rahimi', 'Oyelaran', 'Soto', 'Ferreira',
+  'Kaur', 'Zhou', 'Mwangi', 'Halvorsen', 'Esposito', 'Kaya', 'Sandoval', 'Yilmaz', 'Szabo', 'Ngata'];
+const COINED = ['Halcyon', 'Novacrest', 'Mitsuda', 'Corvane', 'Lumetra', 'Aurexa', 'Syntaris', 'Velkoria', 'Obsidane',
+  'Quorvant', 'Pyralis', 'Kestrion', 'Meridane', 'Torvale', 'Zenthra', 'Ashgrove', 'Ironveil', 'Solmara', 'Cindral',
+  'Vantrel', 'Orbiqa', 'Nethra', 'Glasswater', 'Brightmoor', 'Duskline', 'Hexavon', 'Mirolux', 'Tessaline', 'Varnhold',
+  'Coldspire', 'Ostrevan'];
+const LETTERS = 'CDFHJKLMNPRSTVXZ';   // no vowels, no B or G: keeps clear of real agency acronyms
+// ponytail: hand list of real firms and agencies the letters could spell; extend if one slips through
+const REAL = new Set(['DHL', 'TNT', 'NTT', 'KPN', 'CNN', 'MTV', 'RTL', 'ZDF', 'CVS', 'KKR', 'PNC', 'DXC', 'NCR', 'DHS', 'NHS', 'FDA', 'CDC', 'TCL', 'DFL', 'HTC', 'ZTE', 'NHK', 'RCA', 'JVC', 'TDK', 'CSX', 'MMC']);
+const pick = (r, a) => a[Math.floor(r() * a.length)];
+function initials(r, n) {
+  for (;;) { let s = ''; for (let i = 0; i < n; i++) s += pick(r, LETTERS); if (!REAL.has(s)) return s; }
+}
+const NAMES = {   // the four corporation name patterns, without the industry word
+  pair: r => { const a = pick(r, SURNAMES); let b; do b = pick(r, SURNAMES); while (b === a); return `${a}-${b}`; },
+  coined: r => pick(r, COINED),
+  surname: r => pick(r, SURNAMES),
+  initials: r => initials(r, 3),
+};
+const PATTERNS = { small: ['coined', 'surname'], corporate: ['pair', 'coined', 'surname', 'initials'], high: ['pair', 'initials'] };
+
+/* ---------- industries ---------- */
+const INDUSTRIES = {
+  finance: [['Trust', 'Capital', 'Bank', 'Holdings'], { vault: 4, ledger: 4, 'trading floor': 3, payroll: 2, archive: 1 }],
+  insurance: [['Mutual', 'Assurance'], { 'claims db': 4, 'actuarial core': 3, archive: 2, payroll: 2 }],
+  biotech: [['Biotech', 'Genomics'], { 'r&d node': 4, 'clinical db': 3, 'sample vault': 2, archive: 1 }],
+  pharma: [['Pharma', 'Labs'], { 'r&d node': 3, 'clinical db': 4, 'supply chain': 2, 'patent archive': 2 }],
+  aerospace: [['Orbital', 'Aerospace'], { 'flight control': 4, telemetry: 3, 'r&d node': 2, 'launch command': 2 }],
+  defense: [['Defense', 'Arms', 'Dynamics'], { command: 4, 'weapons r&d': 3, 'surveillance grid': 3, armory: 2 }],
+  security: [['Security', 'Shield'], { gate: 4, 'surveillance grid': 4, 'access control': 3, archive: 1 }],
+  media: [['Media', 'Broadcast', 'Studios'], { broadcast: 4, 'content vault': 3, 'ad engine': 3, archive: 1 }],
+  telecom: [['Telecom', 'Networks'], { 'switching core': 4, 'subscriber db': 3, 'relay grid': 3 }],
+  logistics: [['Logistics', 'Freight'], { 'supply chain': 4, 'shipping manifest': 4, 'fleet control': 3 }],
+  energy: [['Energy', 'Power'], { 'reactor control': 4, 'grid control': 4, telemetry: 2 }],
+  ai: [['AI', 'Systems', 'Cognition'], { core: 4, 'training cluster': 3, 'r&d node': 2 }],
+};
+const LOW = ['payroll', 'shipping manifest', 'archive', 'ad engine', 'claims db', 'subscriber db'];
+const TOP = ['command', 'weapons r&d', 'launch command', 'core', 'training cluster', 'reactor control', 'surveillance grid'];
+// tier -> industry -> which of its systems that tier may hit
+const TIERS = {
+  small: { industries: ['logistics', 'media', 'insurance', 'telecom'], ok: s => LOW.includes(s) },
+  corporate: { industries: ['finance', 'biotech', 'pharma', 'energy', 'security', 'telecom'],
+    ok: s => s === 'surveillance grid' || !TOP.includes(s) },   // the grid is also a corporate security system
+  high: { industries: ['defense', 'ai', 'aerospace', 'security', 'energy'],
+    ok: (s, ind) => !['security', 'energy'].includes(ind) || TOP.includes(s) },
+};
+const systemsOf = (tier, ind) => Object.entries(INDUSTRIES[ind][1]).filter(([s]) => TIERS[tier].ok(s, ind));
+
+/* ---------- government ---------- */
+const GOV_BODIES = ['Ministry of', 'Bureau of', 'Office of', 'Department of', 'Commission for'];
+const GOV_TOPICS = ['Records', 'Public Order', 'Civic Infrastructure', 'Continuity', 'Civil Harmony', 'Population Services',
+  'Transit', 'Revenue', 'Statistics', 'Public Safety', 'Data Integrity', 'Labour Allocation', 'Internal Affairs'];
+const JURISDICTIONS = ['Neo-Lagos Municipal', 'Federated Coast', 'New Kowloon', 'Greater Tethys', 'Free City of Varn',
+  'Northern Accord', 'Pacific Compact', 'Outer Ring', 'Meridian Union', 'Baltic Arcology', 'Sahel Federation', 'Neo-Quito Metro'];
+const GOV_SYSTEMS = {
+  small: { 'city records': 4, 'permit office': 3, 'traffic control': 3, 'parking db': 2 },
+  corporate: { 'tax records': 4, 'census db': 3, customs: 3, 'police records': 3, 'benefits db': 2 },
+  high: { 'signals intelligence': 4, 'black archive': 3, 'border command': 3, 'satellite uplink': 2, 'defence command': 2 },
+};
+function govName(r) {
+  const x = r(), base = x < 0.6 ? `${pick(r, GOV_BODIES)} ${pick(r, GOV_TOPICS)}`
+    : x < 0.8 ? `Directorate ${1 + Math.floor(r() * 19)}` : initials(r, 4);
+  return r() < 0.5 ? `${pick(r, JURISDICTIONS)} ${base}` : base;
+}
+
+/* ---------- hosts ---------- */
+export const SHAPES = ['cubes', 'pyramid', 'spire', 'sphere', 'fortress', 'lattice'];
+const SHAPE_OF = {
+  cubes: ['vault', 'ledger', 'sample vault', 'content vault', 'claims db', 'subscriber db', 'armory',
+    'city records', 'parking db', 'census db', 'benefits db'],
+  pyramid: ['r&d node', 'weapons r&d', 'clinical db', 'patent archive', 'archive', 'actuarial core',
+    'tax records', 'police records', 'black archive'],
+  spire: ['command', 'launch command', 'flight control', 'reactor control', 'trading floor',
+    'traffic control', 'border command', 'defence command'],
+  sphere: ['broadcast', 'telemetry', 'ad engine', 'relay grid', 'signals intelligence', 'satellite uplink'],
+  fortress: ['gate', 'access control', 'payroll', 'shipping manifest', 'supply chain', 'permit office', 'customs'],
+  lattice: ['core', 'training cluster', 'switching core', 'surveillance grid', 'grid control', 'fleet control'],
+};
+const shapeOf = s => SHAPES.find(k => SHAPE_OF[k].includes(s));
+
+export function tierFor(level) {
+  if (isLong(level)) return 'high';
+  const d = difficulty(level);
+  return d < 0.35 ? 'small' : d < 0.75 ? 'corporate' : mulberry32(hash(level, 12))() < 0.3 ? 'high' : 'corporate';
+}
+function weighted(r, list) {   // list: [[name, weight]]
+  let x = r() * list.reduce((s, [, w]) => s + w, 0);
+  for (const [s, w] of list) if ((x -= w) < 0) return s;
+  return list[list.length - 1][0];
+}
+const pools = new Map();
+function pool(tier, stretch) {   // 24 recurring corporations per tier and 30-level stretch
+  const k = `${tier} ${stretch}`; if (pools.has(k)) return pools.get(k);
+  const r = mulberry32(hash(stretch, ['small', 'corporate', 'high'].indexOf(tier), 13));
+  return pools.set(k, Array.from({ length: 24 }, () => {
+    const industry = pick(r, TIERS[tier].industries);
+    return { owner: `${NAMES[pick(r, PATTERNS[tier])](r)} ${pick(r, INDUSTRIES[industry][0])}`, industry };
+  })).get(k);
+}
+function rawHost(level, r) {
+  const tier = tierFor(level);
+  if (r() < 1 / 6) {
+    const list = Object.entries(GOV_SYSTEMS[tier]);
+    return { owner: govName(r), gov: true, industry: 'gov', tier, list, system: weighted(r, list) };
+  }
+  const P = pool(tier, Math.floor((level - 1) / 30)), i = Math.floor(r() * 24);
+  const list = systemsOf(tier, P[i].industry);
+  return { ...P[i], gov: false, tier, list, P, i, system: weighted(r, list) };
+}
+// The no-repeat rule compares with the previous level's final host (a rerolled one included),
+// so hosts are settled in level order and cached.
+const hosts = [null];
+export function hostFor(level) {
+  for (let k = hosts.length; k <= level; k++) hosts[k] = settle(k, hosts[k - 1]);
+  return hosts[level];
+}
+function settle(level, prev) {
+  const r = mulberry32(hash(level, 11)), h = rawHost(level, r);
+  if (prev && prev.owner === h.owner && prev.system === h.system) {
+    h.system = weighted(r, h.list);
+    if (h.system === prev.system) {
+      if (h.list.length > 1) h.system = h.list[(h.list.findIndex(([s]) => s === prev.system) + 1) % h.list.length][0];
+      else {   // a one-system corporation: move to the next corporation in the pool
+        Object.assign(h, h.P[(h.i + 1) % 24]); h.list = systemsOf(h.tier, h.industry); h.system = weighted(r, h.list);
+      }
+    }
+  }
+  const theme = themeFor(level).hue; let hue = Math.floor(r() * 5); if (hue >= theme) hue++;
+  const { owner, gov, industry, system, tier } = h;
+  return { owner, gov, industry, system, tier, label: `${owner} // ${system}`.toUpperCase(), shape: shapeOf(system), hue,
+    params: { size: 0.85 + r() * 0.3, steps: 3 + Math.floor(r() * 4), towers: 2 + Math.floor(r() * 3),
+      nodes: 7 + Math.floor(r() * 6), tilt: -0.2 + r() * 0.4 } };
+}

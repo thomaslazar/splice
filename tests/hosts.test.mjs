@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { hostFor, tierFor, themeFor, THEMES, SHAPES } from '../src/hosts.js';
 import { isLong } from '../src/levels.js';
 
-const N = 3000, hosts = Array.from({ length: N }, (_, i) => hostFor(i + 1));
+const N = 6000, hosts = Array.from({ length: N }, (_, i) => hostFor(i + 1));
 
 test('hosts are deterministic and well formed', () => {
   assert.deepEqual(hostFor(17), hostFor(17));
@@ -19,7 +19,9 @@ test('the host hue is never the accent hue', () => {
 });
 test('long levels are high stakes and tiers follow difficulty', () => {
   for (let lv = 1; lv <= 200; lv++) if (isLong(lv)) assert.equal(tierFor(lv), 'high');
-  assert.equal(tierFor(1), 'small'); assert.equal(tierFor(22), 'corporate');
+  assert.equal(tierFor(1), 'small');
+  const mix = new Set(); for (let lv = 40; lv <= 400; lv++) if (!isLong(lv)) mix.add(tierFor(lv));
+  assert.deepEqual([...mix].sort(), ['corporate', 'high', 'small']);
   assert.equal(hostFor(5).tier, 'high');
 });
 test('variety: every shape, many systems, government targets, recurring corporations', () => {
@@ -29,6 +31,20 @@ test('variety: every shape, many systems, government targets, recurring corporat
   assert.ok(new Set(hosts.map(h => h.industry)).size >= 13);
   const stretch = hosts.slice(30, 60).filter(h => !h.gov).map(h => h.owner);
   assert.ok(new Set(stretch).size < stretch.length, 'a corporation recurs within 30 levels');
+});
+test('every system of every industry and every government tier is reachable', () => {
+  const SYS = { finance: ['vault', 'ledger', 'trading floor', 'payroll', 'archive'], insurance: ['claims db', 'actuarial core', 'archive', 'payroll'],
+    biotech: ['r&d node', 'clinical db', 'sample vault', 'archive'], pharma: ['r&d node', 'clinical db', 'supply chain', 'patent archive'],
+    aerospace: ['flight control', 'telemetry', 'r&d node', 'launch command'], defense: ['command', 'weapons r&d', 'surveillance grid', 'armory'],
+    security: ['gate', 'surveillance grid', 'access control', 'archive'], media: ['broadcast', 'content vault', 'ad engine', 'archive'],
+    telecom: ['switching core', 'subscriber db', 'relay grid'], logistics: ['supply chain', 'shipping manifest', 'fleet control'],
+    energy: ['reactor control', 'grid control', 'telemetry'], ai: ['core', 'training cluster', 'r&d node'] };
+  const GOV = { small: ['city records', 'permit office', 'traffic control', 'parking db'], corporate: ['tax records', 'census db', 'customs', 'police records', 'benefits db'],
+    high: ['signals intelligence', 'black archive', 'border command', 'satellite uplink', 'defence command'] };
+  const got = new Set(hosts.map(h => h.gov ? `gov ${h.tier} ${h.system}` : `${h.industry} ${h.system}`)), miss = [];
+  for (const [ind, ss] of Object.entries(SYS)) for (const s of ss) if (!got.has(`${ind} ${s}`)) miss.push(`${ind} ${s}`);
+  for (const [t, ss] of Object.entries(GOV)) for (const s of ss) if (!got.has(`gov ${t} ${s}`)) miss.push(`gov ${t} ${s}`);
+  assert.deepEqual(miss, []);
 });
 test('no corporation and system pair on two levels in a row', () => {
   for (let i = 1; i < N; i++) assert.ok(!(hosts[i].owner === hosts[i - 1].owner && hosts[i].system === hosts[i - 1].system), `level ${i + 1}`);

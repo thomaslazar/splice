@@ -97,8 +97,8 @@ const shapeOf = s => SHAPES.find(k => SHAPE_OF[k].includes(s));
 
 export function tierFor(level) {
   if (isLong(level)) return 'high';
-  const d = difficulty(level);
-  return d < 0.35 ? 'small' : d < 0.75 ? 'corporate' : mulberry32(hash(level, 12))() < 0.3 ? 'high' : 'corporate';
+  const d = difficulty(level), x = mulberry32(hash(level, 12))();   // small-time at every difficulty, high grows with it
+  return x < 0.15 + 0.85 * (1 - d) ? 'small' : x < 1 - 0.3 * d ? 'corporate' : 'high';
 }
 function weighted(r, list) {   // list: [[name, weight]]
   let x = r() * list.reduce((s, [, w]) => s + w, 0);
@@ -112,9 +112,9 @@ function pool(tier, stretch) {   // 24 recurring corporations per tier and 30-le
   return pools.set(k, Array.from({ length: 24 }, () => {
     const industry = weighted(r, Object.entries(TIERS[tier].industries));
     const longest = systemsOf(tier, industry).reduce((a, [s]) => s.length > a.length ? s : a, '');
-    let owner;   // up to 4 tries for a label within 40 characters, never over 52
-    for (let t = 0; !owner || !fits(owner, longest, t < 4 ? 40 : 52); t++)
-      owner = `${NAMES[pick(r, PATTERNS[tier])](r)} ${pick(r, INDUSTRIES[industry][0])}`;
+    const p = pick(r, PATTERNS[tier]); let owner;   // 8 tries in the drawn pattern for a label within 40, 4 in any, never over 52
+    for (let t = 0; !owner || !fits(owner, longest, t < 12 ? 40 : 52); t++)
+      owner = `${NAMES[t < 8 ? p : pick(r, PATTERNS[tier])](r)} ${pick(r, INDUSTRIES[industry][0])}`;
     return { owner, industry };
   })).get(k);
 }
@@ -151,5 +151,5 @@ function settle(level, recent) {
   const { owner, gov, industry, system, tier } = h;
   return { owner, gov, industry, system, tier, label: `${owner} // ${system}`.toUpperCase(), shape: shapeOf(system), hue,
     params: { size: 0.85 + r() * 0.3, steps: 3 + Math.floor(r() * 4), towers: 2 + Math.floor(r() * 3),
-      nodes: 7 + Math.floor(r() * 6), tilt: -0.2 + r() * 0.4 } };
+      nodes: 7 + Math.floor(r() * 6) } };
 }

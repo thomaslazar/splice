@@ -134,9 +134,10 @@ systems it plausibly runs, and the system decides the shape.
   - **high stakes**: defense, ai, aerospace, plus security and energy with only their top
     systems (command, weapons r&d, launch command, core, training cluster, reactor control,
     surveillance grid); names from the two-surname or initials patterns (megacorps).
-  - Tier choice (*my call*, tunable): every 5th (long) level is high stakes; otherwise
-    `difficulty(level)` below 0.35 is small-time, below 0.75 corporate, above that corporate
-    with a 30% chance of high stakes. When chapters come, the tier can follow the position
+  - Tier choice (*my call*, tunable; revised after review so small-time stays at every
+    difficulty): every 5th (long) level is high stakes; otherwise, with
+    `d = difficulty(level)`, a seeded roll picks small-time with weight `0.15 + 0.85 * (1 - d)`,
+    high stakes with `0.3 * d` and corporate with the rest. When chapters come, the tier can follow the position
     in the chapter instead, with the chapter's last level always high stakes.
 - **Government targets** (owner's request): fictional agencies alongside the
   corporations, about 1 level in 6. Never real agency names or acronyms. Names from

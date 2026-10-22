@@ -123,12 +123,14 @@ Each level breaks into a fictional host, `hostFor(level)`: `{owner, gov, industr
 label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and deterministic
 (seeded from the level), settled in level order and cached.
 
-- Tier (`tierFor`): `small` (small-time), `corporate` or `high` (high stakes) by `difficulty`:
-  under 0.35 small, under 0.75 corporate, above that corporate with a 30% chance of high. Long
-  levels (`isLong`) are always high. A tier has its own industries and the systems it may hit.
+- Tier (`tierFor`): `small` (small-time), `corporate` or `high` (high stakes), a seeded roll
+  weighted by `d = difficulty`: small `0.15 + 0.85 * (1 - d)`, high `0.3 * d`, corporate the
+  rest, so small-time stays possible at every difficulty. Long levels (`isLong`)
+  are always high. A tier has its own industries and the systems it may hit.
 - Corporations recur: each tier has a pool of 24 per 30-level stretch (`pool`), so a name comes
   back within a stretch. Name patterns differ per tier (pair of surnames, coined, surname,
-  initials).
+  initials). The drawn pattern gets 8 tries to fit a label within 40 before any pattern may
+  be used, so long pairs do not all turn into initials.
 - Government: about 1 level in 6 (`r() < 1/6`) targets a fictional body, with its own system
   list per tier and a made-up jurisdiction.
 - Variety: a system is rerolled up to three times away from the last three levels'; the same

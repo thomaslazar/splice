@@ -185,6 +185,9 @@ like an orphaned process.
 
 ## Working rules
 
+- Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-1`), and
+  `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.
 - No em-dashes in UI copy or docs. Use typographic apostrophes (’) in visible text.

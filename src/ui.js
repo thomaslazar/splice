@@ -192,7 +192,7 @@ function draw() {
       a.vy += .025; a.y += a.vy; a.x += a.vx + (a.k % 6 < 1 ? (hash(a.key, a.k) % 1000 / 1000 - .5) : 0);
       if (on) bubble(X(a.x), a.y * sc, a.col, .9); return a.y * sc < H + sc;
     }
-    g.fillStyle = theme.a; g.font = `bold ${sc * 1.4}px ui-monospace, Menlo, monospace`; g.textAlign = 'center';
+    g.fillStyle = theme.a; g.font = `bold ${sc * 1.4}px 'Chakra Petch', ui-monospace, Menlo, monospace`; g.textAlign = 'center';
     g.globalAlpha = Math.max(0, 1 - a.k / 50); g.fillText(a.s, X(a.x), a.y * sc - a.k); g.globalAlpha = 1; return a.k < 50;
   });
   requestAnimationFrame(draw);

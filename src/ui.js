@@ -85,7 +85,7 @@ async function begin(level, fails) {
   $('#load').hidden = true; loading = false; start(s);
 }
 // Running out: 'low' at 25% of the shots or fewer, 'crit' at 3 or fewer (same thresholds as the trace log lines).
-const warn = () => S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
+const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#host').textContent = hostFor(S.level).label;
@@ -150,7 +150,7 @@ function logStart() {   // clear, connect, and set the once-flags that already h
 function logShot(dropped) {   // events in the spec's order, after a landed shot
   if (dropped >= 6) log(t('logBreach', { n: dropped }));
   const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
-  const f = flagged();
+  const f = flagged(); if (won(S)) f.rising = f.critical = false;   // no trace warning on the winning shot
   for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) {
     seen[n] = true; log(text); if (n !== 'host') flash(n); }
   if (lost(S)) log(t('logLost')); else if (won(S)) log(t('logRoot', { host: hostFor(S.level).owner }));

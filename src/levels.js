@@ -3,6 +3,7 @@ import { mulberry32, hash, cellsIn, key, rc, nbrs, connected } from './core.js';
 
 export const difficulty = level => Math.min(1, level / 40);
 export const isLong = level => level % 5 === 0;
+export const hardness = level => ((level - 1) % 20) / 19;
 export const winRows = cols => Math.round(1.7 * cols);
 
 // Shapes are predicates over unit coords: x in 0..cols-1 (odd rows +0.5), y in rows*0.866.
@@ -44,14 +45,10 @@ function shapeMakers(rnd, cols) {
   ];
 }
 
-// Connect every floating component to the ceiling with a thin stem (the anchors).
-function addStems(cells, cols, rnd, mirror) {
-  for (;;) {
-    const seen = connected(cells, cols), loose = [...cells.keys()].filter(k => !seen.has(k));
-    if (!loose.length) return;
-    // topmost loose bubble; prefer the middle of its row
-    const top = Math.min(...loose.map(k => k >> 4)), row = loose.filter(k => k >> 4 === top);
-    let [r, c] = rc(row[Math.floor(row.length / 2)]);
+// Connect every floating component to the ceiling with thin stems (the anchors).
+// Each structure gets 1 + extra stems (extra grows with hardness h), spread along its top edge.
+function addStems(cells, cols, rnd, mirror, h) {
+  const grow = (r, c) => {
     const grp = 1e6 + cells.size * 1000;
     while (r > 0) {
       const ups = nbrs(cols, r, c).filter(([a]) => a === r - 1);
@@ -61,11 +58,29 @@ function addStems(cells, cols, rnd, mirror) {
       const m = cellsIn(cols, r) - 1 - c; // mirrored layouts get mirrored stems
       if (mirror && !cells.has(key(r, m))) cells.set(key(r, m), grp + 500);
     }
+  };
+  for (;;) {
+    const seen = connected(cells, cols), loose = new Set([...cells.keys()].filter(k => !seen.has(k)));
+    if (!loose.size) return;
+    // topmost loose bubble; prefer the middle of its row
+    const top = Math.min(...[...loose].map(k => k >> 4)), row = [...loose].filter(k => k >> 4 === top);
+    const start = row[Math.floor(row.length / 2)], extra = Math.min(2, Math.floor(h * 2 + rnd()));
+    const comp = new Set([start]), st = [start]; // the structure this stem holds
+    while (st.length) for (const [r, c] of nbrs(cols, ...rc(st.pop()))) { const k = key(r, c); if (loose.has(k) && !comp.has(k)) { comp.add(k); st.push(k); } }
+    grow(...rc(start));
+    if (!extra) continue;
+    // top edge near the top: nothing above; extra stems go left and right of the main one
+    const x = k => (k & 15) + (k >> 4) % 2 / 2;
+    const edge = [...comp].filter(k => k >> 4 <= top + 2 && nbrs(cols, ...rc(k)).every(([a, b]) => a !== (k >> 4) - 1 || !cells.has(key(a, b))))
+      .sort((a, b) => x(a) - x(b));
+    const ends = [edge[0], edge[edge.length - 1]].filter(k => Math.abs(x(k) - x(start)) >= 2);
+    if (extra === 1 && ends.length === 2) ends.splice(Math.floor(rnd() * 2), 1);
+    for (const k of ends) grow(...rc(k));
   }
 }
 
 function generate(level) {
-  const rnd = mulberry32(hash(level, 7)), d = difficulty(level);
+  const rnd = mulberry32(hash(level, 7)), d = difficulty(level), h = hardness(level);
   const kind = level < 3 ? 'designed' : rnd() < 0.25 ? 'noise' : 'designed';
   const w = [0.4 - 0.25 * d, 0.45, 0.15 + 0.25 * d];
   if (isLong(level)) { const m = Math.min(0.15, w[0]); w[0] -= m; w[2] += m; }
@@ -90,8 +105,18 @@ function generate(level) {
         for (let i = n - 1; i >= 0; i--) { const b = shapes[i](x, y); if (b >= 0) { part.set(key(r, c), s * 1000 + i * 100 + b); break; } }
       }
       if (part.size < 25 + d * 30) continue;
-      for (const [k, g] of part) cells.set(k, g);
-      addStems(cells, cols, rnd, mirror);
+      // Harder levels break shapes into more groups: per shape, the right half of a mirror
+      // (axis cells stay left) and band segments cut at shared x positions. Variant v adds v * 1e5.
+      const x = k => (k & 15) + (k >> 4) % 2 / 2, half = (cols - 1) / 2, ext = new Map(), size = new Map();
+      for (const [k, g] of part) { const i = g % 1000 / 100 | 0, e = ext.get(i) || [Infinity, -Infinity];
+        ext.set(i, [Math.min(e[0], x(k)), Math.max(e[1], x(k))]); }
+      const cut = new Map([...ext].map(([i, [lo, hi]]) => { const asym = mirror && rnd() < h, n = rnd() < h ? 3 : 2;
+        return [i, { asym, at: Array.from({ length: n - 1 }, (_, j) => lo + (hi - lo) * (j + 1 + (rnd() - .5) * .5) / n) }]; }));
+      for (const [k, g] of part) { const S = cut.get(g % 1000 / 100 | 0);
+        const id = g + (S.asym && x(k) > half ? 3e5 : 0); part.set(k, id); size.set(id, (size.get(id) || 0) + 1); }
+      const split = new Set([...size].filter(([, n]) => n >= 6 && rnd() < h).map(([id]) => id));
+      for (const [k, g] of part) cells.set(k, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => x(k) > a).length : g);
+      addStems(cells, cols, rnd, mirror, h);
       break;
     }
   }
@@ -117,7 +142,7 @@ export function colourize(layout, level, fails) {
     const nb = [...adj.get(g) || []];
     if (layout.kind === 'noise') { // clumpy noise: often copy a coloured neighbour
       const have = nb.filter(o => col.has(o));
-      col.set(g, have.length && rnd() < 0.45 ? col.get(have[Math.floor(rnd() * have.length)]) : perm[Math.floor(rnd() * nColours)]);
+      col.set(g, have.length && rnd() < 0.45 - 0.30 * hardness(level) ? col.get(have[Math.floor(rnd() * have.length)]) : perm[Math.floor(rnd() * nColours)]);
       continue;
     }
     const taken = new Set(nb.map(o => col.get(o))), free = perm.filter(x => !taken.has(x)), pool = free.length ? free : perm;

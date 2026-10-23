@@ -52,3 +52,30 @@ test('fails 1 to 3 do not ease; from the 4th, +10% per fail up to +40%', () => {
   for (const f of [0, 1, 2, 3]) assert.equal(shotsFor(50, f), 50);
   assert.equal(shotsFor(50, 4), 55); assert.equal(shotsFor(50, 7), 70); assert.equal(shotsFor(50, 12), 70);
 });
+
+import { hardness } from '../src/levels.js';
+import { key, nbrs, cellsIn } from '../src/core.js';
+
+test('hardness ramps over 20 levels and starts again', () => {
+  assert.equal(hardness(1), 0); assert.equal(hardness(20), 1); assert.equal(hardness(21), 0);
+  assert.ok(Math.abs(hardness(10) - 9 / 19) < 1e-9);
+});
+const easy = [1, 21, 41, 61, 81, 101, 121, 141, 161, 181], hard = easy.map(l => l + 19);
+const designed = ls => ls.filter(l => makeLayout(l).kind === 'designed');
+const stems = L => new Set([...L.cells.values()].filter(g => g >= 1e6)).size;
+const avg = (ls, f) => ls.reduce((a, l) => a + f(l), 0) / ls.length;
+test('hard levels hang their shapes from more stems', () => {
+  const e = avg(designed(easy), l => stems(makeLayout(l)) / makeLayout(l).screens), h = avg(designed(hard), l => stems(makeLayout(l)) / makeLayout(l).screens);
+  assert.ok(h > 1.8 * e, `stems per screen ${e} -> ${h}`);
+});
+const sameNeighbour = (L, col) => { let s = 0, n = 0;
+  for (const [k, c] of col) for (const [r, cc] of nbrs(L.cols, k >> 4, k & 15)) { const o = col.get(key(r, cc)); if (o !== undefined) { n++; if (o === c) s++; } }
+  return s / n; };
+test('hard levels break up colours', () => {
+  const share = ls => avg(ls, l => { const L = makeLayout(l); return sameNeighbour(L, colourize(L, l, 0)); });
+  // compare within each kind: the easy and hard sets mix noise and designed levels differently
+  for (const kind of ['designed', 'noise']) { const of = ls => ls.filter(l => makeLayout(l).kind === kind);
+    assert.ok(share(of(hard)) < share(of(easy)) - 0.05, `${kind} same-colour neighbours ${share(of(easy))} -> ${share(of(hard))}`); }
+  const groups = ls => avg(designed(ls), l => new Set(makeLayout(l).cells.values()).size / makeLayout(l).cells.size);
+  assert.ok(groups(hard) > 1.3 * groups(easy), 'more, smaller colour groups');
+});

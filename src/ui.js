@@ -43,11 +43,13 @@ function sym(i, x, y, s) {
   g.stroke();
 }
 function bubble(x, y, col, a = 1, rr = sc) {   // x, y, rr in px
+  const mono = fxOf().mono, c = mono ? '#a9aeb8' : colour(col);   // monochrome ICE: one neutral tone
   g.globalAlpha = Math.max(0, a);
-  g.shadowColor = colour(col); g.shadowBlur = rr * .6;
-  g.fillStyle = colour(col, 18); g.beginPath(); g.arc(x, y, rr * .9, 0, 7); g.fill();
-  g.shadowBlur = 0; g.lineWidth = Math.max(1.5, rr * .12); g.strokeStyle = colour(col); g.stroke();
-  g.lineWidth = Math.max(1.2, rr * .1); sym(col, x, y, rr * .7);
+  g.shadowColor = c; g.shadowBlur = rr * .6;
+  g.fillStyle = mono ? '#1b1d22' : colour(col, 18); g.beginPath(); g.arc(x, y, rr * .9, 0, 7); g.fill();
+  g.shadowBlur = 0; g.lineWidth = Math.max(1.5, rr * .12); g.strokeStyle = c; g.stroke();
+  if (mono) g.strokeStyle = '#eef0f4';   // brighter, thicker symbols: they are the only cue left
+  g.lineWidth = Math.max(mono ? 1.6 : 1.2, rr * (mono ? .14 : .1)); sym(col, x, y, rr * .7);
   g.globalAlpha = 1;
 }
 
@@ -161,14 +163,21 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
 // One type per level (iceFor). Its effects all live in FX: draw() asks fxOf() for the active one.
 // aim(pts) returns the part of the traced path to draw (null: none); the target ring shows only
 // with the whole path. hide(slot) ('cur' or 'next') draws that queue packet as a glitchy "?";
-// swapped() runs after a swap; locked ignores swaps and marks the next packet. Only drawing and
-// swapping change: firing, landing and dealing are the same as without ICE.
+// swapped() runs after a swap; locked ignores swaps and marks the next packet. ang(a) bends the
+// drawn aim angle (the shot keeps the true one); over() draws on top of the board; mono draws
+// bubbles in one neutral tone. Only drawing and swapping change: firing, landing and dealing are
+// the same as without ICE.
 let ice = null, restore = 0;   // jam: full aim line for the next `restore` shots; a reload starts jammed
 let blind = false;   // scrambler: the packet at the shooter is the hidden one (after a swap, until fired); a reload shows it
 const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
+const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none
 const FX = {
-  jam: { aim: pts => restore > 0 ? pts : pts.slice(0, 2) },   // to the first wall bounce, or the end if none
+  jam: { aim: pts => restore > 0 ? pts : cut(pts) },
+  // a few degrees, smooth: two slow sines; reduced motion: steady, cut at the first bounce instead
+  jitter: reduced ? { aim: cut } : { ang: a => { const s = performance.now() / 1000; return a + .06 * Math.sin(s * 2.3) + .03 * Math.sin(s * 5.1 + 1); } },
+  static: { over: glitchBlocks },
+  monochrome: { mono: true },
   black: { aim: () => null },
   scrambler: { hide: slot => slot === 'next' || blind, swapped: () => { blind = !blind; } },
   lock: { locked: true },
@@ -191,6 +200,20 @@ function packet(x, y, col, slot, a = 1, rr = sc) {   // a queue packet, through 
   }
 }
 const fxOf = () => FX[ice] || {};
+// static: 3 blocks of about 2 x 2 bubbles drift over the board above the loss line (never the
+// shooter zone), each on its own seeded slow Lissajous path; reduced motion: fixed. Purely drawn.
+function glitchBlocks(now, bottom) {
+  const s = reduced ? 0 : now / 1000, b = 4 * sc, tk = Math.floor(now / 90), u = (i, n) => hash(S.level, i, n) % 1000 / 1000;
+  for (let i = 0; i < 3; i++) {
+    const x = (W - b) * (.5 + .5 * Math.sin(s * (.15 + .1 * u(i, 1)) + 6.3 * u(i, 2)));
+    const y = Math.max(0, bottom - b) * (.5 + .5 * Math.sin(s * (.11 + .08 * u(i, 3)) + 6.3 * u(i, 4)));
+    for (let r = 0; r < 8; r++) {   // horizontal bands of grey noise, re-rolled every tick (not with reduced motion)
+      const h = hash(S.level, i, r, reduced ? 0 : tk), o = (h % 7 - 3) * b * .03;
+      g.fillStyle = `hsl(0 0% ${6 + h % 22}%)`; g.fillRect(x + o, y + r * b / 8, b, b / 8 + .5);
+    }
+    g.strokeStyle = theme.a; g.globalAlpha = .35; g.lineWidth = 1; g.strokeRect(x, y, b, b); g.globalAlpha = 1;
+  }
+}
 function start(s) {
   S = s; ice = iceFor(S.level); restore = 0; blind = false; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
@@ -291,12 +314,13 @@ function draw() {
   g.strokeStyle = WARN[w] || theme.a; g.globalAlpha = w === 'crit' && !reduced ? .45 + .4 * Math.sin(performance.now() / 160) : .5;
   g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-  const a = clampAim(aim ?? 0);
+  fxOf().over?.(now, ly - 2);
+  const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : clampAim(Math.min(-.001, f0.ang(a0)));   // drawn angle only; shoot() uses aim
   if (aimId !== null && a !== null && ready()) {
     const tr = trace(S.grid, S.cols, a, S.top), pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
     g.strokeStyle = theme.a; g.globalAlpha = .7; g.lineWidth = 2; g.setLineDash([2, 6]);
     g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
-    if (tr.cell && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
+    if (tr.cell && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = f0.mono ? '#a9aeb8' : colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
     g.globalAlpha = 1;
   }
   if (fly) {   // packet moves about 1.1 radius per frame along the traced path

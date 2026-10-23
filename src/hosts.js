@@ -1,6 +1,6 @@
 // Host systems: the fictional corporation or agency each level breaks into. Pure: no DOM, no storage.
 import { mulberry32, hash } from './core.js';
-import { difficulty, isLong } from './levels.js';   // circular: used only inside function bodies
+import { difficulty, isLong, hardness } from './levels.js';   // circular: used only inside function bodies
 
 /* ---------- themes ---------- */
 // hue: the bubble hue each accent resembles (magenta 0, cyan 1, acid 2, amber 3, violet 4, red 5)
@@ -152,4 +152,27 @@ function settle(level, recent) {
   return { owner, gov, industry, system, tier, label: `${owner} // ${system}`.toUpperCase(), shape: shapeOf(system), hue,
     params: { size: 0.85 + r() * 0.3, steps: 3 + Math.floor(r() * 4), towers: 2 + Math.floor(r() * 3),
       nodes: 7 + Math.floor(r() * 6) } };
+}
+
+/* ---------- ICE ---------- */
+export const ICE = { static: 'mild', jitter: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh' };
+export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
+const SEVERITY = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
+const LIKES = { security: ['lock', 'static'], media: ['static', 'jitter'], telecom: ['static', 'jitter'],
+  finance: ['scrambler', 'jitter'], insurance: ['scrambler', 'jitter'], ai: ['jitter', 'monochrome'],
+  defense: ['black', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
+  pharma: ['static', 'scrambler', 'jam'], energy: ['static', 'scrambler', 'jam'], logistics: ['static', 'scrambler', 'jam'] };
+const GOV_LIKES = { small: [], corporate: ['static', 'lock'], high: ['black', 'lock'] };
+export function iceFor(level) {
+  const h = hardness(level), r = mulberry32(hash(level, 13));
+  const chance = r(), pickR = r();   // always drawn, so one choice never shifts the other
+  if (h < 0.5 || chance >= (h - 0.5) * 1.4) return null;
+  const { gov, industry, tier } = hostFor(level), cap = CAP[tier];
+  const ok = t => SEVERITY[ICE[t]] <= cap && (t !== 'black' || h >= 0.8 && tier === 'high');
+  const likes = (gov ? GOV_LIKES[tier] : LIKES[industry]).filter(ok);
+  const list = likes.length ? likes : Object.keys(ICE).filter(ok);   // any type within the cap
+  // ponytail: preferred types weighted 2:1:1 by order; tune by playing
+  const w = list.map((_, i) => i ? 1 : 2);
+  let x = pickR * w.reduce((a, b) => a + b);
+  return list.find((_, i) => (x -= w[i]) < 0);
 }

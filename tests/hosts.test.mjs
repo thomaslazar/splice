@@ -77,3 +77,23 @@ test('label limits hold everywhere: none over 52, a government jurisdiction only
     if (h.gov && !BASE.test(h.owner)) assert.ok(h.label.length <= 40, `level ${lv}: ${h.label}`);
   }
 });
+
+import { iceFor, ICE } from '../src/hosts.js';
+import { hardness } from '../src/levels.js';
+
+const SEV = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
+test('ice follows hardness, tier and the black ice rule', () => {
+  const seen = new Set();
+  for (let lv = 1; lv <= 4000; lv++) { const ice = iceFor(lv), h = hardness(lv), host = hostFor(lv);
+    assert.equal(iceFor(lv), ice);
+    if (h < 0.5) assert.equal(ice, null, `level ${lv}`);
+    if (!ice) continue; seen.add(ice);
+    assert.ok(SEV[ICE[ice]] <= CAP[host.tier], `${ice} on ${host.tier}`);
+    if (ice === 'black') assert.ok(h >= 0.8 && host.tier === 'high');
+  }
+  assert.deepEqual([...seen].sort(), Object.keys(ICE).sort());
+});
+test('about 70% of the hardest levels have ice', () => {
+  const top = Array.from({ length: 200 }, (_, i) => 20 * (i + 1)), n = top.filter(l => iceFor(l)).length;
+  assert.ok(n > 0.55 * 200 && n < 0.85 * 200, `${n}/200`);
+});

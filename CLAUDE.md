@@ -10,6 +10,8 @@ Read before changing behaviour:
   playtested prototype. Where this file and the spec disagree, the spec wins.
 - `docs/superpowers/specs/2026-10-22-visual-pass-design.md`: the HUD, hosts, run log, win
   sequence and font.
+- `docs/superpowers/specs/2026-10-23-difficulty-pass-design.md`: hardness, generation changes
+  and ICE.
 - `CONTRIBUTING.md`: code, copy and commit conventions. Follow them.
 
 ## Commands
@@ -25,6 +27,13 @@ Read before changing behaviour:
   `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
   Run `r` plays with `fails = r`. Per level it shows the limit, the shots the bot needed and
   the margin; the bot always wins, since the limit comes from it.
+  `node tools/sim.mjs [levels] --clears` (default levels 1-80) plays each level once with
+  `fails = 0` and reports big clears per kind and hardness band (`hband`: four quarters of
+  `hardness`): levels, wins, shots, big clears, per level and per shot. A big clear is one
+  shot removing at least half of the bubbles on screen while 12 or more are shown. Judge it
+  per shot, not per level: hard bands are mostly long levels with about 1.9x the shots. First
+  run (levels 1-80), designed per shot 26.6 / 26.7 / 18.5 / 16.9% from easiest to hardest
+  band, noise 10.9 / 11.2 / 5.4 / 2.6%; the bot won all 80.
 
 ## Files
 
@@ -33,7 +42,7 @@ Read before changing behaviour:
 - `src/levels.js`: level generation, colouring, fail easing, pure. Tested in `tests/levels.test.mjs`.
 - `src/ui.js`: language, rendering, input, animation, sheets, saving.
 - `src/hosts.js`: `hostFor(level)` (the host system for a level), `themeFor(level)` (accent and
-  background), `tierFor(level)`, pure. Tested in `tests/hosts.test.mjs`.
+  background), `tierFor(level)`, `iceFor(level)` (the level's ICE, or null), pure. Tested in `tests/hosts.test.mjs`.
 - `src/hostdraw.js`: `drawHost(g, host, x, y, size, colour, glitch, t, apart)`, the six host shapes on a 2D
   context, DOM-free. Tested in `tests/hostdraw.test.mjs` (a stub context).
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
@@ -52,7 +61,7 @@ Read before changing behaviour:
   icons lang fonts`) and, if needed offline, to `SHELL` in `sw.js`.
 - `LICENSE.md`: PolyForm Noncommercial 1.0.0, as Kiln.
 - `spike/`: the throwaway prototype the design numbers came from. Not part of the game.
-- `docs/superpowers/`: the specs and plans (core loop, visual pass).
+- `docs/superpowers/`: the specs and plans (core loop, visual pass, difficulty pass).
 
 ## Core (`src/core.js`)
 
@@ -98,21 +107,34 @@ function bodies, so keep it that way.
 ## Levels (`src/levels.js`)
 
 - `difficulty(level)` ramps to 1 at level 40. `isLong(level)`: every 5th level is longer.
+  `hardness(level)` = `((level - 1) % 20) / 19`: a sawtooth, 0 at levels 1, 21, 41 ... and 1 at
+  20, 40, 60 ... Unlike `difficulty` it never saturates; it drives how fragmented a level is
+  and, from 0.5 up, whether it has ICE.
   `winRows(cols)` is the visible height in rows.
 - `makeLayout(level)` (cached, last 4 levels) depends on the level only. Kind is `designed` or `noise`
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
-  downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group. `addStems` joins loose
-  parts to the ceiling. Noise is full rows, every bubble its own group.
+  downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group.
+  Hardness `h` breaks groups up (all draws are seeded from the level): per shape, with
+  probability `h` the right half of a mirrored shape becomes its own group (axis cells stay
+  left), and each shape is cut at x positions into 2 segments (3 with probability `h`); a
+  group of 6 or more bubbles takes the cuts with probability `h`. `addStems` joins loose
+  parts to the ceiling with 1 + `min(2, floor(2h + rnd))` stems per structure, the extra ones
+  at the left and right ends of its top edge (about 2 or more columns from the main stem);
+  mirrored layouts get mirrored stems. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
-  possible. Retry (`fails`) keeps the layout and reshuffles the colours.
+  possible. Retry (`fails`) keeps the layout and reshuffles the colours. Noise is clumpy: a
+  bubble copies a coloured neighbour's colour with probability `0.45 - 0.30 * hardness`, else
+  draws a random colour, so easy noise levels have big same-colour clumps and hard ones are
+  nearly uniform.
 - Shot limit (`src/bot.js`, called from `startState`): the bot plays a copy of the exact
   attempt (layout, colours, dealing) with no limit; the limit is `limitFor(used)` =
-  `ceil(used * HUMAN_K + HUMAN_C)` (1.4 and 3), then `shotsFor(base, fails)` adds 10% per fail
+  `ceil(used * HUMAN_K * k + HUMAN_C)` (1.4 and 3; `k` is `ICE_K[ICE[ice]]` for a level with
+  ICE, else 1; the constant 3 is not scaled), then `shotsFor(base, fails)` adds 10% per fail
   from the 4th, capped at +40%. The bot tries 120 angles with and without a swap and scores
   `popped + 2 * dropped`, minus a penalty near the loss line; it aims perfectly and sees
   off-screen bubbles, hence the human factor. Results are cached per `(level, fails)` (restart
-  replays). It costs about 0.15 s early and up to about 1 s on the largest levels (Mac, node).
+  replays; ICE depends on the level only, so the key is enough). It costs about 0.15 s early and up to about 1 s on the largest levels (Mac, node).
   This replaced a layout formula: the colour shuffle alone moved a level's need by 20 to 40%,
   so formula limits were too tight on some levels and far too loose on others. Tune
   `HUMAN_K`/`HUMAN_C` by playtest.
@@ -141,6 +163,51 @@ label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and 
 - Shape (`SHAPES`): from the system, one of six drawn by `hostdraw.js`. `hue` is a bubble hue
   that is never the accent's hue.
 
+## ICE (`src/hosts.js`, `src/bot.js`, `src/ui.js`)
+
+A level from hardness 0.5 up may carry one ICE (intrusion countermeasure) that makes aiming
+or reading the board harder. `iceFor(level)` returns its type or null; pure, seeded
+(`hash(level, 13)`, two draws always taken so the chance and the pick never shift each
+other). It is not saved: it is recomputed from the level.
+
+- Chance: 0 below hardness 0.5, else `(h - 0.5) * 1.4` (70% at h = 1).
+- Types and severity (`ICE`): mild `static`, `jitter`; medium `scrambler`, `lock`, `jam`;
+  harsh `monochrome`, `black`. Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
+  1.25, harsh 1.5, applied by `limitFor` in `src/bot.js` (the bot itself plays without ICE:
+  it aims perfectly and ignores every effect, so the factor only pays the human for it).
+- Who runs what: the host's tier caps severity (`CAP`: small mild, corporate up to medium,
+  high up to harsh). `black` also needs hardness 0.8 or more and a `high` host. A host picks
+  from its industry's liked types (`LIKES`: for example security `lock`, `static`; media and
+  telecom `static`, `jitter`; finance and insurance `scrambler`, `jitter`; ai `jitter`,
+  `monochrome`; defense and aerospace `black`, `lock`; biotech, pharma, energy, logistics
+  `static`, `scrambler`, `jam`), government hosts from `GOV_LIKES` by tier (small none,
+  corporate `static`, `lock`, high `black`, `lock`), filtered by the cap and the `black`
+  rule. If nothing is left it takes any allowed type. The first liked type is weighted 2,
+  the others 1 (tune by playing).
+- UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
+  swapping change, firing, landing and dealing are the same as without ICE):
+  - `jam`: the aim line is cut at the first wall bounce (`cut`) and the landing ring is
+    hidden whenever the line is cut. Dropping 6 or more bubbles (not on a winning or losing
+    shot) restores the full line for the next 3 shots (`restore`), logged as `targeting
+    restored (n)` and, when the count runs out, `targeting jammed`. A reload starts jammed.
+  - `jitter`: the drawn aim angle wobbles a few degrees (two slow sines); the shot keeps the
+    true angle. With reduced motion it is steady and the line is cut at the first bounce.
+  - `static`: 3 blocks of grey noise about 2 x 2 bubbles drift over the board above the loss
+    line, never the shooter zone (`glitchBlocks`, drawn by `over`). They hide the board but
+    not the flying packet or the pop and fall effects (those draw after them). Reduced
+    motion: fixed blocks.
+  - `scrambler`: the next packet is always a grey "?"; a swap makes the packet at the
+    shooter hidden too (`blind`, until fired); a reload shows it. Rare in practice (tune by
+    playing).
+  - `lock`: swapping (strip touch and wheel) is ignored and a small padlock marks the next
+    packet.
+  - `monochrome`: bubbles draw in one neutral tone with brighter, thicker symbols, and the
+    target ring is neutral. The host strip keeps its colours.
+  - `black`: no aim line and no landing ring at all.
+- Announcements: the header shows a bordered tag (`#ice`) after "Jacked in" with the ICE name
+  (`iceStatic` and so on in `lang/`), and the log gets `ice detected: {ice}` right after
+  `connecting to {host}` at level start.
+
 ## UI (`src/ui.js`)
 
 - Language: top-level `await` loads `lang/languages.json`, then `setLang(code)` merges
@@ -168,7 +235,7 @@ label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and 
   any time no sheet is open, also while a packet flies. Aiming and firing wait until the
   packet has landed, the view has settled and no sheet is open (`ready()`).
 - Run log (in memory only, two lines, newest on top, all text in `lang/`): `connecting to
-  {host}` at level start; after each landed shot, in this order: `ice layer breached (n
+  {host}` at level start (then `ice detected: {ice}` on a level with ICE); after each landed shot, in this order: `ice layer breached (n
   nodes)` for 6 or more dropped, `deeper: p% of the way in` when the view scrolled and the
   progress changed (`pct()`: lowest bubble against `S.startLow`, steps of 5), then once per
   level `host in range` (`S.top === 0`), `trace rising` (shots at or under 25% of `maxShots`) and

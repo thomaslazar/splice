@@ -1,7 +1,7 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
-import { themeFor, hostFor } from './hosts.js';
+import { themeFor, hostFor, iceFor } from './hosts.js';
 import { drawHost } from './hostdraw.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
@@ -88,7 +88,7 @@ async function begin(level, fails) {
 const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
-  $('#jack').textContent = t('jackedIn'); $('#host').textContent = hostFor(S.level).label;
+  $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
   $('#lvl').textContent = t('lvl', { n: S.level }); $('#score').textContent = S.score;
   $('#restart').textContent = t('restart'); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
@@ -146,17 +146,31 @@ function pct() {
 const flagged = () => ({ host: S.top === 0, rising: S.shots <= .25 * S.maxShots, critical: S.shots <= 3 });
 function logStart() {   // clear, connect, and set the once-flags that already hold without writing
   lines = []; seen = flagged(); logTop = S.top; logPct = pct(); log(t('logConnect', { host: hostFor(S.level).owner }));
+  if (ice) log(t('logIce', { ice: iceName(ice) }));
 }
 function logShot(dropped) {   // events in the spec's order, after a landed shot
   if (dropped >= 6) log(t('logBreach', { n: dropped }));
+  if (ice === 'jam' && dropped >= 6 && !won(S) && !lost(S)) { restore = 3; log(t('logRestored', { n: restore })); }
   const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
   const f = flagged(); if (won(S)) f.rising = f.critical = false;   // no trace warning on the winning shot
   for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) {
     seen[n] = true; log(text); if (n !== 'host') flash(n); }
   if (lost(S)) log(t('logLost')); else if (won(S)) log(t('logRoot', { host: hostFor(S.level).owner }));
 }
+/* ---------- ICE ---------- */
+// One type per level (iceFor). Its effects all live in FX: draw() asks fxOf() for the active one.
+// aim(pts) returns the part of the traced path to draw (null: none); the target ring shows only
+// with the whole path. Later effects (queue, bubbles, overlay) go in here as hooks too.
+let ice = null, restore = 0;   // jam: full aim line for the next `restore` shots; a reload starts jammed
+const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
+  jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
+const FX = {
+  jam: { aim: pts => restore > 0 ? pts : pts.slice(0, 2) },   // to the first wall bounce, or the end if none
+  black: { aim: () => null },
+};
+const fxOf = () => FX[ice] || {};
 function start(s) {
-  S = s; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  S = s; ice = iceFor(S.level); restore = 0; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
@@ -183,6 +197,7 @@ function shoot() {
   const pre = new Map(S.grid), col = S.cur, m = fire(S, aim); aim = null;
   if (!m) return;
   save(); hud(); fly = { m, pre, col, i: 0, p: { ...m.pts[0] } };
+  if (restore > 0 && --restore === 0) log(t('logJammed'));
   if (reduced) land();
 }
 function land() {
@@ -255,10 +270,10 @@ function draw() {
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
   const a = clampAim(aim ?? 0);
   if (aimId !== null && a !== null && ready()) {
-    const tr = trace(S.grid, S.cols, a, S.top);
+    const tr = trace(S.grid, S.cols, a, S.top), pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
     g.strokeStyle = theme.a; g.globalAlpha = .7; g.lineWidth = 2; g.setLineDash([2, 6]);
-    g.beginPath(); tr.pts.forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
-    if (tr.cell) { const c = centre(...tr.cell); g.strokeStyle = colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
+    g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
+    if (tr.cell && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
     g.globalAlpha = 1;
   }
   if (fly) {   // packet moves about 1.1 radius per frame along the traced path

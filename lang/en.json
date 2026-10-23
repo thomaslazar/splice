@@ -23,5 +23,15 @@
   "logTrace": "> trace rising",
   "logCritical": "> trace critical",
   "logLost": "> connection lost",
-  "logRoot": "> root access: {host}"
+  "logRoot": "> root access: {host}",
+  "logIce": "> ice detected: {ice}",
+  "logRestored": "> targeting restored ({n})",
+  "logJammed": "> targeting jammed",
+  "iceStatic": "Static ICE",
+  "iceJitter": "Jitter ICE",
+  "iceScrambler": "Scrambler ICE",
+  "iceLock": "Lock ICE",
+  "iceJam": "Jam ICE",
+  "iceMonochrome": "Monochrome ICE",
+  "iceBlack": "Black ICE"
 }

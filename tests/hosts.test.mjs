@@ -86,10 +86,12 @@ test('ice follows hardness, tier and the black ice rule', () => {
   const seen = new Set();
   for (let lv = 1; lv <= 4000; lv++) { const ice = iceFor(lv), h = hardness(lv), host = hostFor(lv);
     assert.equal(iceFor(lv), ice);
-    if (h < 0.5) assert.equal(ice, null, `level ${lv}`);
+    if (h < 0.35) assert.equal(ice, null, `level ${lv}`);
     if (!ice) continue; seen.add(ice);
     assert.ok(SEV[ICE[ice]] <= CAP[host.tier], `${ice} on ${host.tier}`);
     if (ice === 'black') assert.ok(h >= 0.8 && host.tier === 'high');
+    if (h < .55) assert.equal(ICE[ice], 'mild', `level ${lv}: ${ice} too early in the run`);
+    if (h < .8) assert.ok(ICE[ice] !== 'harsh', `level ${lv}: ${ice} too early in the run`);
   }
   assert.deepEqual([...seen].sort(), Object.keys(ICE).sort());
 });

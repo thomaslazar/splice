@@ -160,6 +160,14 @@ test('dealing favours the colours the shooter can reach', () => {
   const share = seq.filter(c => c === 3).length / seq.length;
   assert.ok(share > 0.6 && share < 0.85, `the reachable colour should be likely, not certain: ${share}`);
 });
+test('dealing favours a reachable colour that can complete a match', () => {
+  // bottom row: colours 1..4 as singles, plus one pair of colour 5; rows above are blocked
+  const cells = []; for (let r = 0; r < 6; r++) for (let c = 0; c < (r % 2 ? 9 : 10); c++) cells.push([r, c, 0]);
+  const bottom = [1, 2, 3, 4, 5, 5, 1, 2, 3, 4]; bottom.forEach((col, c) => cells.push([6, c, col]));
+  const S = stateWith(10, cells, 1); S.top = 0;
+  const seq = Array.from({ length: 4000 }, () => deal(S)), share = c => seq.filter(x => x === c).length / seq.length;
+  assert.ok(share(5) > share(1) + 0.08, `pair colour ${share(5)} vs single colour ${share(1)}`);
+});
 test('a bubble on the loss line loses even with shots left', () => {
   const S = stateWith(10, [[0, 4, 1]], 2); S.top = 0;
   S.grid.set(key(lossRow(S), 4), 2);

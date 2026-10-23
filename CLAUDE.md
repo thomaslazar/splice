@@ -32,8 +32,8 @@ Read before changing behaviour:
   `hardness`): levels, wins, shots, big clears, per level and per shot. A big clear is one
   shot removing at least half of the bubbles on screen while 12 or more are shown. Judge it
   per shot, not per level: hard bands are mostly long levels with about 1.9x the shots. First
-  run (levels 1-80), designed per shot 26.8 / 23.8 / 19.7 / 14.0% from easiest to hardest
-  band, noise 10.9 / 11.2 / 5.4 / 2.6%; the bot won all 80. A level the 400-shot cap stops is
+  run after the balance pass (levels 1-80), designed per shot 28.9 / 25.1 / 20.9 / 18.3% from
+  easiest to hardest band, noise 10.5 / 10.3 / 6.0 / 4.7%; the bot won all 80. A level the 400-shot cap stops is
   reported on stderr.
 
 ## Files
@@ -89,7 +89,9 @@ one fewer on odd rows.
   hist, draws, ...`). `deal(S)` draws a colour still on the board, seeded from
   `(level, fails, draws)`. A reachable colour (a bubble on screen touching the open space that
   connects to the row above the loss line, found by flood fill in `reachable(S)`) weighs
-  `1 + VIS_W * its share of the reachable bubbles` (`VIS_W` = 3); a colour on screen but blocked
+  `1 + VIS_W * (half its share of the reachable bubbles + half its share of reachable bubbles that
+  already have a same-colour neighbour)` (`VIS_W` = 3, `PAIR_MIX` = .5), so colours that can complete a
+  match come more often; a colour on screen but blocked
   weighs `BLOCKED_W` (0.9), one only off-screen `OFFSCREEN_W` (0.3). On a board like the owner's
   playtest (one reachable colour, three blocked ones) the reachable colour comes about 60% of the time. If nothing is reachable, visible bubbles count instead. The
   same colour three times in a row is avoided, and a repeat is rerolled once, except for the
@@ -116,16 +118,17 @@ function bodies, so keep it that way.
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
   downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group.
-  Hardness `h` breaks groups up (all draws are seeded from the level): per shape, with
-  probability `h` the right half of a mirrored shape becomes its own group (axis cells stay
-  left), and each shape is cut at x positions into 2 segments (3 with probability `h`); a
-  group of 6 or more bubbles takes the cuts with probability `h`. `addStems` joins loose
+  Hardness breaks groups up, using the board's share `h = boardHardness(level)` (hardness,
+  halved on levels with ICE so ICE arrives on lighter boards; all draws seeded): per shape, with
+  probability `0.7 h` (`SPLIT`) the right half of a mirrored shape becomes its own group (axis cells stay
+  left), and each shape is cut at x positions into 2 segments (3 with probability `0.7 h`); a
+  group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
   parts to the ceiling with 1 + `min(2, floor(2h + rnd))` stems per structure, the extra ones
   at the left and right ends of its top edge (about 2 or more columns from the main stem);
   mirrored layouts get mirrored stems. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours. Noise is clumpy: a
-  bubble copies a coloured neighbour's colour with probability `0.45 - 0.30 * hardness`, else
+  bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * boardHardness`, else
   draws a random colour, so easy noise levels have big same-colour clumps and hard ones are
   nearly uniform.
 - Shot limit (`src/bot.js`, called from `startState`): the bot plays a copy of the exact
@@ -171,7 +174,9 @@ or reading the board harder. `iceFor(level)` returns its type or null; pure, see
 (`hash(level, 13)`, two draws always taken so the chance and the pick never shift each
 other). It is not saved: it is recomputed from the level.
 
-- Chance: 0 below hardness 0.5, else `(h - 0.5) * 1.4` (70% at h = 1).
+- Chance: 0 below hardness 0.35, else `(h - 0.35) / 0.65 * 0.7` (70% at h = 1). Severity is capped by
+  the run too: mild only below 0.55, medium up to 0.8, then the tier's cap; types at the current
+  cap count double. A level with ICE gets a board at half hardness (`boardHardness`).
 - Types and severity (`ICE`): mild `static`, `jitter`; medium `scrambler`, `lock`, `jam`;
   harsh `monochrome`, `black`. Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
   1.25, harsh 1.5, applied by `limitFor` in `src/bot.js` (the bot itself plays without ICE:

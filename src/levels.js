@@ -1,9 +1,14 @@
 // Level generation and colouring: pure, seeded, no DOM. Imports core.js (which later imports back; keep uses inside functions).
 import { mulberry32, hash, cellsIn, key, rc, nbrs, connected } from './core.js';
+import { iceFor } from './hosts.js';   // circular: used only inside function bodies
 
 export const difficulty = level => Math.min(1, level / 40);
 export const isLong = level => level % 5 === 0;
+const SPLIT = .7;   // at full hardness, mirrors and bands split 70% of the time (100% made the front confetti)
 export const hardness = level => ((level - 1) % 20) / 19;
+// The board's share of the hardness: a level with ICE gets a lighter board (half), so ICE is
+// introduced on easier layouts instead of stacking on the hardest ones.
+export const boardHardness = level => (iceFor(level) ? .5 : 1) * hardness(level);
 export const winRows = cols => Math.round(1.7 * cols);
 const xOf = k => (k & 15) + (k >> 4) % 2 / 2;   // a cell key's x in unit coords (odd rows +0.5)
 
@@ -80,7 +85,7 @@ function addStems(cells, cols, rnd, mirror, h) {
 }
 
 function generate(level) {
-  const rnd = mulberry32(hash(level, 7)), d = difficulty(level), h = hardness(level);
+  const rnd = mulberry32(hash(level, 7)), d = difficulty(level), h = boardHardness(level);
   const kind = level < 3 ? 'designed' : rnd() < 0.25 ? 'noise' : 'designed';
   const w = [0.4 - 0.25 * d, 0.45, 0.15 + 0.25 * d];
   if (isLong(level)) { const m = Math.min(0.15, w[0]); w[0] -= m; w[2] += m; }
@@ -111,11 +116,11 @@ function generate(level) {
       const half = (cols - 1) / 2, fx = k => mirror && xOf(k) > half ? cols - 1 - xOf(k) : xOf(k), ext = new Map(), size = new Map();
       for (const [k, g] of part) { const i = g % 1000 / 100 | 0, e = ext.get(i) || [Infinity, -Infinity];
         ext.set(i, [Math.min(e[0], fx(k)), Math.max(e[1], fx(k))]); }
-      const cut = new Map([...ext].map(([i, [lo, hi]]) => { const asym = mirror && rnd() < h, n = rnd() < h ? 3 : 2;
+      const cut = new Map([...ext].map(([i, [lo, hi]]) => { const asym = mirror && rnd() < SPLIT * h, n = rnd() < SPLIT * h ? 3 : 2;
         return [i, { asym, at: Array.from({ length: n - 1 }, (_, j) => lo + (hi - lo) * (j + 1 + (rnd() - .5) * .5) / n) }]; }));
       for (const [k, g] of part) { const S = cut.get(g % 1000 / 100 | 0);
         const id = g + (S.asym && xOf(k) > half ? 3e5 : 0); part.set(k, id); size.set(id, (size.get(id) || 0) + 1); }
-      const split = new Set([...size].filter(([, n]) => n >= 6 && rnd() < h).map(([id]) => id));
+      const split = new Set([...size].filter(([, n]) => n >= 6 && rnd() < SPLIT * h).map(([id]) => id));
       for (const [k, g] of part) cells.set(k, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => fx(k) > a).length : g);
       addStems(cells, cols, rnd, mirror, h);
       break;
@@ -143,7 +148,7 @@ export function colourize(layout, level, fails) {
     const nb = [...adj.get(g) || []];
     if (layout.kind === 'noise') { // clumpy noise: often copy a coloured neighbour
       const have = nb.filter(o => col.has(o));
-      col.set(g, have.length && rnd() < 0.45 - 0.30 * hardness(level) ? col.get(have[Math.floor(rnd() * have.length)]) : perm[Math.floor(rnd() * nColours)]);
+      col.set(g, have.length && rnd() < 0.45 - 0.20 * boardHardness(level) ? col.get(have[Math.floor(rnd() * have.length)]) : perm[Math.floor(rnd() * nColours)]);
       continue;
     }
     const taken = new Set(nb.map(o => col.get(o))), free = perm.filter(x => !taken.has(x)), pool = free.length ? free : perm;

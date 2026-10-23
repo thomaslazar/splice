@@ -166,13 +166,15 @@ const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high:
 export function iceFor(level) {
   const h = hardness(level), r = mulberry32(hash(level, 13));
   const chance = r(), pickR = r();   // always drawn, so one choice never shifts the other
-  if (h < 0.5 || chance >= (h - 0.5) * 1.4) return null;
-  const { gov, industry, tier } = hostFor(level), cap = CAP[tier];
+  // ICE from h 0.35, mild first, medium from 0.55, the tier's full cap from 0.8; about 70% at h = 1
+  if (h < 0.35 || chance >= (h - 0.35) / 0.65 * 0.7) return null;
+  const { gov, industry, tier } = hostFor(level), cap = Math.min(CAP[tier], h < .55 ? 1 : h < .8 ? 2 : 3);
   const ok = t => SEVERITY[ICE[t]] <= cap && (t !== 'black' || h >= 0.8 && tier === 'high');
   const likes = (gov ? GOV_LIKES[tier] : LIKES[industry]).filter(ok);
   const list = likes.length ? likes : Object.keys(ICE).filter(ok);   // any type within the cap
   // ponytail: preferred types weighted 2:1:1 by order; tune by playing
-  const w = list.map((_, i) => i ? 1 : 2);
+  // types at the current severity cap count double, so the end of a run brings the harsher ICE
+  const w = list.map((t, i) => (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1));
   let x = pickR * w.reduce((a, b) => a + b);
   return list.find((_, i) => (x -= w[i]) < 0);
 }

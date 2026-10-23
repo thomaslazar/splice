@@ -127,7 +127,12 @@ effects in `src/ui.js`.
   The first type in a row weighs 2, the others 1. An owner whose preferred types are all
   above its cap takes any type within the cap. Over levels 1-2000 every type makes up 5% to
   30% of the levels with ICE (a test checks it).
-- Chance of ICE at all: 0 for `h < 0.5`, then `(h - 0.5) * 1.4` (about 70% at `h = 1`).
+- Chance of ICE at all: 0 for `h < 0.35`, then `(h - 0.35) / 0.65 * 0.7` (about 70% at `h = 1`).
+  Revised after playtesting ("too hard at times"): ICE is introduced on lighter boards. Mild
+  only below `h = 0.55`, medium up to 0.8, then the tier's cap (types at the current cap count
+  double), and a level with ICE gets its board at half hardness. Splits use `0.7 h`, noise
+  copies a neighbour with `0.45 - 0.20 h`, and dealing gives half the reachable weight to colours
+  that already have a reachable pair.
 - Black ICE only at `h >= 0.8` and only on high-stakes hosts.
 
 ### Telling the player
@@ -158,7 +163,8 @@ clearly fewer big clears per shot than the easiest), records the numbers, and do
 a tuning loop. First run (levels 1-80, `node tools/sim.mjs 1-80 1 --clears`), big clears
 per shot from easiest to hardest band: designed 26.6 / 26.7 / 18.5 / 16.9%, noise 10.9 /
 11.2 / 5.4 / 2.6%. After cutting mirrored bands on folded x: designed 26.8 / 23.8 / 19.7 /
-14.0%, noise unchanged. The bot won all 80 both times. The bot must still win
+14.0%, noise unchanged. After the balance revision: designed 28.9 / 25.1 / 20.9 / 18.3%,
+noise 10.5 / 10.3 / 6.0 / 4.7%. The bot won all 80 each time. The bot must still win
 every sampled level without a limit. Note for the owner: extra stems make a structure need
 several cuts, but the last cut still drops it whole; most of the reduction is expected
 from the colour changes.

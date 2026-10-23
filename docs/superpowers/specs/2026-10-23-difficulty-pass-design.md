@@ -149,11 +149,16 @@ with full information), which is why the factor exists.
 
 `tools/sim.mjs` gains a report of big clears (shots removing more than half of a screen
 of 12 or more bubbles) per level, by hardness band (0-0.25, 0.25-0.5, 0.5-0.75,
-0.75-1) and kind. Target (*my call*, owner tunes by playing): at `h < 0.25` about today's
-numbers; at `h >= 0.75` noticeably fewer big clears per designed level, but not zero.
-This is a report, not a gate (*my call*, the owner tunes by playing): the build checks
-only the direction (the hardest band has clearly fewer big clears per level than the
-easiest), records the numbers, and does not run a tuning loop. The bot must still win
+0.75-1) and kind, per level and per shot. Judge it per shot: the hardest band is mostly
+long levels with about 1.9x the shots, so per level it hides the effect. Target (*my call*,
+owner tunes by playing): at `h < 0.25` about today's numbers; at `h >= 0.75` noticeably
+fewer big clears per designed shot, but not zero. This is a report, not a gate (*my call*,
+the owner tunes by playing): the build checks only the direction (the hardest band has
+clearly fewer big clears per shot than the easiest), records the numbers, and does not run
+a tuning loop. First run (levels 1-80, `node tools/sim.mjs 1-80 1 --clears`), big clears
+per shot from easiest to hardest band: designed 26.6 / 26.7 / 18.5 / 16.9%, noise 10.9 /
+11.2 / 5.4 / 2.6%. After cutting mirrored bands on folded x: designed 26.8 / 23.8 / 19.7 /
+14.0%, noise unchanged. The bot won all 80 both times. The bot must still win
 every sampled level without a limit. Note for the owner: extra stems make a structure need
 several cuts, but the last cut still drops it whole; most of the reduction is expected
 from the colour changes.

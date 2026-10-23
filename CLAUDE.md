@@ -32,8 +32,9 @@ Read before changing behaviour:
   `hardness`): levels, wins, shots, big clears, per level and per shot. A big clear is one
   shot removing at least half of the bubbles on screen while 12 or more are shown. Judge it
   per shot, not per level: hard bands are mostly long levels with about 1.9x the shots. First
-  run (levels 1-80), designed per shot 26.6 / 26.7 / 18.5 / 16.9% from easiest to hardest
-  band, noise 10.9 / 11.2 / 5.4 / 2.6%; the bot won all 80.
+  run (levels 1-80), designed per shot 26.8 / 23.8 / 19.7 / 14.0% from easiest to hardest
+  band, noise 10.9 / 11.2 / 5.4 / 2.6%; the bot won all 80. A level the 400-shot cap stops is
+  reported on stderr.
 
 ## Files
 

@@ -160,17 +160,39 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
 /* ---------- ICE ---------- */
 // One type per level (iceFor). Its effects all live in FX: draw() asks fxOf() for the active one.
 // aim(pts) returns the part of the traced path to draw (null: none); the target ring shows only
-// with the whole path. Later effects (queue, bubbles, overlay) go in here as hooks too.
+// with the whole path. hide(slot) ('cur' or 'next') draws that queue packet as a glitchy "?";
+// swapped() runs after a swap; locked ignores swaps and marks the next packet. Only drawing and
+// swapping change: firing, landing and dealing are the same as without ICE.
 let ice = null, restore = 0;   // jam: full aim line for the next `restore` shots; a reload starts jammed
+let blind = false;   // scrambler: the packet at the shooter is the hidden one (after a swap, until fired); a reload shows it
 const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
 const FX = {
   jam: { aim: pts => restore > 0 ? pts : pts.slice(0, 2) },   // to the first wall bounce, or the end if none
   black: { aim: () => null },
+  scrambler: { hide: slot => slot === 'next' || blind, swapped: () => { blind = !blind; } },
+  lock: { locked: true },
 };
+function trySwap() { const f = fxOf(); if (f.locked) return; swap(S); f.swapped?.(); save(); }
+function packet(x, y, col, slot, a = 1, rr = sc) {   // a queue packet, through the ICE hooks
+  const f = fxOf();
+  if (f.hide?.(slot)) {   // no colour, no symbol: a grey ring and a "?" that glitches sideways (static with reduced motion)
+    const tk = Math.floor(performance.now() / 70), j = reduced || hash(tk, 7) % 5 ? 0 : (hash(tk, 8) % 1000 / 1000 - .5) * rr * .5;
+    g.globalAlpha = a; g.lineWidth = Math.max(1.5, rr * .12); g.strokeStyle = '#8a8f98'; g.fillStyle = '#14161a';
+    g.beginPath(); g.arc(x, y, rr * .9, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#c8ccd4'; g.font = `600 ${rr * 1.1}px 'Chakra Petch', ui-monospace, Menlo, monospace`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('?', x + j, y + rr * .05); g.textBaseline = 'alphabetic'; g.globalAlpha = 1;
+  } else bubble(x, y, col, a, rr);
+  if (f.locked && slot === 'next') {   // small padlock at the top right
+    const s = rr * .5, lx = x + rr * .85, ly = y - rr * .7;
+    g.globalAlpha = a; g.strokeStyle = g.fillStyle = theme.a; g.lineWidth = Math.max(1.2, s * .3);
+    g.beginPath(); g.arc(lx, ly - s * .35, s * .5, Math.PI, 0); g.stroke();
+    g.fillRect(lx - s * .8, ly - s * .35, s * 1.6, s * 1.2); g.globalAlpha = 1;
+  }
+}
 const fxOf = () => FX[ice] || {};
 function start(s) {
-  S = s; ice = iceFor(S.level); restore = 0; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  S = s; ice = iceFor(S.level); restore = 0; blind = false; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
@@ -196,6 +218,7 @@ function shoot() {
   if (!ready() || aim === null) return;
   const pre = new Map(S.grid), col = S.cur, m = fire(S, aim); aim = null;
   if (!m) return;
+  blind = false;   // the packet that moves up shows as usual; the fired one flies in colour
   save(); hud(); fly = { m, pre, col, i: 0, p: { ...m.pts[0] } };
   if (restore > 0 && --restore === 0) log(t('logJammed'));
   if (reduced) land();
@@ -223,7 +246,7 @@ cv.addEventListener('pointerdown', e => {
   if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
   // the whole strip at the shooter's height swaps; a touch that starts there never aims or fires
-  if (p.y > SY() * sc - Math.max(1.6 * sc, 22)) { if (S.cur !== null) { swap(S); save(); } return; }
+  if (p.y > SY() * sc - Math.max(1.6 * sc, 22)) { if (S.cur !== null) trySwap(); return; }
   aimId = e.pointerId; cv.setPointerCapture(e.pointerId); setAim(p);
 });
 cv.addEventListener('pointermove', e => { if (e.pointerId === aimId) setAim(pos(e)); });
@@ -231,7 +254,7 @@ cv.addEventListener('pointerup', e => { if (e.pointerId === aimId) { aimId = nul
 cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
-  if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null && !busy()) { swap(S); save(); } wheelT = n; }, { passive: false });
+  if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null && !busy()) trySwap(); wheelT = n; }, { passive: false });
 addEventListener('resize', () => S && fit());
 // the header can change height mid-level (score digits, font swap): refit next frame on a height change only
 let hudH = 0; new ResizeObserver(([e]) => { if (S && e.contentRect.height !== hudH) { hudH = e.contentRect.height; refit = true; } }).observe($('#hud'));
@@ -285,7 +308,7 @@ function draw() {
     bubble(X(f.p.x), Y(f.p.y), f.col);
     if (f.i >= pts.length - 1) land();
   }
-  if (S.cur !== null && S.grid.size) { const y = SY() * sc; bubble(X(S.cols), y, S.cur); if (S.next !== null) bubble(X(S.cols + 3), y, S.next, .8, sc * .75); }
+  if (S.cur !== null && S.grid.size) { const y = SY() * sc; packet(X(S.cols), y, S.cur, 'cur'); if (S.next !== null) packet(X(S.cols + 3), y, S.next, 'next', .8, sc * .75); }
   fx = fx.filter(a => {
     a.k++;
     const on = a.y * sc > -2 * sc && a.y * sc < H + 2 * sc;   // skip off-canvas effects (shadowBlur is costly)

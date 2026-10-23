@@ -191,13 +191,15 @@ other). It is not saved: it is recomputed from the level.
     shot) restores the full line for the next 3 shots (`restore`), logged as `targeting
     restored (n)` and, when the count runs out, `targeting jammed`. A reload starts jammed.
   - `jitter`: the drawn aim angle wobbles a few degrees (two slow sines); the shot keeps the
-    true angle. With reduced motion it is steady and the line is cut at the first bounce.
+    true angle. No landing ring (the bent line can point at a cell the shot won't hit). With
+    reduced motion it is steady and the line is cut at the first bounce.
   - `static`: 3 blocks of grey noise about 2 x 2 bubbles drift over the board above the loss
     line, never the shooter zone (`glitchBlocks`, drawn by `over`). They hide the board but
     not the flying packet or the pop and fall effects (those draw after them). Reduced
     motion: fixed blocks.
   - `scrambler`: the next packet is always a grey "?"; a swap makes the packet at the
-    shooter hidden too (`blind`, until fired); a reload shows it. Rare in practice (tune by
+    shooter hidden too (`blind`, until fired), and the landing ring turns neutral grey; a reload
+    shows it. Rare in practice (tune by
     playing).
   - `lock`: swapping (strip touch and wheel) is ignored and a small padlock marks the next
     packet.

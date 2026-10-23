@@ -158,11 +158,11 @@ function settle(level, recent) {
 export const ICE = { static: 'mild', jitter: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh' };
 export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
 const SEVERITY = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
-const LIKES = { security: ['lock', 'static'], media: ['static', 'jitter'], telecom: ['static', 'jitter'],
+const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'jitter'], telecom: ['static', 'jitter'],
   finance: ['scrambler', 'jitter'], insurance: ['scrambler', 'jitter'], ai: ['jitter', 'monochrome'],
-  defense: ['black', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
-  pharma: ['static', 'scrambler', 'jam'], energy: ['static', 'scrambler', 'jam'], logistics: ['static', 'scrambler', 'jam'] };
-const GOV_LIKES = { small: [], corporate: ['static', 'lock'], high: ['black', 'lock'] };
+  defense: ['black', 'monochrome', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
+  pharma: ['static', 'scrambler', 'jam'], energy: ['jam', 'scrambler', 'static'], logistics: ['jam', 'scrambler', 'static'] };
+const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high: ['monochrome', 'black', 'lock'] };
 export function iceFor(level) {
   const h = hardness(level), r = mulberry32(hash(level, 13));
   const chance = r(), pickR = r();   // always drawn, so one choice never shifts the other

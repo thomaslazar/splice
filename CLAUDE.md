@@ -177,13 +177,15 @@ other). It is not saved: it is recomputed from the level.
   it aims perfectly and ignores every effect, so the factor only pays the human for it).
 - Who runs what: the host's tier caps severity (`CAP`: small mild, corporate up to medium,
   high up to harsh). `black` also needs hardness 0.8 or more and a `high` host. A host picks
-  from its industry's liked types (`LIKES`: for example security `lock`, `static`; media and
+  from its industry's liked types (`LIKES`: security `scrambler`, `lock`, `static`; media and
   telecom `static`, `jitter`; finance and insurance `scrambler`, `jitter`; ai `jitter`,
-  `monochrome`; defense and aerospace `black`, `lock`; biotech, pharma, energy, logistics
-  `static`, `scrambler`, `jam`), government hosts from `GOV_LIKES` by tier (small none,
-  corporate `static`, `lock`, high `black`, `lock`), filtered by the cap and the `black`
-  rule. If nothing is left it takes any allowed type. The first liked type is weighted 2,
-  the others 1 (tune by playing).
+  `monochrome`; defense `black`, `monochrome`, `lock`; aerospace `black`, `lock`; biotech and
+  pharma `static`, `scrambler`, `jam`; energy and logistics `jam`, `scrambler`, `static`),
+  government hosts from `GOV_LIKES` by tier (small none, corporate `scrambler`, `static`,
+  `lock`, high `monochrome`, `black`, `lock`), filtered by the cap and the `black` rule. If
+  nothing is left it takes any allowed type. The first liked type is weighted 2, the others 1
+  (tune by playing). Over levels 1-2000 each type is 5% to 30% of the levels with ICE
+  (`tests/hosts.test.mjs`).
 - UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
   swapping change, firing, landing and dealing are the same as without ICE):
   - `jam`: the aim line is cut at the first wall bounce (`cut`) and the landing ring is

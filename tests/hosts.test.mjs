@@ -97,3 +97,8 @@ test('about 70% of the hardest levels have ice', () => {
   const top = Array.from({ length: 200 }, (_, i) => 20 * (i + 1)), n = top.filter(l => iceFor(l)).length;
   assert.ok(n > 0.55 * 200 && n < 0.85 * 200, `${n}/200`);
 });
+test('ice types are spread: each is 5% to 30% of the levels with ice (1-2000)', () => {
+  const n = {}; let all = 0;
+  for (let lv = 1; lv <= 2000; lv++) { const ice = iceFor(lv); if (ice) { n[ice] = (n[ice] || 0) + 1; all++; } }
+  for (const t of Object.keys(ICE)) { const s = (n[t] || 0) / all; assert.ok(s >= 0.05 && s <= 0.3, `${t} ${(100 * s).toFixed(1)}%`); }
+});

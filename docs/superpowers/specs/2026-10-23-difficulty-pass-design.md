@@ -112,15 +112,21 @@ effects in `src/ui.js`.
 
 | Owner | ICE it prefers |
 |---|---|
-| security | lock, static |
+| security | scrambler, lock, static |
 | media, telecom | static, jitter |
 | finance, insurance | scrambler, jitter |
 | ai | jitter, monochrome |
-| defense, aerospace, intelligence and defence government | black, lock |
-| biotech, pharma, energy, logistics | static, scrambler, jam |
-| other government | static, lock |
+| defense | black, monochrome, lock |
+| aerospace | black, lock |
+| biotech, pharma | static, scrambler, jam |
+| energy, logistics | jam, scrambler, static |
+| high-stakes government (intelligence, defence) | monochrome, black, lock |
+| corporate government | scrambler, static, lock |
+| small-time government | none (any type within the cap) |
 
-  An owner whose preferred types are all above its cap takes any type within the cap.
+  The first type in a row weighs 2, the others 1. An owner whose preferred types are all
+  above its cap takes any type within the cap. Over levels 1-2000 every type makes up 5% to
+  30% of the levels with ICE (a test checks it).
 - Chance of ICE at all: 0 for `h < 0.5`, then `(h - 0.5) * 1.4` (about 70% at `h = 1`).
 - Black ICE only at `h >= 0.8` and only on high-stakes hosts.
 

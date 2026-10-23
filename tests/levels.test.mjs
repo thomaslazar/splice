@@ -62,7 +62,7 @@ test('hardness ramps over 20 levels and starts again', () => {
 });
 const easy = [1, 21, 41, 61, 81, 101, 121, 141, 161, 181], hard = easy.map(l => l + 19);
 const designed = ls => ls.filter(l => makeLayout(l).kind === 'designed');
-const stems = L => new Set([...L.cells.values()].filter(g => g >= 1e6)).size;
+const stems = L => new Set([...L.cells.values()].filter(g => g >= 1e6).map(g => Math.floor(g / 1000))).size;   // a mirrored pair (grp, grp + 500) is one stem
 const avg = (ls, f) => ls.reduce((a, l) => a + f(l), 0) / ls.length;
 test('hard levels hang their shapes from more stems', () => {
   const e = avg(designed(easy), l => stems(makeLayout(l)) / makeLayout(l).screens), h = avg(designed(hard), l => stems(makeLayout(l)) / makeLayout(l).screens);

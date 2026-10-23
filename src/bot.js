@@ -3,8 +3,8 @@
 import { trace, fire, swap, won, lost, lossRow, clampAim, MIN_ANGLE, key, rc, nbrs, connected } from './core.js';   // circular: used only inside function bodies
 import { ICE, ICE_K } from './hosts.js';   // circular: used only inside function bodies
 
-// Shot limit = bot's need on this exact colouring * HUMAN_K + HUMAN_C (the bot aims perfectly and
-// sees off-screen bubbles; people need more). Tune by playtest.
+// Shot limit = bot's need on this exact colouring * HUMAN_K * the ICE factor (ICE_K, 1 without ICE)
+// + HUMAN_C (the bot aims perfectly, sees off-screen bubbles and ignores ICE; people need more). Tune by playtest.
 export const HUMAN_K = 1.4, HUMAN_C = 3, MAX_SHOTS = 3000;
 export const limitFor = (used, ice = null) => Math.ceil(used * HUMAN_K * (ice ? ICE_K[ICE[ice]] : 1) + HUMAN_C);
 

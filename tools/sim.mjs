@@ -12,7 +12,7 @@ export function play(level, run) {
   return { won: r.won, used: r.used, limit, drop: r.drop, ms: (performance.now() - t0) / Math.max(1, r.used) / 2 };
 }
 
-// Bot plays level; a big clear is a shot removing more than half of the bubbles on screen while 12+ are shown.
+// Bot plays level; a big clear is a shot removing half or more of the bubbles on screen while 12+ are shown.
 export function bigClears(level) {
   const S = startState(level, 0); let shots = 0, big = 0;
   while (!won(S) && !lost(S) && shots < 400) {
@@ -23,6 +23,7 @@ export function bigClears(level) {
     const gone = [...m.popped, ...m.dropped].filter(q => q >> 4 >= viewTop(before, S.cols) || q >> 4 >= S.top).length;
     if (vis >= 12 && gone >= vis * .5) big++;
   }
+  if (shots >= 400 && !won(S) && !lost(S)) console.warn(`level ${level}: stopped at the 400-shot cap`);
   return { won: won(S), shots, big };
 }
 export const hband = lv => ['0-0.25', '0.25-0.5', '0.5-0.75', '0.75-1'][Math.min(3, Math.floor(hardness(lv) * 4))];

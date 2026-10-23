@@ -20,7 +20,7 @@ test('the shot limit is the bot\'s need times HUMAN_K plus HUMAN_C, eased by fai
   }
 });
 
-import { iceFor, ICE, ICE_K } from '../src/hosts.js';
+import { iceFor } from '../src/hosts.js';
 test('levels with ice get the ice factor in their limit', () => {
   assert.equal(limitFor(10, 'black'), Math.ceil(10 * HUMAN_K * 1.5 + HUMAN_C));
   assert.equal(limitFor(10, 'static'), Math.ceil(10 * HUMAN_K * 1.1 + HUMAN_C));

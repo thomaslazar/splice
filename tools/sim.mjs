@@ -39,9 +39,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
       const r = bigClears(lv), k = by[`${makeLayout(lv).kind} ${hband(lv)}`] ??= { levels: 0, wins: 0, shots: 0, big: 0 };
       k.levels++; k.wins += r.won; k.shots += r.shots; k.big += r.big;
     }
-    console.log('group                 levels wins shots big  big/level');
+    console.log('group                 levels wins shots big  big/level big/shot');
     for (const [name, k] of Object.entries(by).sort())
-      console.log(name.padEnd(21), ...[k.levels, k.wins, k.shots, k.big].map(x => String(x).padStart(5)), (k.big / k.levels).toFixed(2).padStart(9));
+      console.log(name.padEnd(21), ...[k.levels, k.wins, k.shots, k.big].map(x => String(x).padStart(5)), (k.big / k.levels).toFixed(2).padStart(9), (100 * k.big / k.shots).toFixed(1).padStart(8) + '%');
     process.exit();
   }
   const levels = parseLevels(pos[0] || '1,3,5,10,15,20,25,30,40,50,60'), runs = Number(pos[1] || 1);

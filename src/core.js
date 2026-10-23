@@ -28,6 +28,7 @@ export function connected(grid, cols) {
 /* ---------- shots ---------- */
 import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
 import { solve, limitFor } from './bot.js';   // circular too
+import { iceFor } from './hosts.js';   // circular too
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 8;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
@@ -77,7 +78,7 @@ export function startState(level, fails) {
   const id = `${level}/${fails}`;
   if (!need.has(id)) { const r = solve(S); need.set(id, r.won ? r.used : Math.max(r.used, Math.ceil(S.grid.size / 3)));
     if (need.size > 8) need.delete(need.keys().next().value); }
-  S.shots = shotsFor(limitFor(need.get(id)), fails);
+  S.shots = shotsFor(limitFor(need.get(id), iceFor(level)), fails);
   S.maxShots = S.shots; S.startLow = lowRow(S.grid); return S;
 }
 // Bubbles the shooter can reach: on screen and touching the open space that connects to the

@@ -5,6 +5,7 @@ export const difficulty = level => Math.min(1, level / 40);
 export const isLong = level => level % 5 === 0;
 export const hardness = level => ((level - 1) % 20) / 19;
 export const winRows = cols => Math.round(1.7 * cols);
+const xOf = k => (k & 15) + (k >> 4) % 2 / 2;   // a cell key's x in unit coords (odd rows +0.5)
 
 // Shapes are predicates over unit coords: x in 0..cols-1 (odd rows +0.5), y in rows*0.866.
 // Each returns a band index (sub-group for colouring) or -1 outside.
@@ -65,15 +66,14 @@ function addStems(cells, cols, rnd, mirror, h) {
     // topmost loose bubble; prefer the middle of its row
     const top = Math.min(...[...loose].map(k => k >> 4)), row = [...loose].filter(k => k >> 4 === top);
     const start = row[Math.floor(row.length / 2)], extra = Math.min(2, Math.floor(h * 2 + rnd()));
-    const comp = new Set([start]), st = [start]; // the structure this stem holds
-    while (st.length) for (const [r, c] of nbrs(cols, ...rc(st.pop()))) { const k = key(r, c); if (loose.has(k) && !comp.has(k)) { comp.add(k); st.push(k); } }
     grow(...rc(start));
     if (!extra) continue;
+    const comp = new Set([start]), st = [start]; // the structure this stem holds
+    while (st.length) for (const [r, c] of nbrs(cols, ...rc(st.pop()))) { const k = key(r, c); if (loose.has(k) && !comp.has(k)) { comp.add(k); st.push(k); } }
     // top edge near the top: nothing above; extra stems go left and right of the main one
-    const x = k => (k & 15) + (k >> 4) % 2 / 2;
     const edge = [...comp].filter(k => k >> 4 <= top + 2 && nbrs(cols, ...rc(k)).every(([a, b]) => a !== (k >> 4) - 1 || !cells.has(key(a, b))))
-      .sort((a, b) => x(a) - x(b));
-    const ends = [edge[0], edge[edge.length - 1]].filter(k => Math.abs(x(k) - x(start)) >= 2);
+      .sort((a, b) => xOf(a) - xOf(b));
+    const ends = [edge[0], edge[edge.length - 1]].filter(k => Math.abs(xOf(k) - xOf(start)) >= 2);
     if (extra === 1 && ends.length === 2) ends.splice(Math.floor(rnd() * 2), 1);
     for (const k of ends) grow(...rc(k));
   }
@@ -107,15 +107,16 @@ function generate(level) {
       if (part.size < 25 + d * 30) continue;
       // Harder levels break shapes into more groups: per shape, the right half of a mirror
       // (axis cells stay left) and band segments cut at shared x positions. Variant v adds v * 1e5.
-      const x = k => (k & 15) + (k >> 4) % 2 / 2, half = (cols - 1) / 2, ext = new Map(), size = new Map();
+      // Mirrored sections cut on folded x, so the segments mirror too (outer, inner) instead of a left/right split.
+      const half = (cols - 1) / 2, fx = k => mirror && xOf(k) > half ? cols - 1 - xOf(k) : xOf(k), ext = new Map(), size = new Map();
       for (const [k, g] of part) { const i = g % 1000 / 100 | 0, e = ext.get(i) || [Infinity, -Infinity];
-        ext.set(i, [Math.min(e[0], x(k)), Math.max(e[1], x(k))]); }
+        ext.set(i, [Math.min(e[0], fx(k)), Math.max(e[1], fx(k))]); }
       const cut = new Map([...ext].map(([i, [lo, hi]]) => { const asym = mirror && rnd() < h, n = rnd() < h ? 3 : 2;
         return [i, { asym, at: Array.from({ length: n - 1 }, (_, j) => lo + (hi - lo) * (j + 1 + (rnd() - .5) * .5) / n) }]; }));
       for (const [k, g] of part) { const S = cut.get(g % 1000 / 100 | 0);
-        const id = g + (S.asym && x(k) > half ? 3e5 : 0); part.set(k, id); size.set(id, (size.get(id) || 0) + 1); }
+        const id = g + (S.asym && xOf(k) > half ? 3e5 : 0); part.set(k, id); size.set(id, (size.get(id) || 0) + 1); }
       const split = new Set([...size].filter(([, n]) => n >= 6 && rnd() < h).map(([id]) => id));
-      for (const [k, g] of part) cells.set(k, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => x(k) > a).length : g);
+      for (const [k, g] of part) cells.set(k, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => fx(k) > a).length : g);
       addStems(cells, cols, rnd, mirror, h);
       break;
     }

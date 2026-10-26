@@ -200,8 +200,9 @@ other). It is not saved: it is recomputed from the level.
   (`tests/hosts.test.mjs`).
 - UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
   swapping change, firing, landing and dealing are the same as without ICE):
-  - `jam`: the aim line is cut at the first wall bounce (`cut`) and the landing ring is
-    hidden whenever the line is cut. Dropping 6 or more bubbles (not on a winning or losing
+  - `jam`: the aim line stops at the first wall bounce or after `JAM_LEN` (8 radii, about four
+    bubbles), whichever is shorter (`short`), so it also bites on levels without bounces, and the
+    landing ring is hidden while jammed. Dropping `JAM_DROP` (6) or more bubbles (not on a winning or losing
     shot) restores the full line for the next 3 shots (`restore`), logged as `targeting
     restored (n)`, flashed mid-screen ("Targeting restored: 3 shots", accent colour) and, when
     the count runs out, `targeting jammed`. A reload starts jammed. The jammed line is steel grey

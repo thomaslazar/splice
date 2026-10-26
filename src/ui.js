@@ -179,9 +179,13 @@ const scrambled = () => hash(S.level, S.fails, S.draws, 77) % 100 < SCRAMBLE * 1
 const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
 const cut = pts => pts.slice(0, 2);
+// jam: the first bounce or JAM_LEN radii (about four bubbles), whichever is shorter, so a jam also
+// bites on levels that need no bounces
+const JAM_LEN = 8, short = pts => { const [a, b] = cut(pts), d = Math.hypot(b.x - a.x, b.y - a.y);
+  return d <= JAM_LEN ? [a, b] : [a, { x: a.x + (b.x - a.x) * JAM_LEN / d, y: a.y + (b.y - a.y) * JAM_LEN / d }]; };
 const JAM_DROP = 6, JAMMED = '#8a93a6';   // jam: a drop of JAM_DROP or more restores the line; the jammed line's colour   // to the first wall bounce, or the end if none
 const FX = {
-  jam: { aim: pts => restore > 0 ? pts : cut(pts) },
+  jam: { aim: pts => restore > 0 ? pts : short(pts) },
   // a few degrees, smooth: two slow sines; reduced motion: steady, cut at the first bounce instead
   jitter: reduced ? { aim: cut } : { ang: a => { const s = performance.now() / 1000; return a + .06 * Math.sin(s * 2.3) + .03 * Math.sin(s * 5.1 + 1); } },
   static: { over: glitchBlocks },
@@ -333,11 +337,11 @@ function draw() {
     // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
     const jammed = ice === 'jam' && restore === 0, n = performance.now();
     g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
-    if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .2 ? .1 : .3 + .5 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
+    if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .15 ? .2 : .5 + .45 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
     else { g.globalAlpha = .7; g.setLineDash([2, 6]); }
     g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
     // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
-    if (tr.cell && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = f0.mono || f0.hide?.('cur') ? '#a9aeb8' : colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
+    if (tr.cell && pts?.length === tr.pts.length && !jammed) { const c = centre(...tr.cell); g.strokeStyle = f0.mono || f0.hide?.('cur') ? '#a9aeb8' : colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
     g.globalAlpha = 1;
   }
   if (fly) {   // packet moves about 1.1 radius per frame along the traced path

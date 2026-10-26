@@ -385,6 +385,10 @@ function shoot() {
   if (!ready() || aim === null) return;
   const pre = new Map(S.grid), col = S.cur, it = S.load, snap = toSave(S), rs = restore, m = fire(S, shotAngle()); aim = null; drawn = null;
   if (!m) return;
+  if (won(S)) {   // pay at the winning shot, before the save: a reload during the flight keeps it, run.paid keeps it single
+    const p = payout(deck, S, run.best, run.paid); paid = { frags: p.frags, loot: p.loot, replay: S.level !== run.best || run.paid === S.level };
+    deck = p.deck; if (S.level === run.best) run.paid = S.level; saveDeck(); saveRun();
+  }
   prev = { s: snap, id: it, restore: rs };
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
   if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
@@ -401,7 +405,7 @@ function land() {
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(m.cell ? key(...m.cell) : m.dropped[0]), k: 0 });
   }
   logShot(m.dropped.length);
-  if (won(S)) { const p = payout(deck, S, run.best); deck = p.deck; saveDeck(); paid = { frags: p.frags, loot: p.loot, replay: S.level !== run.best }; hud(); win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
+  if (won(S)) { hud(); win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
   reveal();
 }
 
@@ -447,7 +451,7 @@ function drawStrip(now) {   // the host, base just above the board, fading in as
     go && p < 1 ? .5 * (1 - q) : 0, now / 1000, go ? 1 - (1 - q) ** 2 : 0);
   if (S.level === run.best && !won(S) && lootFor(S.level)) {   // the level's loot, right of the host
     const rr = STRIP * sc * .3, x = W * .8;
-    itemBubble(x, sh * .45, lootFor(S.level), 1, rr, sg);
+    itemBubble(x, sh * .45, lootFor(S.level), strip, rr, sg); sg.globalAlpha = strip;
     sg.fillStyle = '#fff'; sg.font = `${Math.max(9, rr * .5)}px 'Chakra Petch', monospace`; sg.textAlign = 'center'; sg.fillText(t('loot').toUpperCase(), x, sh * .45 + rr * 1.5);
   }
   sg.globalAlpha = 1;

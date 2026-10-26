@@ -40,9 +40,9 @@ export const take = (d, id) => {
 export const buy = (d, id) => item(id) && d.frags >= PRICES[id] ? give({ frags: d.frags - PRICES[id], items: d.items }, id) : null;
 export const owned = d => ITEMS.filter(i => d.items[i.id] > 0).map(i => [i.id, d.items[i.id]]);
 
-// A first win on the best level pays the pending frags and the level's loot; replays and unwon boards pay nothing.
-export const payout = (d, S, best) => {
-  if (S.level !== best || !won(S)) return { deck: d, frags: 0, loot: null };
+// A first win on the best level (not already paid) pays the pending frags and the level's loot; replays and unwon boards pay nothing.
+export const payout = (d, S, best, paid = 0) => {
+  if (S.level !== best || paid === S.level || !won(S)) return { deck: d, frags: 0, loot: null };
   const loot = lootFor(S.level), n = { frags: d.frags + S.frags, items: d.items };
   return { deck: loot ? give(n, loot) : n, frags: S.frags, loot };
 };

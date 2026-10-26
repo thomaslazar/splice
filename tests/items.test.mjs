@@ -177,4 +177,6 @@ test('payout: first win on the best level pays frags and loot, replays pay nothi
   assert.deepEqual([r.frags, r.loot, r.deck.frags], [0, null, 10]);
   const notWon = payout({ frags: 10, items: {} }, { ...S, grid: new Map([[0, 1]]) }, lv);
   assert.equal(notWon.frags, 0);
+  const again = payout({ frags: 10, items: {} }, S, lv, lv);   // already paid on this level
+  assert.deepEqual([again.frags, again.loot, again.deck.frags], [0, null, 10]);
 });

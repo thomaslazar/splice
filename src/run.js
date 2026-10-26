@@ -12,7 +12,7 @@ export function enter(run, level, fails) {
   if (level > run.best) return { run: { best: level, fails }, fails };
   if (level === run.best) {
     const f = Math.max(fails, run.fails);
-    return { run: { best: run.best, fails: f }, fails: f };
+    return { run: { ...run, fails: f }, fails: f };
   }
   return { run, fails };
 }

@@ -19,6 +19,10 @@ test('enter: the best level keeps its earned fails on every path', () => {
   assert.deepEqual(enter({ best: 22, fails: 4 }, 22, 0), { run: { best: 22, fails: 4 }, fails: 4 });   // back, pick, next from 21
   assert.deepEqual(enter({ best: 22, fails: 4 }, 22, 5), { run: { best: 22, fails: 5 }, fails: 5 });   // try again
 });
+test('enter: the paid marker survives re-entering the best level', () => {
+  assert.equal(enter({ best: 22, fails: 4, paid: 22 }, 22, 0).run.paid, 22);
+  assert.equal(enter({ best: 22, fails: 4, paid: 22 }, 23, 0).run.paid, undefined);
+});
 test('enter: lower levels leave the run alone', () => {
   const run = { best: 22, fails: 4 };
   assert.deepEqual(enter(run, 14, 0), { run: { best: 22, fails: 4 }, fails: 0 });

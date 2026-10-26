@@ -304,7 +304,7 @@ other). It is not saved: it is recomputed from the level.
 - Saving: `S` is saved whole to `localStorage['splice-v1']` after every shot and swap;
   if the save fails `validSave` but holds an integer `level` >= 1, `load()` starts that
   level fresh (keeping a valid `fails`); a missing or unreadable save starts level 1.
-  The run (`localStorage['splice-run']`: `{best, fails}`) is the best level reached and the fails earned on it, set by
+  The run (`localStorage['splice-run']`: `{best, fails, paid}`) is the best level reached and the fails earned on it, and `paid` is the level already paid, so it pays only once; set by
   `enter` in `begin`; replaying a lower level keeps it. A missing or invalid run falls back to `runFrom(o, level, fails)`,
   and best is never below the current level.
 
@@ -315,8 +315,8 @@ other). It is not saved: it is recomputed from the level.
   (`run.paid`, in `splice-run`), so replays and reloads of a won board pay nothing. `pays()` drives header, loot and sheet.
 - Shop tab buys items for frags (demo popup `#demo`); items unlock at levels 31, 61, 91 (flash). The drawer
   (`#deckBtn`, `#drawer`) loads an item as the packet, unloads it, fires instants, or does Rollback.
-- Item shots use no shot (owner ruling); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
-- Rollback is disabled once a level is won or lost. Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
+- Item shots use no shot (builder's call, the spec is silent; easy to change in `fire`); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
+- Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
 - Reset progress (Run tab) wipes level, frags and items.
 
 ## Not built yet

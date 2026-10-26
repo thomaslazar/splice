@@ -18,7 +18,7 @@
 </head>
 <body>
 <main id="deck">
-<header id="hud"><div class="l"><small><span id="jack"></span><span id="ice"></span></small><b id="host"></b></div><div class="r"><small id="lvl"></small><b id="score"></b></div><button id="restart"></button></header>
+<header id="hud"><div class="l"><small><span id="jack"></span><span id="ice"></span></small><b id="host"></b></div><div class="r"><small id="lvl"></small><b id="score"></b></div><button id="menuBtn"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h11M3 18h15"/></svg></button></header>
 <canvas id="strip"></canvas>
 <div id="frame"><canvas id="board"></canvas></div>
 <div id="bar"><small id="pk"></small><b id="shots"></b><span id="segs"></span></div>
@@ -28,7 +28,23 @@
 <div id="alert" hidden></div>
 <div id="turn"><p id="turnText"></p></div>
 <div id="load" hidden><div class="card"><h2 id="loadT"></h2><p id="loadM"></p></div></div>
-<div id="sheet" hidden><div class="card"><h2 id="sheetT"></h2><button id="sheetB"></button><button id="sheetC" hidden></button></div></div>
+<div id="sheet" hidden><div class="card"><h2 id="sheetT"></h2><p id="sheetP" hidden></p><button id="sheetB"></button><button id="sheetC" hidden></button></div></div>
+<div id="menu" hidden>
+<nav id="tabs"><button data-tab="run"></button><button data-tab="shop" disabled></button><button data-tab="info"></button></nav>
+<section data-tab="run">
+<div class="row"><span id="curL"></span><b id="curN"></b></div>
+<div class="row"><span id="bestL"></span><b id="bestN"></b></div>
+<button id="mRestart"></button>
+<button id="mBack"></button>
+<button id="mOver"></button>
+<p id="pickL"></p>
+<div id="step"><button id="lvlDn"></button><input id="lvlIn" type="text" inputmode="numeric" autocomplete="off"><button id="lvlUp"></button></div>
+<p id="pickHost"></p>
+<button id="mPlay"></button>
+</section>
+<section data-tab="info" hidden></section>
+<button id="mKeep" class="primary"></button>
+</div>
 <div id="scan"></div>
 </body>
 </html>

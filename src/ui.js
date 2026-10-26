@@ -2,7 +2,7 @@
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
-import { runFrom, enter } from './run.js';
+import { runFrom, enter, clampLevel } from './run.js';
 import { drawHost } from './hostdraw.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
@@ -69,7 +69,8 @@ const busy = () => win !== null && !win.done;
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
 const X = u => u * sc, Y = u => (u - view * RH) * sc;
 const target = () => S.top;
-const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
+const shut = () => $('#sheet').hidden && $('#menu').hidden;
+const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && shut() && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
 const RUN_KEY = 'splice-run'; let run;   // run: { best, fails }, the best level reached
 function saveRun() { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); } catch (e) {} }
@@ -96,7 +97,7 @@ const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
   $('#lvl').textContent = t('lvl', { n: S.level }); $('#score').textContent = S.score;
-  $('#restart').textContent = t('restart'); $('#wip').textContent = t('wip');
+  $('#menuBtn').ariaLabel = t('menu'); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
   const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
   $('#pk').textContent = t('packets'); $('#shots').textContent = S.shots; $('#bar').dataset.warn = warn();
@@ -123,7 +124,7 @@ function reveal() {   // open the strip once the ceiling is in view and no packe
 }
 function sheet() {   // result sheet; a pending restart question stays open unless the level ended
   const w = won(S), l = lost(S); if (asking && !w && !l) return;
-  asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = !w && !l; if (!w && !l) return;
+  asking = false; $('#sheetC').hidden = $('#sheetP').hidden = true; $('#sheet').hidden = !w && !l; if (!w && !l) return;
   $('#sheetT').textContent = w ? t('winTitle') : t('loseTitle'); $('#sheetB').textContent = w ? t('winButton') : t('loseButton');
 }
 function setTheme(level) {
@@ -242,15 +243,45 @@ function start(s) {
 const GRACE = 400; let calmAt = 0;
 const calm = () => { calmAt = performance.now() + GRACE; };
 const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; calm(); };
-$('#restart').onclick = () => {   // ask first; only the confirm button restarts (fails unchanged)
-  if (!$('#sheet').hidden || loading || busy()) return;
-  asking = true; aim = aimId = null; $('#sheet').hidden = $('#sheetC').hidden = false;
-  $('#sheetT').textContent = t('restartAsk'); $('#sheetB').textContent = t('restartYes'); $('#sheetC').textContent = t('restartNo');
-};
-$('#sheetB').onclick = () => asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
+function ask(kind) {   // the restart and start-over questions share the sheet
+  asking = kind; aim = aimId = null; $('#sheet').hidden = $('#sheetC').hidden = false; $('#sheetP').hidden = kind !== 'over';
+  const o = kind === 'over';
+  $('#sheetT').textContent = o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = o ? t('overText') : '';
+  $('#sheetB').textContent = o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = o ? t('cancel') : t('keepPlaying');
+}
+$('#sheetB').onclick = () => asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
 $('#sheetC').onclick = keep;
 $('#sheet').onclick = e => { if (asking && e.target === $('#sheet')) keep(); };
-addEventListener('keydown', e => { if (asking && e.key === 'Escape') keep(); });
+/* ---------- menu ---------- */
+const picked = () => clampLevel($('#lvlIn').value, run.best, S.level);
+function menuText() {   // every panel text; Info adds its own here
+  const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabInfo');
+  $('#curL').textContent = t('curLevel'); $('#curN').textContent = S.level; $('#bestL').textContent = t('bestLevel'); $('#bestN').textContent = run.best;
+  $('#mRestart').textContent = t('restartLevel'); $('#mBack').textContent = t('backTo', { n: run.best }); $('#mBack').hidden = S.level >= run.best;
+  $('#mOver').textContent = t('startOver'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
+  $('#lvlDn').ariaLabel = t('levelDown'); $('#lvlUp').ariaLabel = t('levelUp'); $('#mKeep').textContent = t('keepPlaying'); pick();
+}
+function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
+function tab(name) {
+  if (name === 'shop') return;
+  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const s of document.querySelectorAll('#menu section')) s.hidden = s.dataset.tab !== name;
+}
+function openMenu() { $('#lvlIn').value = S.level; menuText(); tab('run'); $('#menu').hidden = false; }
+function closeMenu() { $('#menu').hidden = true; calm(); }
+$('#menuBtn').onclick = () => { if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
+$('#mKeep').onclick = closeMenu;
+$('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
+$('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
+$('#mOver').onclick = () => { closeMenu(); ask('over'); };
+$('#mPlay').onclick = () => { const n = picked(); closeMenu(); begin(n, 0); };
+for (const b of document.querySelectorAll('#tabs button')) b.onclick = () => tab(b.dataset.tab);
+const step = d => { $('#lvlIn').value = Math.min(run.best, Math.max(1, picked() + d)); pick(); };
+$('#lvlDn').onclick = () => step(-1); $('#lvlUp').onclick = () => step(1);
+$('#lvlIn').oninput = pick;
+$('#lvlIn').onchange = () => { $('#lvlIn').value = picked(); pick(); };
+$('#lvlIn').onkeydown = e => { if (e.key === 'Enter') { $('#lvlIn').blur(); $('#mPlay').click(); } };
+addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('#menu').hidden) closeMenu(); else if (asking) keep(); });
 
 /* ---------- moves ---------- */
 function shoot() {
@@ -285,7 +316,7 @@ const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
-  if (e.button !== 0 || !$('#sheet').hidden || e.timeStamp < calmAt || busy()) return;   // left button, touch or pen only
+  if (e.button !== 0 || !shut() || e.timeStamp < calmAt || busy()) return;   // left button, touch or pen only
   if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
   // the whole strip at the shooter's height swaps; a touch that starts there never aims or fires
@@ -297,7 +328,7 @@ cv.addEventListener('pointerup', e => { if (e.pointerId === aimId) { aimId = nul
 cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
-  if (n - wheelT > 150 && !loading && $('#sheet').hidden && S && S.cur !== null && !busy()) trySwap(); wheelT = n; }, { passive: false });
+  if (n - wheelT > 150 && !loading && shut() && S && S.cur !== null && !busy()) trySwap(); wheelT = n; }, { passive: false });
 addEventListener('resize', () => S && fit());
 // the header can change height mid-level (score digits, font swap): refit next frame on a height change only
 let hudH = 0; new ResizeObserver(([e]) => { if (S && e.contentRect.height !== hudH) { hudH = e.contentRect.height; refit = true; } }).observe($('#hud'));

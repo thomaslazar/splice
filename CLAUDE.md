@@ -203,7 +203,9 @@ other). It is not saved: it is recomputed from the level.
   - `jam`: the aim line is cut at the first wall bounce (`cut`) and the landing ring is
     hidden whenever the line is cut. Dropping 6 or more bubbles (not on a winning or losing
     shot) restores the full line for the next 3 shots (`restore`), logged as `targeting
-    restored (n)` and, when the count runs out, `targeting jammed`. A reload starts jammed.
+    restored (n)`, flashed mid-screen ("Targeting restored: 3 shots", accent colour) and, when
+    the count runs out, `targeting jammed`. A reload starts jammed. The jammed line is steel grey
+    (`JAMMED`), broken and flickering (steady with reduced motion); restored it is the accent again.
   - `jitter`: the aim angle wobbles a few degrees (two slow sines, `bend`); the line, the landing
     ring and the shot all use the angle on screen at release (`drawn`), so the line never lies
     and the challenge is timing (owner, issue #4). With reduced motion it is steady and the line

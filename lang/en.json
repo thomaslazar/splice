@@ -16,6 +16,7 @@
   "turnPhone": "Turn your phone upright to play.",
   "alertTrace": "Trace rising",
   "alertCritical": "Trace critical",
+  "alertRestored": "Targeting restored: {n} shots",
   "logConnect": "> connecting to {host}",
   "logBreach": "> ice layer breached ({n} nodes)",
   "logDeeper": "> deeper: {pct}% of the way in",

@@ -132,7 +132,7 @@ let lines = [], seen = {}, logTop = 0, logPct = 0;
 // A trace warning also flashes once, big, in the middle of the screen (amber, then red).
 let alertT;
 function flash(kind) {
-  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : t('alertTrace'); a.dataset.kind = kind;
+  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : t('alertTrace'); a.dataset.kind = kind;
   a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
   clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 1400);
 }
@@ -152,7 +152,7 @@ function logStart() {   // clear, connect, and set the once-flags that already h
 }
 function logShot(dropped) {   // events in the spec's order, after a landed shot
   if (dropped >= 6) log(t('logBreach', { n: dropped }));
-  if (ice === 'jam' && dropped >= 6 && !won(S) && !lost(S)) { restore = 3; log(t('logRestored', { n: restore })); }
+  if (ice === 'jam' && dropped >= JAM_DROP && !won(S) && !lost(S)) { restore = 3; log(t('logRestored', { n: restore })); flash('restored'); }
   const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
   const f = flagged(); if (won(S)) f.rising = f.critical = false;   // no trace warning on the winning shot
   for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) {
@@ -178,7 +178,8 @@ const SCRAMBLE = .4; let hid = [false, false];
 const scrambled = () => hash(S.level, S.fails, S.draws, 77) % 100 < SCRAMBLE * 100;
 const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
-const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none
+const cut = pts => pts.slice(0, 2);
+const JAM_DROP = 6, JAMMED = '#8a93a6';   // jam: a drop of JAM_DROP or more restores the line; the jammed line's colour   // to the first wall bounce, or the end if none
 const FX = {
   jam: { aim: pts => restore > 0 ? pts : cut(pts) },
   // a few degrees, smooth: two slow sines; reduced motion: steady, cut at the first bounce instead
@@ -329,8 +330,12 @@ function draw() {
   const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {
     const tr = trace(S.grid, S.cols, a, S.top), pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
-    g.strokeStyle = theme.a; g.globalAlpha = .7; g.lineWidth = 2; g.setLineDash([2, 6]);
-    g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
+    // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
+    const jammed = ice === 'jam' && restore === 0, n = performance.now();
+    g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
+    if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .2 ? .1 : .3 + .5 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
+    else { g.globalAlpha = .7; g.setLineDash([2, 6]); }
+    g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
     // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
     if (tr.cell && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = f0.mono || f0.hide?.('cur') ? '#a9aeb8' : colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
     g.globalAlpha = 1;

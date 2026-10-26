@@ -15,19 +15,23 @@ export function nbrs(cols, r, c) {
   const o = r % 2 ? [[0,-1],[0,1],[-1,0],[-1,1],[1,0],[1,1]] : [[0,-1],[0,1],[-1,-1],[-1,0],[1,-1],[1,0]];
   return o.map(([dr, dc]) => [r + dr, c + dc]).filter(([a, b]) => a >= 0 && b >= 0 && b < cellsIn(cols, a));
 }
-export function connected(grid, cols) {
-  const seen = new Set(), st = [...grid.keys()].filter(k => k >> 4 === 0);
+// Neighbour keys of key k, memoised per column count (the bot asks millions of times).
+const NK = {};
+export const nk = (cols, k) => { const m = NK[cols] ??= new Map(); let v = m.get(k);
+  if (!v) m.set(k, v = nbrs(cols, k >> 4, k & 15).map(([a, b]) => key(a, b))); return v; };
+// Keys reachable from row 0 through occupied cells; gone (optional) are keys to treat as empty.
+export function connected(grid, cols, gone) {
+  const seen = new Set(), st = [...grid.keys()].filter(k => k >> 4 === 0 && !gone?.has(k));
   while (st.length) {
     const k = st.pop(); if (seen.has(k)) continue; seen.add(k);
-    const [r, c] = rc(k);
-    for (const [a, b] of nbrs(cols, r, c)) if (grid.has(key(a, b))) st.push(key(a, b));
+    for (const n of nk(cols, k)) if (grid.has(n) && !gone?.has(n) && !seen.has(n)) st.push(n);
   }
   return seen;
 }
 
 /* ---------- shots ---------- */
 import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
-import { solve, limitFor } from './bot.js';   // circular too
+import { needFor, limitFor } from './bot.js';   // circular too
 import { iceFor } from './hosts.js';   // circular too
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 8;
 export function viewTop(grid, cols) {
@@ -45,8 +49,11 @@ export function trace(grid, cols, ang, top = viewTop(grid, cols)) {
     if (x > hi) { x = 2 * hi - x; dx = -dx; pts.push({ x, y }); }
     let stop = y <= 1;
     const lr = Math.round((y - 1) / RH);
-    for (let r = Math.max(0, lr - 1); !stop && r <= lr + 1; r++) for (let c = 0; c < cellsIn(cols, r); c++) {
-      if (grid.has(key(r, c))) { const p = centre(r, c); if ((p.x - x) ** 2 + (p.y - y) ** 2 < hit) { stop = true; break; } } }
+    // only the cells whose centre can be within HIT in x (centre x = 1 + 2c + r % 2)
+    for (let r = Math.max(0, lr - 1); !stop && r <= lr + 1; r++) {
+      const o = 1 + r % 2, cy = 1 + r * RH, c1 = Math.min(cellsIn(cols, r) - 1, Math.ceil((x - o + HIT) / 2));
+      for (let c = Math.max(0, Math.floor((x - o - HIT) / 2)); c <= c1; c++)
+        if (grid.has(key(r, c)) && (o + 2 * c - x) ** 2 + (cy - y) ** 2 < hit) { stop = true; break; } }
     if (stop) { pts.push({ x, y }); return { pts, cell: snap(grid, cols, x, y) }; }
   }
   return { pts, cell: null };
@@ -76,7 +83,7 @@ export function startState(level, fails) {
     shots: Infinity, score: 0, cur: null, next: null, hist: [], draws: 0 };
   S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S);
   const id = `${level}/${fails}`;
-  if (!need.has(id)) { const r = solve(S); need.set(id, r.won ? r.used : Math.max(r.used, Math.ceil(S.grid.size / 3)));
+  if (!need.has(id)) { need.set(id, needFor(S));
     if (need.size > 8) need.delete(need.keys().next().value); }
   S.shots = shotsFor(limitFor(need.get(id), iceFor(level)), fails);
   S.maxShots = S.shots; S.startLow = lowRow(S.grid); return S;
@@ -96,7 +103,7 @@ export function deal(S) {
   // Reachable colours weigh by their share of the reachable bubbles, half of it by their share of
   // reachable bubbles that already have a same-colour neighbour (visible ones if none are reachable); colours on screen but blocked weigh BLOCKED_W, off-screen-only ones OFFSCREEN_W. No colour three times in a row and
   // one reroll on a repeat, except for the only reachable colour.
-  const rnd = mulberry32(hash(S.level, S.fails, 5, S.draws++)), all = new Set(S.grid.values());
+  const rnd = mulberry32(S.salt ? hash(S.level, S.fails, 5, S.draws++, S.salt) : hash(S.level, S.fails, 5, S.draws++)), all = new Set(S.grid.values());
   if (!all.size) return null;
   let near = reachable(S);
   if (!near.size) for (const [k, c] of S.grid) if (k >> 4 >= S.top) near.set(c, (near.get(c) || 0) + 1);

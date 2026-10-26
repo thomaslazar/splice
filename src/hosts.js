@@ -157,6 +157,8 @@ function settle(level, recent) {
 /* ---------- ICE ---------- */
 export const ICE = { static: 'mild', jitter: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh' };
 export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
+// per-type overrides: scrambler is cheap to play around (shoot a wrong colour away), so less room
+export const ICE_TYPE_K = { scrambler: 1.1 };
 const SEVERITY = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
 const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'jitter'], telecom: ['static', 'jitter'],
   finance: ['scrambler', 'jitter'], insurance: ['scrambler', 'jitter'], ai: ['jitter', 'monochrome'],

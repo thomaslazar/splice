@@ -49,6 +49,8 @@ Read before changing behaviour:
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
   now); `<code>.json` holds flat `"key": "text"` pairs with `{placeholders}`.
   `tests/lang.test.mjs` checks the lang files.
+- `src/run.js`: run rules, pure: `runFrom` (saved run or fallback), `enter` (best level and its earned fails), `clampLevel`. Tested in
+  `tests/run.test.mjs`.
 - `src/bot.js`: greedy bot over the core API, pure; sets each attempt's shot limit. Tested in
   `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
 - `fonts/`: Chakra Petch (latin 400 and 600, woff2), self-hosted, with `OFL.txt`. `style.css`
@@ -242,7 +244,7 @@ other). It is not saved: it is recomputed from the level.
   (`sym`), so colour is never the only cue. `bubble()` draws one packet. Text uses Chakra Petch
   with a monospace fallback (the log stays monospace).
 - HUD (DOM): header ("Jacked in" over `hostFor(level).label`, wrapping to two lines at most;
-  level over score; Restart), corner brackets (`#frame::after`), packets bar (up to 20 segments,
+  level over score; menu button), corner brackets (`#frame::after`), packets bar (up to 20 segments,
   each `ceil(maxShots / 20)` shots; lit ones are the shots left, `S.maxShots` is set by
   `startState`), two reserved log lines, and a full-screen scanline overlay
   (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
@@ -282,17 +284,25 @@ other). It is not saved: it is recomputed from the level.
   `GLITCH` (1200 ms: the host bursts apart sideways in horizontal slices, quick at first then
   slowing, flickering into the accent colour, and stays in pieces; a reload on a won board shows
   the pieces in the accent; reduced motion switches colour at once),
-  then the sheet. Swaps, wheel and Restart are ignored meanwhile (`busy()`). A reload on a won
+  then the sheet. Swaps, wheel and the menu button are ignored meanwhile (`busy()`). A reload on a won
   board shows the sheet at once with the host in the accent colour.
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
   jitter seeded from the key) and a `-n` text (only for drops of 6 or more). With reduced motion, results show at once.
-- Sheets: one sheet for win ("Root access"), loss ("Flatline") and the restart question.
-  Next level and Try again start a new state. Restart in the HUD asks first (`asking`);
-  only its confirm button restarts the level, which does not count as a fail. Keep
-  playing, a tap outside the card or Escape closes it.
+- Menu (`#menu`, opened by the header button, which replaces Restart; ignored while a packet flies, loading or `busy()`): full-screen
+  panel with tabs Run, Shop (disabled, later) and Info; `menuText()` fills every text. Run: current and best level,
+  Restart level and Start over (each asks first on the sheet, `asking` = `'restart'` or `'over'`; only the confirm button acts,
+  restart is not a fail), Back to best level (when below it), a level stepper (`clampLevel`, 1..best) with the host's label and
+  Play. Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
+  in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit and a language `<select>` from `LANGS`
+  (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
+- Sheets: one sheet for win ("Root access"), loss ("Flatline") and the two questions.
+  Next level and Try again start a new state. Keep playing, a tap outside the card or Escape closes it.
 - Saving: `S` is saved whole to `localStorage['splice-v1']` after every shot and swap;
   if the save fails `validSave` but holds an integer `level` >= 1, `load()` starts that
   level fresh (keeping a valid `fails`); a missing or unreadable save starts level 1.
+  The run (`localStorage['splice-run']`: `{best, fails}`) is the best level reached and the fails earned on it, set by
+  `enter` in `begin`; replaying a lower level keeps it. A missing or invalid run falls back to `runFrom(o, level, fails)`,
+  and best is never below the current level.
 
 ## Not built yet
 
@@ -340,7 +350,7 @@ like an orphaned process.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-3`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-3`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

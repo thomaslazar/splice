@@ -137,7 +137,7 @@ let lines = [], seen = {}, logTop = 0, logPct = 0;
 // A trace warning also flashes once, big, in the middle of the screen (amber, then red).
 let alertT;
 function flash(kind) {
-  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : t('alertTrace'); a.dataset.kind = kind;
+  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : t('alertTrace'); a.dataset.kind = kind;
   a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
   clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 1400);
 }
@@ -260,6 +260,8 @@ function menuText() {   // every panel text; Info adds its own here
   $('#mRestart').textContent = t('restartLevel'); $('#mBack').textContent = t('backTo', { n: run.best }); $('#mBack').hidden = S.level >= run.best;
   $('#mOver').textContent = t('startOver'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
   $('#lvlDn').ariaLabel = t('levelDown'); $('#lvlUp').ariaLabel = t('levelUp'); $('#mKeep').textContent = t('keepPlaying'); pick();
+  $('#iName').textContent = t('appName'); $('#iText').textContent = t('infoText'); $('#iHow').textContent = t('howTo'); $('#iShare').textContent = t('share');
+  $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
 function tab(name) {
@@ -267,7 +269,20 @@ function tab(name) {
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === name);
   for (const s of document.querySelectorAll('#menu section')) s.hidden = s.dataset.tab !== name;
 }
-function openMenu() { $('#lvlIn').value = S.level; menuText(); tab('run'); $('#menu').hidden = false; }
+async function share() {   // the phone's share sheet, else copy the link; anything else shows it to copy by hand
+  const url = location.origin + location.pathname, u = $('#iUrl'); u.hidden = true;
+  try {
+    if (navigator.share) return await navigator.share({ title: t('appName'), text: t('shareText'), url });
+    await navigator.clipboard.writeText(url); flash('note');
+  } catch (e) { if (e.name !== 'AbortError') { u.textContent = url; u.hidden = false; } }
+}
+$('#iShare').onclick = share;
+for (const [code, name] of Object.entries(LANGS)) $('#iSel').add(new Option(name, code));
+$('#iSel').onchange = async () => {
+  const code = $('#iSel').value; try { localStorage.setItem(LANG_KEY, code); } catch (e) {}
+  await setLang(code); hud(); menuText(); $('#turnText').textContent = t('turnPhone');
+};
+function openMenu() { $('#lvlIn').value = S.level; menuText(); $('#iSel').value = document.documentElement.lang; $('#iUrl').hidden = true; tab('run'); $('#menu').hidden = false; }
 function closeMenu() { $('#menu').hidden = true; calm(); }
 $('#menuBtn').onclick = () => { if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
 $('#mKeep').onclick = closeMenu;

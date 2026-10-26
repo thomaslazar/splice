@@ -46,6 +46,7 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
   animation: flash 1.4s ease-out forwards; }
 #alert[data-kind=critical] { color: #ff2a4a; text-shadow: 0 0 18px #ff2a4a; }
 #alert[data-kind=restored] { color: var(--acc); text-shadow: 0 0 18px var(--acc); }
+#alert[data-kind=note] { font-size: 16px; color: var(--acc); text-shadow: 0 0 12px var(--acc); letter-spacing: .08em; }
 #alert[hidden] { display: none; }
 @keyframes flash { 0% { opacity: 0; transform: scale(1.25); } 12% { opacity: 1; transform: scale(1); } 22% { opacity: .35; } 32% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #alert { animation: none; } }
@@ -79,9 +80,10 @@ canvas { display: block; touch-action: none; }
   background: var(--bg); border: 1px solid var(--acc); }
 .card h2 { margin: 0; font-size: 28px; color: var(--acc); text-shadow: 0 0 12px var(--acc); font-weight: normal; }
 /* menu panel: full screen, solid, under the scanlines, over the sheet */
-#menu { position: fixed; inset: 0; z-index: 8; background: var(--bg); display: flex; flex-direction: column; padding: 0 18px 18px; gap: 9px; overflow-y: auto; }
+#menu { position: fixed; inset: 0; z-index: 8; background: var(--bg); display: flex; flex-direction: column; padding: 0 18px 18px; gap: 9px; overflow: hidden; }
 #menu[hidden], #menu section[hidden] { display: none; }
-#menu section { display: flex; flex-direction: column; gap: 9px; flex: 1; }
+#menu section { display: flex; flex-direction: column; gap: 9px; flex: 1; min-height: 0; overflow-y: auto; }
+#menu section > * { flex: none; }
 #menu button { width: 100%; padding: 10px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
 #menu button[hidden] { display: none; }
 #menu button.primary { background: var(--acc); color: var(--bg); font-weight: 600; flex: none; }
@@ -97,5 +99,12 @@ canvas { display: block; touch-action: none; }
 #lvlIn { width: 6ch; box-sizing: content-box; text-align: center; font: inherit; font-size: 16px; color: #fff; background: transparent;
   border: 1px solid var(--acc); border-radius: 2px; padding: 8px 12px; -webkit-user-select: text; user-select: text; }
 #pickHost { margin-top: 0; min-height: 1.3em; }
+#menu h2 { margin: 0; text-align: center; font-size: 28px; color: var(--acc); text-shadow: 0 0 12px var(--acc); font-weight: normal; }
+#iHow { white-space: pre-line; }
+#iUrl { -webkit-user-select: text; user-select: text; word-break: break-all; opacity: 1; }
+#menu small { text-align: center; opacity: .55; font-size: 11px; }
+#menu a.btn { display: block; box-sizing: border-box; text-align: center; padding: 10px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--acc); border: 1px solid var(--acc); text-decoration: none; }
+.pick { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; }
+.pick select { font: inherit; font-size: 14px; color: #fff; background: var(--bg); border: 1px solid var(--acc); border-radius: 2px; padding: 7px 10px; }
 #sheetP { margin: 0; max-width: 22em; text-align: center; opacity: .8; }
 #sheetP[hidden] { display: none; }

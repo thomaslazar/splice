@@ -50,5 +50,15 @@
   "iceLock": "Lock ICE",
   "iceJam": "Jam ICE",
   "iceMonochrome": "Monochrome ICE",
-  "iceBlack": "Black ICE"
+  "iceBlack": "Black ICE",
+  "appName": "Splice",
+  "infoText": "A relaxed bubble shooter. No ads, no accounts, no tracking.",
+  "howTo": "Drag to aim, let go to fire.\nTap the strip at the shooter to swap.\nThree or more of one colour pop. Anything cut off from the top falls.",
+  "share": "Share Splice",
+  "shareText": "A relaxed bubble shooter with no ads. Give it a try:",
+  "linkCopied": "Link copied",
+  "sourceCode": "Source code on GitHub",
+  "license": "Free for non-commercial use (PolyForm Noncommercial 1.0.0).",
+  "credits": "Font: Chakra Petch, SIL Open Font License.",
+  "language": "Language"
 }

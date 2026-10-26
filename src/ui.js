@@ -87,6 +87,7 @@ const shut = () => $('#sheet').hidden && $('#menu').hidden && $('#drawer').hidde
 const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && shut() && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
 const RUN_KEY = 'splice-run'; let run;   // run: { best, fails }, the best level reached
+const pays = () => S.level === run.best && run.paid !== S.level;   // this level still pays frags and loot
 function saveRun() { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); } catch (e) {} }
 const DECK_KEY = 'splice-deck'; let deck, prev = null;   // deck: { frags, items }; prev: { s: save before the last shot, id: item it fired }
 try { deck = deckFrom(JSON.parse(localStorage.getItem(DECK_KEY))); } catch (e) { deck = deckFrom(null); }
@@ -115,7 +116,7 @@ const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxS
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
-  $('#lvl').textContent = t('lvl', { n: S.level }); const best = S.level === run.best; $('#score').textContent = best ? t('frags', { n: S.frags }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
+  $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays(); $('#score').textContent = best ? t('frags', { n: S.frags }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
   $('#menuBtn').ariaLabel = t('menu'); $('#deckBtn').textContent = t('deck'); $('#deckBtn').classList.toggle('empty', !owned(deck).length); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
   const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
@@ -386,7 +387,7 @@ function shoot() {
   const pre = new Map(S.grid), col = S.cur, it = S.load, snap = toSave(S), rs = restore, m = fire(S, shotAngle()); aim = null; drawn = null;
   if (!m) return;
   if (won(S)) {   // pay at the winning shot, before the save: a reload during the flight keeps it, run.paid keeps it single
-    const p = payout(deck, S, run.best, run.paid); paid = { frags: p.frags, loot: p.loot, replay: S.level !== run.best || run.paid === S.level };
+    const p = payout(deck, S, run.best, run.paid); paid = { frags: p.frags, loot: p.loot, replay: !pays() };
     deck = p.deck; if (S.level === run.best) run.paid = S.level; saveDeck(); saveRun();
   }
   prev = { s: snap, id: it, restore: rs };
@@ -449,7 +450,7 @@ function drawStrip(now) {   // the host, base just above the board, fading in as
   const acc = p >= 1 || p >= 0 && (reduced || Math.sin(now / 1000 * 55) > 1 - 2.5 * q);
   drawHost(sg, host, W / 2, sh - 3, STRIP * sc * .78, acc ? theme.a : colour(host.hue),
     go && p < 1 ? .5 * (1 - q) : 0, now / 1000, go ? 1 - (1 - q) ** 2 : 0);
-  if (S.level === run.best && !won(S) && lootFor(S.level)) {   // the level's loot, right of the host
+  if (pays() && !won(S) && lootFor(S.level)) {   // the level's loot, right of the host
     const rr = STRIP * sc * .3, x = W * .8;
     itemBubble(x, sh * .45, lootFor(S.level), strip, rr, sg); sg.globalAlpha = strip;
     sg.fillStyle = '#fff'; sg.font = `${Math.max(9, rr * .5)}px 'Chakra Petch', monospace`; sg.textAlign = 'center'; sg.fillText(t('loot').toUpperCase(), x, sh * .45 + rr * 1.5);

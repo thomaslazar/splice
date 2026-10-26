@@ -33,7 +33,7 @@ export function connected(grid, cols, gone) {
 import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
 import { needFor, limitFor } from './bot.js';   // circular too
 import { iceFor } from './hosts.js';   // circular too
-export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 8;
+export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 10;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
   return Math.max(0, low - (winRows(cols) - 5));

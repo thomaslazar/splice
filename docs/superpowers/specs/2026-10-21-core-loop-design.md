@@ -63,7 +63,7 @@ prototype settled. Where the prototype's numbers are guesses, this says so.
   level. *My call*.
 - At the start of an attempt the view puts the lowest bubble at that fixed row, 4 rows
   above the shooter. The view then stays put while the player clears. Only once
-  the screen is cleared down to its top two rows (or entirely), or 8 or fewer bubbles are
+  the screen is cleared down to its top two rows (or entirely), or 10 or fewer bubbles are
   left on screen, does the level slide down
   smoothly, bringing the lowest bubble back to 4 rows above the shooter. It never
   scrolls above the ceiling.

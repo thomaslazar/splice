@@ -77,7 +77,7 @@ one fewer on odd rows.
   `winRows - 5`, so the lowest bubble starts 4 rows above the shooter). The real view is
   `S.top`: set by `startState`. After a `fire` it becomes `min(S.top, viewTop)` only when the
   lowest bubble is in the top `SCROLL_AT` (2) visible rows or above them, so the level slides down
-  in steps once the screen is nearly cleared (or once `SCROLL_FEW` (8) or fewer bubbles are on
+  in steps once the screen is nearly cleared (or once `SCROLL_FEW` (10) or fewer bubbles are on
   screen), and never retracts when bubbles land lower. The shooter sits at
   `S.top + winRows - 1`; `shooterPos(grid, cols, top)` and `trace(grid, cols, ang, top)` default
   `top` to `viewTop`, `fire`/`deal` pass `S.top`. Loss line: `lossRow(S)` = `S.top + winRows - 2`,

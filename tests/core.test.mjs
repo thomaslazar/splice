@@ -134,14 +134,14 @@ test('the view waits until only the top two visible rows hold bubbles', () => {
   fire(S, aimAt(S, 0, 8));
   assert.ok(S.top < top);
 });
-test('the view also moves once 8 or fewer bubbles are on screen', () => {
+test('the view also moves once 10 or fewer bubbles are on screen', () => {
   const cells = []; for (let r = 0; r < 40; r++) cells.push([r, 0, 1 + (r % 3)]);
   const S = stateWith(10, cells, 1); S.top = viewTop(S.grid, 10);
   const top = S.top;
-  for (let r = top + 9; r < 40; r++) S.grid.delete(key(r, 0));   // 9 on screen, lowest far below the top rows
+  for (let r = top + 11; r < 40; r++) S.grid.delete(key(r, 0));   // 11 on screen, lowest far below the top rows
   fire(S, aimAt(S, 0, 7));
   assert.equal(S.top, top);
-  S.grid.delete(key(top + 8, 0));   // 8 left on screen
+  S.grid.delete(key(top + 10, 0));   // 10 left on screen
   fire(S, aimAt(S, 0, 8));
   assert.ok(S.top < top);
 });

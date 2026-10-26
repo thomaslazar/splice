@@ -45,7 +45,7 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
   font-size: 30px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #ffb020; text-shadow: 0 0 18px #ffb020;
   animation: flash 1.4s ease-out forwards; }
 #alert[data-kind=critical] { color: #ff2a4a; text-shadow: 0 0 18px #ff2a4a; }
-#alert[data-kind=restored], #alert[data-kind=ice] { color: var(--acc); text-shadow: 0 0 18px var(--acc); }
+#alert[data-kind=restored], #alert[data-kind=ice], #alert[data-kind=breaker] { color: var(--acc); text-shadow: 0 0 18px var(--acc); }
 #alert[data-kind=note] { font-size: 16px; color: var(--acc); text-shadow: 0 0 12px var(--acc); letter-spacing: .08em; }
 #alert[hidden] { display: none; }
 @keyframes flash { 0% { opacity: 0; transform: scale(1.25); } 12% { opacity: 1; transform: scale(1); } 22% { opacity: .35; } 32% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
@@ -108,3 +108,15 @@ canvas { display: block; touch-action: none; }
 .pick select { font: inherit; font-size: 14px; color: #fff; background: var(--bg); border: 1px solid var(--acc); border-radius: 2px; padding: 7px 10px; }
 #sheetP { margin: 0; max-width: 22em; text-align: center; opacity: .8; }
 #sheetP[hidden] { display: none; }
+/* deck: button over the shooter strip (bottom left), drawer above it */
+#deckBtn { position: absolute; left: 8px; bottom: 10px; z-index: 5; padding: 6px 10px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; background: var(--bg); }
+#deckBtn.empty { opacity: .35; }
+#drawer { position: absolute; left: 8px; bottom: 48px; z-index: 5; display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 190px; max-height: 60%; overflow-y: auto;
+  background: var(--bg); border: 1px solid var(--acc); }
+#drawer[hidden] { display: none; }
+#drawer small { text-align: center; }
+#drawer button { display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; font-size: 12px; }
+#drawer button:disabled { opacity: .3; cursor: default; }
+#drawer button span { flex: 1; text-align: left; }
+#drawer button b { color: #fff; font-weight: 600; }
+#drawer svg { flex: none; }

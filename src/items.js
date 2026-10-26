@@ -1,5 +1,5 @@
 // Items: the shop table, level loot and the deck (frags and held items). Pure: no DOM, no storage.
-import { mulberry32, hash, key, rc, nk, trace, snap, connected, flood, lossRow, clampAim, cellsIn, HIT, RH, won } from './core.js';
+import { mulberry32, hash, key, isColour, rc, nk, trace, snap, connected, flood, lossRow, clampAim, cellsIn, HIT, RH, won } from './core.js';
 import { tierFor, iceFor, ICE } from './hosts.js';
 import { isLong, winRows } from './levels.js';   // circular: used only inside function bodies
 
@@ -94,15 +94,15 @@ export function hits(S, id, ang) {
   if (id === 'bomb') within(cols, k0, 2).filter(occ).forEach(k => clear.add(k));
   else if (id === 'sweep') for (let c = 0; c < cellsIn(cols, cell[0]); c++) occ(key(cell[0], c)) && clear.add(key(cell[0], c));
   else if (id === 'star') for (let d = 0; d < 6; d++) ray(cols, k0, d, 4).filter(occ).forEach(k => clear.add(k));
-  else if (id === 'lightning') {   // climb through the row above, nearer the landing column, then left
-    let r = cell[0], c = cell[1];
-    while (clear.size < 8 && r > 0) {
-      const up = nk(cols, key(r, c)).filter(k => k >> 4 === r - 1 && occ(k) && !clear.has(k))
-        .sort((p, q) => Math.abs((p & 15) - cell[1]) - Math.abs((q & 15) - cell[1]) || (p & 15) - (q & 15));
-      if (!up.length) break; clear.add(up[0]); [r, c] = rc(up[0]); }
+  else if (id === 'lightning') {   // first to the neighbour with the lowest row (nearer column, then left), then up through the row above
+    const near = (p, q) => Math.abs((p & 15) - cell[1]) - Math.abs((q & 15) - cell[1]) || (p & 15) - (q & 15);
+    let from = nb.sort((p, q) => (p >> 4) - (q >> 4) || near(p, q))[0];
+    while (from !== undefined && clear.size < 8) {
+      clear.add(from); const r = from >> 4; if (!r) break;
+      from = nk(cols, from).filter(k => k >> 4 === r - 1 && occ(k) && !clear.has(k)).sort(near)[0]; }
   }
   else if (id === 'purge') { if (hitCol !== null) for (const [k, v] of grid) if (v === hitCol && (k >> 4) >= S.top && (k >> 4) <= lossRow(S)) clear.add(k); }
-  else if (id === 'virus') { land = hitCol ?? S.cur; if (hitCol !== null) within(cols, k0, 4).filter(occ).forEach(k => recolour.set(k, hitCol)); }
+  else if (id === 'virus') { land = hitCol ?? S.cur; if (hitCol !== null) within(cols, k0, 4).filter(occ).forEach(k => grid.get(k) !== hitCol && recolour.set(k, hitCol)); }
   else if (id === 'wildcard') {
     land = S.cur; let best = -1, bd = -1;
     for (const col of new Set(nb.map(k => grid.get(k)))) {
@@ -113,14 +113,15 @@ export function hits(S, id, ang) {
   else if (id === 'rainbow') for (const col of new Set(nb.map(k => grid.get(k)))) {
     const g = flood(S, nb.filter(k => grid.get(k) === col), col); if (g.length >= 2) g.forEach(k => clear.add(k)); }
   else return null;
+  if (id !== 'wildcard' && !clear.size && !recolour.size) return null;   // nothing to do: the item stays loaded
   return { pts, cell, clear, recolour, land };
 }
 
 /* ---------- use ---------- */
 export function useItem(S, id, arg) {
   if (id === 'overclock') S.shots += 5;
-  else if (id === 'decrypt') { if (![...S.grid.values()].includes(arg)) return false; S.cur = arg; }
-  else if (id === 'icebreaker') S.breaker = 5;
+  else if (id === 'decrypt') { if (!isColour(arg) || ![...S.grid.values()].includes(arg)) return false; S.cur = arg; }
+  else if (id === 'icebreaker') { if (S.breaker > 0) return false; S.breaker = 5; }
   else if (item(id)?.kind === 'shot' && S.load === null) S.load = id;
   else return false;
   return true;

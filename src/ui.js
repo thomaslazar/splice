@@ -1,5 +1,5 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
-import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
+import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
@@ -94,12 +94,14 @@ try { deck = deckFrom(JSON.parse(localStorage.getItem(DECK_KEY))); } catch (e) {
 function saveDeck() { try { localStorage.setItem(DECK_KEY, JSON.stringify(deck)); } catch (e) {} }
 function load() {   // a valid save, or [level, fails] to begin: an invalid save keeps its level, unreadable means level 1
   let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
+  if (o && item(o.load)?.kind === 'shot') { deck = give(deck, o.load); saveDeck(); o.load = null; try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }   // an item loaded in a save we cannot resume goes back
   return o && Number.isInteger(o.level) && o.level >= 1 ? [o.level, Number.isInteger(o.fails) && o.fails >= 0 ? o.fails : 0] : [1, 0];
 }
 // startState runs the bot to set the shot limit (up to about a second on big levels), so a level
 // begins behind a short loading card; it stays up at least LOAD_MIN so it never just flickers.
 const LOAD_MIN = 500; let loading = false;
 async function begin(level, fails) {
+  if (S?.load) { deck = give(deck, S.load); saveDeck(); S.load = null; }   // an item still loaded goes back to the deck
   const unlock = level > run.best && UNLOCKS.includes(level);
   const e = enter(run, level, fails); run = e.run; fails = e.fails; saveRun();
   loading = true; aim = aimId = null; fly = win = null; $('#sheet').hidden = true; closeDrawer();   // an old flight or win never reaches its sheet
@@ -116,7 +118,7 @@ const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxS
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
-  $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays(); $('#score').textContent = best ? t('frags', { n: S.frags }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
+  $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays() || paid && !paid.replay; $('#score').textContent = best ? t('frags', { n: S.frags }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
   $('#menuBtn').ariaLabel = t('menu'); $('#deckBtn').textContent = t('deck'); $('#deckBtn').classList.toggle('empty', !owned(deck).length); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
   const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
@@ -308,12 +310,12 @@ const DESCS = { bomb: () => t('desc_bomb'), sweep: () => t('desc_sweep'), pierce
   overclock: () => t('desc_overclock'), decrypt: () => t('desc_decrypt'), icebreaker: () => t('desc_icebreaker'), star: () => t('desc_star'),
   lightning: () => t('desc_lightning'), virus: () => t('desc_virus'), purge: () => t('desc_purge'), rainbow: () => t('desc_rainbow'), rollback: () => t('desc_rollback') };
 function shop() {   // balance and one row per item; rebuilt after every buy
-  $('#balN').textContent = `ƒ ${deck.frags}`;
+  $('#balN').textContent = t('frags', { n: deck.frags });
   $('#shopList').replaceChildren(...ITEMS.map(({ id, from }) => {
     const r = document.createElement('div'), m = document.createElement('div'), nm = document.createElement('b'), ds = document.createElement('small');
     const n = document.createElement('span'), b = document.createElement('button'), lock = from > run.best;
     r.className = 'shopRow' + (lock ? ' lock' : ''); nm.textContent = ITEM_NAMES[id](); ds.textContent = DESCS[id](); m.append(nm, ds);
-    n.textContent = `×${deck.items[id] || 0}`; b.textContent = lock ? t('unlockAt', { n: from }) : `ƒ ${PRICES[id]}`; b.disabled = lock || deck.frags < PRICES[id];
+    n.textContent = `×${deck.items[id] || 0}`; b.textContent = lock ? t('unlockAt', { n: from }) : t('frags', { n: PRICES[id] }); b.disabled = lock || deck.frags < PRICES[id];
     b.onclick = e => { e.stopPropagation(); const d = buy(deck, id); if (d) { deck = d; saveDeck(); hud(); shop(); } };
     r.innerHTML = svg(id); r.append(m, n, b); r.onclick = () => demo(id); return r;
   }));
@@ -365,11 +367,11 @@ $('#iSel').onchange = async () => {
 };
 function openMenu() { $('#lvlIn').value = S.level; menuText(); $('#iSel').value = document.documentElement.lang; $('#iUrl').hidden = true; tab('run'); $('#menu').hidden = false; }
 function closeMenu() { demoClose(); $('#menu').hidden = true; calm(); }
-$('#menuBtn').onclick = () => { if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
+$('#menuBtn').onclick = () => { closeDrawer(); if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
 $('#mKeep').onclick = closeMenu;
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
 $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
-function resetAll() { for (const k of [KEY, RUN_KEY, DECK_KEY]) try { localStorage.removeItem(k); } catch (e) {} deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
+function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY]) try { localStorage.removeItem(k); } catch (e) {} deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
 $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
 $('#mOver').onclick = () => { closeMenu(); ask('over'); };
 $('#mPlay').onclick = () => { const n = picked(); closeMenu(); begin(n, 0); };
@@ -390,7 +392,7 @@ function drawer() {
   const d = $('#drawer'); d.textContent = '';
   if (picking) {   // Decrypt: one packet per colour on the board
     const h = document.createElement('small'); h.textContent = t('pickColour'); d.append(h);
-    for (const col of [...new Set(S.grid.values())].sort()) {
+    for (const col of [...new Set(S.grid.values())].filter(isColour).sort()) {
       const b = document.createElement('button'), c = document.createElement('canvas'); c.width = c.height = 36; bubble(18, 18, col, 1, 15, c.getContext('2d'));
       b.append(c); b.onclick = () => decrypt(col); d.append(b);
     }
@@ -399,10 +401,11 @@ function drawer() {
   for (const [id, n] of owned(deck)) {
     const b = document.createElement('button'), nm = document.createElement('span'), c = document.createElement('b');
     b.innerHTML = svg(id); nm.textContent = ITEM_NAMES[id](); c.textContent = `\u00d7${n}`; b.append(nm, c);
-    b.disabled = id === 'rollback' ? !prev || won(S) || lost(S) : item(id).kind === 'shot' && !!S.load;   // one loaded at a time
+    b.disabled = id === 'rollback' ? !prev || won(S) || lost(S) : id === 'icebreaker' ? !ice || S.breaker > 0 : item(id).kind === 'shot' && !!S.load;   // one loaded at a time
     b.onclick = () => use(id); d.append(b);
   }
 }
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#drawer, #deckBtn')) closeDrawer(); });
 function closeDrawer() { if ($('#drawer').hidden) return; $('#drawer').hidden = true; picking = false; calm(); }
 $('#deckBtn').onclick = () => {
   if (!$('#drawer').hidden) return closeDrawer();

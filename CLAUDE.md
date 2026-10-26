@@ -90,7 +90,8 @@ one fewer on odd rows.
   radii with wall bounces and returns `{pts, cell}` (`HIT` is 0.82 of a bubble diameter);
   `snap` picks the nearest free cell that touches the ceiling or a bubble.
 - **deal**: `startState(level, fails)` builds the state `S` (`grid, shots, score, cur, next,
-  hist, draws, ...`). `deal(S)` draws a colour still on the board, seeded from
+  hist, draws, frags, load, breaker, ...`: `frags` pending frags from dropped bubbles, `load` the loaded shot
+  item or null, `breaker` shots left of the ICE breaker). `deal(S)` draws a colour still on the board, seeded from
   `(level, fails, draws)`. A reachable colour (a bubble on screen touching the open space that
   connects to the row above the loss line, found by flood fill in `reachable(S)`) weighs
   `1 + VIS_W * (half its share of the reachable bubbles + half its share of reachable bubbles that
@@ -102,7 +103,12 @@ one fewer on odd rows.
   only reachable colour.
 - **moves**: `swap`, `won`, `lost`, `fire(S, ang)` (returns `{pts, cell, popped, dropped,
   points}` or null; score is `10 * popped + 10 * dropped^2`; after a shot, `cur` and `next`
-  are re-dealt if their colour left the board).
+  are re-dealt if their colour left the board). `settle(S, popped, extra, advance)` is the shared tail of every
+  shot: removes popped bubbles, drops what lost the ceiling (dropped ones add to `S.frags`), scores, scrolls and
+  re-deals missing colours; `advance` (normal shots only) also moves next to cur and spends a shot. `flood(S, start, col)`
+  is the same-colour group. `fire` has an item branch: with `S.load` set it flies the item through `hits()` instead of
+  the packet (no shot spent, packets stay); it returns null when the item would change nothing, and the item stays
+  loaded. `isColour(v)` is 0..5.
 - **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`). Saves include `top`; an old save without it fails
   validation and restarts its level. `S.maxShots` (the starting shot limit) and `S.startLow`
   (the lowest bubble row at the start) feed the packets bar and the log; an older save without
@@ -177,7 +183,8 @@ label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and 
 ## ICE (`src/hosts.js`, `src/bot.js`, `src/ui.js`)
 
 A level from hardness 0.5 up may carry one ICE (intrusion countermeasure) that makes aiming
-or reading the board harder. `iceFor(level)` returns its type or null; pure, seeded
+or reading the board harder. Every ICE check in the UI goes through `iceOn()` (none while the ICE breaker
+runs), never `ice` directly, except the breaker's own end message and drawer button. `iceFor(level)` returns its type or null; pure, seeded
 (`hash(level, 13)`, two draws always taken so the chance and the pick never shift each
 other). It is not saved: it is recomputed from the level.
 
@@ -299,7 +306,7 @@ other). It is not saved: it is recomputed from the level.
   Play, then Reset progress (red, asks first, `asking` = `'reset'`: deletes `splice-v1`, `splice-run` and `splice-deck`, keeps `splice-lang`, restarts at level 1 with an empty deck; Start over keeps the deck). Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
   in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit and a language `<select>` from `LANGS`
   (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
-- Sheets: one sheet for win ("Root access"), loss ("Flatline") and the two questions.
+- Sheets: one sheet for win ("Root access"), loss ("Flatline", with a rescue button when out of shots and an Overclock is held) and the three questions (restart, start over, reset).
   Next level and Try again start a new state. Keep playing, a tap outside the card or Escape closes it.
 - Saving: `S` is saved whole to `localStorage['splice-v1']` after every shot and swap;
   if the save fails `validSave` but holds an integer `level` >= 1, `load()` starts that
@@ -316,6 +323,7 @@ other). It is not saved: it is recomputed from the level.
 - Shop tab buys items for frags (demo popup `#demo`); items unlock at levels 31, 61, 91 (flash). The drawer
   (`#deckBtn`, `#drawer`) loads an item as the packet, unloads it, fires instants, or does Rollback.
 - Item shots use no shot (builder's call, the spec is silent; easy to change in `fire`); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
+- A loaded item goes back to the deck when the level is left (`begin()`, and `load()` for a save that fails validation), except on Reset progress. An item with no effect at the aim cannot be fired (`hits` null, no preview). ICE breaker is only usable on a level with active ICE and not while it already runs (`useItem` refuses). Decrypt only offers and accepts colours (`isColour`). A tap outside the drawer, or the menu button, closes it.
 - Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
 - Reset progress (Run tab) wipes level, frags and items.
 

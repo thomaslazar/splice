@@ -121,6 +121,7 @@ export function deal(S) {
 
 /* ---------- moves ---------- */
 export const swap = S => { [S.cur, S.next] = [S.next, S.cur]; };
+export const isColour = v => v >= 0 && v <= 5;   // packet colours; other grid values are not colours
 export const won = S => !S.grid.size;
 export const lossRow = S => S.top + winRows(S.cols) - 2;   // the row directly above the shooter row
 export const lost = S => !won(S) && (S.shots <= 0 || [...S.grid.keys()].some(k => k >> 4 >= lossRow(S)));

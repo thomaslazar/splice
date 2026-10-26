@@ -94,7 +94,7 @@ test('purge clears one colour on screen only', () => {
   assert.ok(h.clear.size > 0); for (const k of h.clear) { assert.equal(S.grid.get(k), 1); assert.ok(k >> 4 >= 2); }
   assert.ok(!h.clear.has(key(0, 0)));
 });
-test('lightning climbs to the top, at most 8, preferring the nearer column', () => {
+test('lightning climbs to the top, at most 8', () => {
   const S = board(Array.from({ length: 9 }, (_, r) => r % 2 ? '...1...' : '...1....'));
   const h = hits(S, 'lightning', -Math.PI / 2);
   assert.ok(h.cell[0] >= 9); assert.equal(h.clear.size, 8);
@@ -102,6 +102,21 @@ test('lightning climbs to the top, at most 8, preferring the nearer column', () 
   const F = board(['........', '.......', '........', '.......', '........', '.......', '........', '.......', '...11...']);
   const g = hits(F, 'lightning', aimAt(F, 9, 3));
   assert.deepEqual([...g.clear], [key(8, 3)]);
+});
+test('lightning from a side hit steps to the neighbour with the lowest row, then climbs', () => {
+  // a hanging line down column 0 (even rows) and 0 (odd rows); landing (2,1) touches row 1 and row 2 bubbles
+  const S = board(['1.......', '1.......', '1.......', '1.......']);
+  const a = aimAt(S, 2, 1), h = hits(S, 'lightning', a);
+  assert.equal(h.cell.join(), '2,1');
+  assert.ok(h.clear.has(key(1, 0)) && h.clear.has(key(0, 0)), 'climbs the line');
+  assert.ok(!h.clear.has(key(2, 0)), 'does not take the same-row neighbour first');
+});
+test('an item with no effect returns null and is not spent', () => {
+  const none = (id, rows, r, c) => { const S = board(rows, { load: id }), a = aimAt(S, r, c), before = new Map(S.grid);
+    assert.equal(hits(S, id, a), null, id); assert.equal(fire(S, a), null); assert.equal(S.load, id); assert.deepEqual(S.grid, before); };
+  none('rainbow', ['12121212', '.......'], 1, 1);   // every touched colour is alone
+  none('virus', ['11111111', '1111111'], 2, 0);   // everything in range already has the hit colour
+  none('sweep', ['1.......', '.......'], 1, 0);   // the landing row is empty
 });
 test('pierce clears the first 10 on its path and lands nowhere', () => {
   const S = board(full(8)), h = hits(S, 'pierce', -Math.PI / 2 + .01);
@@ -162,9 +177,9 @@ test('saves keep load, breaker and pending frags; old saves get defaults', () =>
 test('useItem: overclock adds 5, decrypt only to a colour on the board, a second shot item cannot load', () => {
   const S = board(['12', '1'], { cur: 1 });
   assert.ok(useItem(S, 'overclock')); assert.equal(S.shots, 25);
-  assert.ok(!useItem(S, 'decrypt', 4)); assert.equal(S.cur, 1); assert.ok(useItem(S, 'decrypt', 2)); assert.equal(S.cur, 2);
+  assert.ok(!useItem(S, 'decrypt', 4)); S.grid.set(key(9, 0), 6); assert.ok(!useItem(S, 'decrypt', 6)); S.grid.delete(key(9, 0)); assert.equal(S.cur, 1); assert.ok(useItem(S, 'decrypt', 2)); assert.equal(S.cur, 2);
   assert.ok(useItem(S, 'bomb')); assert.equal(S.load, 'bomb'); assert.ok(!useItem(S, 'sweep')); assert.equal(S.load, 'bomb');
-  assert.ok(useItem(S, 'icebreaker')); assert.equal(S.breaker, 5); assert.ok(!useItem(S, 'rollback'));
+  assert.ok(useItem(S, 'icebreaker')); assert.equal(S.breaker, 5); S.breaker = 2; assert.ok(!useItem(S, 'icebreaker')); assert.equal(S.breaker, 2); S.breaker = 5; assert.ok(!useItem(S, 'rollback'));
 });
 
 test('payout: first win on the best level pays frags and loot, replays pay nothing', () => {

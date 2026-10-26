@@ -5,7 +5,7 @@ import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
 import { drawHost } from './hostdraw.js';
 import { ICONS } from './icons.js';
-import { item, deckFrom, give, take, owned, hits, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
+import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -295,14 +295,61 @@ function menuText() {   // every panel text; Info adds its own here
   $('#mOver').textContent = t('startOver'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
   $('#lvlDn').ariaLabel = t('levelDown'); $('#lvlUp').ariaLabel = t('levelUp'); $('#mKeep').textContent = t('keepPlaying'); pick();
   $('#iName').textContent = t('appName'); $('#iText').textContent = t('infoText'); $('#iHow').textContent = t('howTo'); $('#iShare').textContent = t('share');
+  $('#balL').textContent = t('balance'); $('#demoX').textContent = t('close'); shop();
   $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
 function tab(name) {
-  if (name === 'shop') return;
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === name);
   for (const s of document.querySelectorAll('#menu section')) s.hidden = s.dataset.tab !== name;
 }
+/* ---------- shop ---------- */
+const DESCS = { bomb: () => t('desc_bomb'), sweep: () => t('desc_sweep'), pierce: () => t('desc_pierce'), wildcard: () => t('desc_wildcard'),
+  overclock: () => t('desc_overclock'), decrypt: () => t('desc_decrypt'), icebreaker: () => t('desc_icebreaker'), star: () => t('desc_star'),
+  lightning: () => t('desc_lightning'), virus: () => t('desc_virus'), purge: () => t('desc_purge'), rainbow: () => t('desc_rainbow'), rollback: () => t('desc_rollback') };
+function shop() {   // balance and one row per item; rebuilt after every buy
+  $('#balN').textContent = `ƒ ${deck.frags}`;
+  $('#shopList').replaceChildren(...ITEMS.map(({ id, from }) => {
+    const r = document.createElement('div'), m = document.createElement('div'), nm = document.createElement('b'), ds = document.createElement('small');
+    const n = document.createElement('span'), b = document.createElement('button'), lock = from > run.best;
+    r.className = 'shopRow' + (lock ? ' lock' : ''); nm.textContent = ITEM_NAMES[id](); ds.textContent = DESCS[id](); m.append(nm, ds);
+    n.textContent = `×${deck.items[id] || 0}`; b.textContent = lock ? t('unlockAt', { n: from }) : `ƒ ${PRICES[id]}`; b.disabled = lock || deck.frags < PRICES[id];
+    b.onclick = e => { e.stopPropagation(); const d = buy(deck, id); if (d) { deck = d; saveDeck(); hud(); shop(); } };
+    r.innerHTML = svg(id); r.append(m, n, b); r.onclick = () => demo(id); return r;
+  }));
+}
+// Demo popup: a fixed hand-made board, the item's preview at a fixed angle ("before"), then the board after firing it on a copy ("after").
+const DEMO = ['00112211', '0112201', '11220011', '2200112', '00221100'];   // five rows, 8 columns, all hanging from the ceiling
+let demoTimer = 0;
+function demoState(id) {
+  const grid = new Map(); DEMO.forEach((s, r) => [...s].forEach((ch, c) => grid.set(key(r, c), +ch)));
+  return { level: 1, fails: 0, cols: 8, kind: 'designed', grid, shots: 20, maxShots: 20, score: 0, frags: 0, cur: 2, next: 0, hist: [], draws: 0, top: 0, startLow: 4, load: id, breaker: 0 };
+}
+function demoAim(S) {   // the first angle that lands in the free cell below the board's middle
+  for (let i = 0; i < 400; i++) { const a = -Math.PI + .15 + i * (Math.PI - .3) / 399; if (trace(S.grid, 8, a, 0).cell?.join() === '5,3') return a; }
+  return -Math.PI / 2;
+}
+function demoDraw(c, S, rr, ox, h) {   // one frame of the board at x offset ox; h (a hits result) adds the preview
+  const X = (r, k) => [ox + (1 + 2 * k + r % 2) * rr, (1 + r * RH) * rr];
+  if (h) { c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.setLineDash([4, 4]); c.beginPath(); h.pts.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](ox + p.x * rr, p.y * rr)); c.stroke(); c.setLineDash([]); }
+  for (const [k, v] of S.grid) bubble(...X(k >> 4, k & 15), v, 1, rr, c);
+  if (h) for (const k of [...h.clear, ...h.recolour.keys()]) { const [x, y] = X(k >> 4, k & 15); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, rr, 0, 7); c.stroke(); }
+}
+function demo(id) {
+  const kind = item(id).kind === 'shot', cv = $('#demoC'), c = cv.getContext('2d'), S = demoState(id);
+  $('#demoN').textContent = ITEM_NAMES[id](); $('#demoD').textContent = DESCS[id](); $('#demoI').innerHTML = kind ? '' : svg(id); cv.hidden = !kind;
+  $('#demo').hidden = false;
+  if (!kind) return;
+  const h = hits(S, id, demoAim(S)), A = demoState(id); fire(A, demoAim(S));
+  const rr = reduced ? 9 : 14, w = 16 * rr, hh = Math.ceil((2 + 5 * RH) * rr + rr * 2);
+  cv.width = reduced ? 2 * w + 10 : w; cv.height = hh; c.clearRect(0, 0, cv.width, hh);
+  const frame = n => { c.clearRect(0, 0, cv.width, hh); demoDraw(c, n ? A : S, rr, 0, n ? null : h); };
+  if (reduced) { demoDraw(c, S, rr, 0, h); demoDraw(c, A, rr, w + 10, null); return; }
+  let n = 0; frame(0); demoTimer = setInterval(() => frame(n ^= 1), 900);
+}
+function demoClose() { clearInterval(demoTimer); $('#demo').hidden = true; }
+$('#demoX').onclick = demoClose;
+$('#demo').onclick = e => { if (e.target === $('#demo')) demoClose(); };
 async function share() {   // the phone's share sheet, else copy the link; anything else shows it to copy by hand
   const url = location.origin + location.pathname, u = $('#iUrl'); u.hidden = true;
   try {
@@ -317,7 +364,7 @@ $('#iSel').onchange = async () => {
   await setLang(code); hud(); menuText(); $('#turnText').textContent = t('turnPhone');
 };
 function openMenu() { $('#lvlIn').value = S.level; menuText(); $('#iSel').value = document.documentElement.lang; $('#iUrl').hidden = true; tab('run'); $('#menu').hidden = false; }
-function closeMenu() { $('#menu').hidden = true; calm(); }
+function closeMenu() { demoClose(); $('#menu').hidden = true; calm(); }
 $('#menuBtn').onclick = () => { if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
 $('#mKeep').onclick = closeMenu;
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };

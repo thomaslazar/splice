@@ -30,7 +30,7 @@
 <div id="load" hidden><div class="card"><h2 id="loadT"></h2><p id="loadM"></p></div></div>
 <div id="sheet" hidden><div class="card"><h2 id="sheetT"></h2><p id="sheetP" hidden></p><button id="sheetB"></button><button id="sheetO" hidden></button><button id="sheetC" hidden></button></div></div>
 <div id="menu" hidden>
-<nav id="tabs"><button data-tab="run"></button><button data-tab="shop" disabled></button><button data-tab="info"></button></nav>
+<nav id="tabs"><button data-tab="run"></button><button data-tab="shop"></button><button data-tab="info"></button></nav>
 <section data-tab="run">
 <div class="row"><span id="curL"></span><b id="curN"></b></div>
 <div class="row"><span id="bestL"></span><b id="bestN"></b></div>
@@ -41,6 +41,11 @@
 <div id="step"><button id="lvlDn"></button><input id="lvlIn" type="text" inputmode="numeric" autocomplete="off"><button id="lvlUp"></button></div>
 <p id="pickHost"></p>
 <button id="mPlay"></button>
+</section>
+<section data-tab="shop" hidden>
+<small id="balL"></small>
+<h2 id="balN"></h2>
+<div id="shopList"></div>
 </section>
 <section data-tab="info" hidden>
 <h2 id="iName"></h2>
@@ -55,6 +60,7 @@
 </section>
 <button id="mKeep" class="primary"></button>
 </div>
+<div id="demo" hidden><div class="card"><h2 id="demoN"></h2><span id="demoI"></span><canvas id="demoC"></canvas><p id="demoD"></p><button id="demoX"></button></div></div>
 <div id="scan"></div>
 </body>
 </html>

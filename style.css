@@ -122,3 +122,22 @@ canvas { display: block; touch-action: none; }
 #drawer button span { flex: 1; text-align: left; }
 #drawer button b { color: #fff; font-weight: 600; }
 #drawer svg { flex: none; }
+/* shop and demo */
+#balL { opacity: .55; }
+#balN { font-size: 32px; }
+#shopList { display: flex; flex-direction: column; }
+.shopRow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #ffffff14; cursor: pointer; }
+.shopRow.lock { opacity: .4; }
+.shopRow > svg { flex: none; }
+.shopRow > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.shopRow b { color: #fff; font-weight: 600; font-size: 13px; }
+.shopRow small { text-align: left; font-size: 11px; text-transform: none; letter-spacing: 0; opacity: .75; }
+.shopRow > span { flex: none; font-size: 12px; }
+#menu .shopRow button { width: auto; flex: none; min-width: 64px; padding: 8px 10px; }
+#menu .shopRow button:disabled { opacity: .35; cursor: default; }
+#demo { position: fixed; inset: 0; z-index: 9; background: #000c; display: flex; align-items: center; justify-content: center; padding: 16px; }
+#demo[hidden] { display: none; }
+#demo .card { max-width: 100%; align-items: center; }
+#demo canvas { max-width: 100%; border: 1px solid #ffffff22; }
+#demo canvas[hidden] { display: none; }
+#demoD { margin: 0; text-align: center; }

@@ -90,5 +90,21 @@
   "loot": "Loot",
   "alertUnlock": "New items in the shop",
   "logUnlock": "> new items in the shop",
-  "rescue": "Overclock: +5 shots"
+  "rescue": "Overclock: +5 shots",
+  "balance": "Frags",
+  "unlockAt": "From level {n}",
+  "close": "Close",
+  "desc_bomb": "Blasts everything within 2 cells.",
+  "desc_sweep": "Clears the whole row it lands in.",
+  "desc_pierce": "Cuts through 10 bubbles, bouncing off walls.",
+  "desc_wildcard": "Joins the biggest group it touches.",
+  "desc_overclock": "+5 shots.",
+  "desc_decrypt": "Pick your packet’s colour.",
+  "desc_icebreaker": "Turns the ICE off for 5 shots.",
+  "desc_star": "Six rays of 4 from where it lands.",
+  "desc_lightning": "Climbs to the top through 8 bubbles.",
+  "desc_virus": "Turns everything within 4 cells into one colour.",
+  "desc_purge": "Clears one colour from the screen.",
+  "desc_rainbow": "Pops every group it touches.",
+  "desc_rollback": "Undoes your last shot."
 }

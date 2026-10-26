@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout } from '../src/items.js';
-import { key, nbrs, trace, fire, won, toSave, fromSave, validSave } from '../src/core.js';
+import { ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems } from '../src/items.js';
+import { key, nbrs, trace, fire, won, lost, lossRow, deal, settle, startState, toSave, fromSave, validSave } from '../src/core.js';
 import { tierFor, iceFor, ICE } from '../src/hosts.js';
-import { isLong } from '../src/levels.js';
+import { isLong, makeLayout, colourize } from '../src/levels.js';
 
 test('thirteen items, unlocked in steps', () => {
   assert.equal(ITEMS.length, 13);
@@ -194,4 +194,62 @@ test('payout: first win on the best level pays frags and loot, replays pay nothi
   assert.equal(notWon.frags, 0);
   const again = payout({ frags: 10, items: {} }, S, lv, lv);   // already paid on this level
   assert.deepEqual([again.frags, again.loot, again.deck.frags], [0, null, 10]);
+});
+
+/* ---------- item bubbles ---------- */
+const placed = (lv, fails = 0) => { const L = makeLayout(lv); return { L, grid: placeItems(L, lv, colourize(L, lv, fails)) }; };   // startState runs the bot: too slow here
+const itemKeys = S => [...S.grid].filter(([, v]) => isItem(v));
+test('item values map to shot ids', () => {
+  assert.equal(ITEM_BASE, 6); assert.equal(SHOTS.length, 9);
+  for (const id of SHOTS) assert.equal(itemOf(valueOf(id)), id);
+  assert.ok(isItem(6) && !isItem(5));
+});
+test('item plan: none below 3, about a quarter with items, a fifth of those full', () => {
+  for (let lv = 1; lv < 3; lv++) assert.equal(itemPlan(lv).kind, 'none');
+  let has = 0, full = 0; const n = 2998;
+  for (let lv = 3; lv <= 3000; lv++) { const k = itemPlan(lv).kind; if (k !== 'none') has++; if (k === 'full') full++; }
+  assert.ok(has / n > .2 && has / n < .3, `items ${has / n}`); assert.ok(full / has > .13 && full / has < .27, `full ${full / has}`);
+});
+test('placement is seeded by level, not fails', () => {
+  for (let lv = 3; lv <= 40; lv++) assert.deepEqual(itemKeys(placed(lv, 0)), itemKeys(placed(lv, 4)), `level ${lv}`);
+});
+test('only unlocked shot items are placed', () => {
+  const bad = new Set(['star', 'lightning', 'virus', 'purge', 'rainbow']); let any = 0;
+  for (let lv = 3; lv <= 30; lv++) for (const [, v] of itemKeys(placed(lv))) { any++; assert.ok(!bad.has(itemOf(v)), `level ${lv}`); }
+  assert.ok(any > 0);
+});
+test('per screen: at most 2 on normal levels, at most 4 on full ones', () => {
+  let seen = 0;
+  for (let lv = 3; lv <= 60; lv++) { const S = placed(lv), sec = secOf(S.L, S.grid), per = new Map();
+    for (const [k] of itemKeys(S)) { const b = Math.floor((k >> 4) / sec); per.set(b, (per.get(b) || 0) + 1); seen++; }
+    for (const c of per.values()) assert.ok(c <= (itemPlan(lv).kind === 'full' ? 4 : 2), `level ${lv}`); }
+  assert.ok(seen > 0);
+});
+
+/* ---------- colour rules ---------- */
+test('only item bubbles left: won, they fall', () => {
+  const S = board(['16', '66']); S.grid.set(key(0, 1), 7);
+  assert.ok(!won(S)); const r = settle(S, [key(0, 0)]);
+  assert.ok(won(S)); assert.equal(S.grid.size, 0); assert.equal(r.dropped.length, 3); assert.equal(S.frags, 0, 'item bubbles pay no frags');
+});
+test('deal never gives an item value', () => {
+  const S = board(['1666', '6666', '6666']); S.hist = [];
+  for (let i = 0; i < 50; i++) assert.equal(deal(S), 1);
+});
+test('a v1 save is invalid now, v2 round-trips with item bubbles', () => {
+  const S = startState(3, 0); S.grid.set(key(0, 0), 7);
+  const sv = toSave(S); assert.equal(sv.v, 2); assert.ok(validSave(sv));
+  assert.ok(fromSave(JSON.parse(JSON.stringify(sv))).grid.get(key(0, 0)) === 7);
+  assert.ok(!validSave({ ...sv, v: 1 }));
+  assert.ok(!validSave({ ...sv, grid: [[0, 15]] })); assert.ok(!validSave({ ...sv, cur: 7 }));
+});
+test('an item bubble on the loss line loses', () => {
+  const S = board(['1']); S.grid.set(key(lossRow(S), 0), 6); assert.ok(lost(S));
+});
+test('virus and purge ignore item bubbles', () => {
+  const S = board(['111', '2.6.']); S.grid.set(key(1, 1), 6); S.grid.set(key(1, 2), 6);
+  const g = new Map(S.grid); const h = hits(S, 'virus', aimAt(S, 2, 0));
+  if (h) for (const k of h.recolour.keys()) assert.ok(g.get(k) < 6);
+  const P = board(['16', '66']); P.grid.set(key(1, 0), 1);
+  const p = hits(P, 'purge', aimAt(P, 2, 0)); if (p) for (const k of p.clear) assert.ok(P.grid.get(k) < 6);
 });

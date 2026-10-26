@@ -103,7 +103,7 @@ test('only one colour left: every packet is that colour', () => {
 test('saves round-trip; broken saves are rejected', () => {
   const S = startState(7, 2), o = JSON.parse(JSON.stringify(toSave(S)));
   assert.ok(validSave(o)); assert.deepEqual(toSave(fromSave(o)), toSave(S));
-  for (const bad of [null, {}, { ...o, v: 2 }, { ...o, cols: 9 }, { ...o, grid: 'x' }, { ...o, level: 0 },
+  for (const bad of [null, {}, { ...o, v: 1 }, { ...o, cols: 9 }, { ...o, grid: 'x' }, { ...o, level: 0 },
     { ...o, hist: undefined }, { ...o, shots: 'x' }, { ...o, draws: -1 }, { ...o, kind: 'x' }, 'x', 42]) assert.ok(!validSave(bad));
 });
 

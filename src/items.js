@@ -15,6 +15,36 @@ export const PRICES = { bomb: 400, sweep: 350, pierce: 450, wildcard: 300, overc
 export const UNLOCKS = [31, 61, 91];
 export const unlocked = level => ITEMS.filter(i => i.from <= level).map(i => i.id);
 
+/* ---------- item bubbles ---------- */
+export const ITEM_BASE = 6;   // grid values 0..5 are colours, ITEM_BASE + i is item bubble SHOTS[i]
+export const SHOTS = ITEMS.filter(i => i.kind === 'shot').map(i => i.id);
+export const isItem = v => v >= ITEM_BASE;
+export const itemOf = v => SHOTS[v - ITEM_BASE];
+export const valueOf = id => ITEM_BASE + SHOTS.indexOf(id);
+export const itemPlan = level => {
+  if (level < 3) return { kind: 'none', perScreen: 0 };
+  const r = mulberry32(hash(level, 23)), has = r() < .25, full = r() < .2;
+  return !has ? { kind: 'none', perScreen: 0 } : full ? { kind: 'full', perScreen: 3 } : { kind: 'normal', perScreen: 2 };
+};
+// Rows per screen: designed layouts stack bands of sec rows from row 0; noise splits its rows into layout.screens bands.
+export const secOf = (layout, grid) => {
+  if (layout.kind === 'designed') return Math.round(1.6 * layout.cols);
+  let rows = 0; for (const k of grid.keys()) rows = Math.max(rows, (k >> 4) + 1);
+  return Math.ceil(rows / layout.screens);
+};
+// Same on every try: seeded from the level only. Normal screens get 0..2, full ones 3.
+export function placeItems(layout, level, grid) {
+  const plan = itemPlan(level), out = new Map(grid); if (plan.kind === 'none') return out;
+  const rnd = mulberry32(hash(level, 24)), ids = unlocked(level).filter(id => SHOTS.includes(id)), sec = secOf(layout, grid), bands = new Map();
+  for (const k of [...grid.keys()].sort((a, b) => a - b)) { const s = Math.floor((k >> 4) / sec); bands.set(s, [...bands.get(s) || [], k]); }
+  for (const [, ks] of [...bands].sort((a, b) => a[0] - b[0])) {
+    const n = Math.min(ks.length, plan.kind === 'full' ? plan.perScreen : Math.floor(rnd() * 3));
+    for (let i = 0; i < n; i++) { const j = i + Math.floor(rnd() * (ks.length - i)); [ks[i], ks[j]] = [ks[j], ks[i]];
+      out.set(ks[i], valueOf(ids[Math.floor(rnd() * ids.length)])); }
+  }
+  return out;
+}
+
 /* ---------- loot ---------- */
 // High stakes (long levels too) and harsh ice always drop one; lighter ice 35%, otherwise 5%.
 export const lootFor = level => {
@@ -89,7 +119,7 @@ export function hits(S, id, ang) {
   const k0 = key(...cell), clear = new Set(), recolour = new Map(), occ = k => grid.has(k);
   const nb = nk(cols, k0).filter(occ), end = pts[pts.length - 1];
   const dd = k => { const [r, c] = rc(k); return (1 + 2 * c + r % 2 - end.x) ** 2 + (1 + r * RH - end.y) ** 2; };
-  const hitCol = nb.length ? grid.get(nb.reduce((p, k) => dd(k) < dd(p) ? k : p)) : null;   // colour of the neighbour nearest the impact
+  const nbc = nb.filter(k => isColour(grid.get(k))), hitCol = nbc.length ? grid.get(nbc.reduce((p, k) => dd(k) < dd(p) ? k : p)) : null;   // colour of the neighbour nearest the impact
   let land = null;
   if (id === 'bomb') within(cols, k0, 2).filter(occ).forEach(k => clear.add(k));
   else if (id === 'sweep') for (let c = 0; c < cellsIn(cols, cell[0]); c++) occ(key(cell[0], c)) && clear.add(key(cell[0], c));
@@ -102,15 +132,15 @@ export function hits(S, id, ang) {
       from = nk(cols, from).filter(k => k >> 4 === r - 1 && occ(k) && !clear.has(k)).sort(near)[0]; }
   }
   else if (id === 'purge') { if (hitCol !== null) for (const [k, v] of grid) if (v === hitCol && (k >> 4) >= S.top && (k >> 4) <= lossRow(S)) clear.add(k); }
-  else if (id === 'virus') { land = hitCol ?? S.cur; if (hitCol !== null) within(cols, k0, 4).filter(occ).forEach(k => grid.get(k) !== hitCol && recolour.set(k, hitCol)); }
+  else if (id === 'virus') { land = hitCol ?? S.cur; if (hitCol !== null) within(cols, k0, 4).filter(occ).forEach(k => isColour(grid.get(k)) && grid.get(k) !== hitCol && recolour.set(k, hitCol)); }
   else if (id === 'wildcard') {
     land = S.cur; let best = -1, bd = -1;
-    for (const col of new Set(nb.map(k => grid.get(k)))) {
+    for (const col of new Set(nbc.map(k => grid.get(k)))) {
       const g = flood(S, nb.filter(k => grid.get(k) === col), col), pop = g.length + 1 >= 3 ? g : [];
       const gone = new Set(pop), d = grid.size - gone.size - connected(grid, cols, gone).size;
       if (g.length > best || g.length === best && d > bd) { best = g.length; bd = d; land = col; } }
   }
-  else if (id === 'rainbow') for (const col of new Set(nb.map(k => grid.get(k)))) {
+  else if (id === 'rainbow') for (const col of new Set(nbc.map(k => grid.get(k)))) {
     const g = flood(S, nb.filter(k => grid.get(k) === col), col); if (g.length >= 2) g.forEach(k => clear.add(k)); }
   else return null;
   if (id !== 'wildcard' && !clear.size && !recolour.size) return null;   // nothing to do: the item stays loaded

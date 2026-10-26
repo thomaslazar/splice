@@ -33,7 +33,7 @@ export function connected(grid, cols, gone) {
 import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
 import { needFor, limitFor } from './bot.js';   // circular too
 import { iceFor } from './hosts.js';   // circular too
-import { ITEMS, hits } from './items.js';   // circular too
+import { ITEMS, hits, ITEM_BASE, SHOTS, placeItems } from './items.js';   // circular too
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 10;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
@@ -80,7 +80,7 @@ export const OFFSCREEN_W = 0.3, BLOCKED_W = 0.9, VIS_W = 3, PAIR_MIX = .5;   // 
 const need = new Map();
 const lowRow = grid => { let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4); return low; };
 export function startState(level, fails) {
-  const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
+  const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: placeItems(L, level, colourize(L, level, fails)),
     shots: Infinity, score: 0, cur: null, next: null, hist: [], draws: 0, frags: 0, load: null, breaker: 0 };
   S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S);
   const id = `${level}/${fails}`;
@@ -96,7 +96,7 @@ function reachable(S) {   // colour -> count, plus out.pairs: colour -> reachabl
   for (let c = 0; c < cellsIn(S.cols, loss - 1); c++) { const k = key(loss - 1, c); if (!S.grid.has(k)) { seen.add(k); st.push([loss - 1, c]); } }
   while (st.length) { const [r, c] = st.pop();
     for (const [a, b] of nbrs(S.cols, r, c)) { const k = key(a, b); if (seen.has(k) || a >= loss) continue; seen.add(k);
-      if (!S.grid.has(k)) st.push([a, b]); else if (a >= S.top) { const col = S.grid.get(k); out.set(col, (out.get(col) || 0) + 1);
+      if (!S.grid.has(k)) st.push([a, b]); else if (a >= S.top && isColour(S.grid.get(k))) { const col = S.grid.get(k); out.set(col, (out.get(col) || 0) + 1);
         if (nbrs(S.cols, a, b).some(([x, y]) => S.grid.get(key(x, y)) === col)) out.pairs.set(col, (out.pairs.get(col) || 0) + 1); } } }
   return out;
 }
@@ -104,13 +104,13 @@ export function deal(S) {
   // Reachable colours weigh by their share of the reachable bubbles, half of it by their share of
   // reachable bubbles that already have a same-colour neighbour (visible ones if none are reachable); colours on screen but blocked weigh BLOCKED_W, off-screen-only ones OFFSCREEN_W. No colour three times in a row and
   // one reroll on a repeat, except for the only reachable colour.
-  const rnd = mulberry32(S.salt ? hash(S.level, S.fails, 5, S.draws++, S.salt) : hash(S.level, S.fails, 5, S.draws++)), all = new Set(S.grid.values());
+  const rnd = mulberry32(S.salt ? hash(S.level, S.fails, 5, S.draws++, S.salt) : hash(S.level, S.fails, 5, S.draws++)), all = new Set([...S.grid.values()].filter(isColour));
   if (!all.size) return null;
   let near = reachable(S);
-  if (!near.size) for (const [k, c] of S.grid) if (k >> 4 >= S.top) near.set(c, (near.get(c) || 0) + 1);
+  if (!near.size) for (const [k, c] of S.grid) if (k >> 4 >= S.top && isColour(c)) near.set(c, (near.get(c) || 0) + 1);
   let n = 0; for (const v of near.values()) n += v;
   const pairs = near.pairs || new Map(); let np = 0; for (const v of pairs.values()) np += v;
-  const vis = new Set(); for (const [k, c] of S.grid) if (k >> 4 >= S.top) vis.add(c);
+  const vis = new Set(); for (const [k, c] of S.grid) if (k >> 4 >= S.top && isColour(c)) vis.add(c);
   const h = S.hist, last = h[h.length - 1], l = [...all].sort((a, b) => a - b), only = near.size === 1 ? [...near.keys()][0] : null;
   const pool = h.length >= 2 && h[0] === last && last !== only && l.some(c => c !== last) ? l.filter(c => c !== last) : l;
   const draw = () => { const w = pool.map(c => near.has(c) ? 1 + VIS_W * (np ? (1 - PAIR_MIX) * near.get(c) / n + PAIR_MIX * (pairs.get(c) || 0) / np : near.get(c) / n) : vis.has(c) ? BLOCKED_W : OFFSCREEN_W); let x = rnd() * w.reduce((a, b) => a + b);
@@ -121,24 +121,25 @@ export function deal(S) {
 
 /* ---------- moves ---------- */
 export const swap = S => { [S.cur, S.next] = [S.next, S.cur]; };
-export const isColour = v => v >= 0 && v <= 5;   // packet colours; other grid values are not colours
-export const won = S => !S.grid.size;
+export const isColour = v => v >= 0 && v < ITEM_BASE;   // packet colours; other grid values are not colours
+export const won = S => ![...S.grid.values()].some(isColour);
 export const lossRow = S => S.top + winRows(S.cols) - 2;   // the row directly above the shooter row
 export const lost = S => !won(S) && (S.shots <= 0 || [...S.grid.keys()].some(k => k >> 4 >= lossRow(S)));
 // Removes popped, drops what lost the ceiling, scores, scrolls, re-deals missing colours. advance: a normal shot also
 // moves next to cur and costs a shot. extra is for item bubbles (unused so far).
 export function settle(S, popped, extra = [], advance = false) {
   for (const k of popped) S.grid.delete(k);
-  const dropped = [];
-  if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { S.grid.delete(k); dropped.push(k); } }
+  const dropped = []; let colDrop = 0;   // colDrop: dropped colour bubbles (item bubbles pay no frags)
+  if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { colDrop += isColour(S.grid.get(k)); S.grid.delete(k); dropped.push(k); } }
+  if (won(S)) for (const k of [...S.grid.keys()]) { S.grid.delete(k); dropped.push(k); }   // only item bubbles left: they fall
   const points = 10 * popped.length + 10 * dropped.length ** 2;
   // Never retracts; moves toward the ceiling only once just the top SCROLL_AT visible rows hold
   // bubbles, or at most SCROLL_FEW bubbles are left on screen.
   let low = -1, nv = 0; for (const k of S.grid.keys()) { low = Math.max(low, k >> 4); if (k >> 4 >= S.top) nv++; }
   if (low < S.top + SCROLL_AT || nv <= SCROLL_FEW) S.top = Math.min(S.top, viewTop(S.grid, S.cols));
-  S.frags += dropped.length; S.score += points;
+  S.frags += colDrop; S.score += points;
   if (advance) { S.shots--; S.cur = S.next; S.next = deal(S); }
-  if (S.grid.size) { const has = new Set(S.grid.values());
+  if (S.grid.size) { const has = new Set([...S.grid.values()].filter(isColour));
     if (!has.has(S.cur)) S.cur = deal(S); if (!has.has(S.next)) S.next = deal(S); }
   return { popped, dropped, points };
 }
@@ -171,15 +172,15 @@ export function flood(S, start, col) {
 }
 
 /* ---------- saves ---------- */
-export const toSave = S => ({ v: 1, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
+export const toSave = S => ({ v: 2, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
   shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws, top: S.top,
   maxShots: S.maxShots, startLow: S.startLow, frags: S.frags, load: S.load, breaker: S.breaker });
 export const fromSave = o => ({ maxShots: Math.max(o.shots, 1), startLow: lowRow(new Map(o.grid)), frags: 0, load: null, breaker: 0, ...o, grid: new Map(o.grid), hist: [...o.hist] });
 export function validSave(o) {
-  const col = c => Number.isInteger(c) && c >= 0 && c <= 5, nul = c => c === null || col(c);
-  return !!o && o.v === 1 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
+  const col = c => Number.isInteger(c) && c >= 0 && c < ITEM_BASE, nul = c => c === null || col(c);
+  return !!o && o.v === 2 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
     [8, 10, 12].includes(o.cols) && Array.isArray(o.grid) &&
-    o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && col(e[1])) &&
+    o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && Number.isInteger(e[1]) && e[1] >= 0 && e[1] < ITEM_BASE + SHOTS.length) &&
     nul(o.cur) && nul(o.next) && ['designed', 'noise'].includes(o.kind) &&
     Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws, o.top].every(n => Number.isInteger(n) && n >= 0) &&
     (o.maxShots === undefined || Number.isInteger(o.maxShots) && o.maxShots >= 1) && (o.startLow === undefined || Number.isInteger(o.startLow) && o.startLow >= 0) &&

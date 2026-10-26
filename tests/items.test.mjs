@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem } from '../src/items.js';
+import { ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout } from '../src/items.js';
 import { key, nbrs, trace, fire, won, toSave, fromSave, validSave } from '../src/core.js';
 import { tierFor, iceFor, ICE } from '../src/hosts.js';
 import { isLong } from '../src/levels.js';
@@ -165,4 +165,16 @@ test('useItem: overclock adds 5, decrypt only to a colour on the board, a second
   assert.ok(!useItem(S, 'decrypt', 4)); assert.equal(S.cur, 1); assert.ok(useItem(S, 'decrypt', 2)); assert.equal(S.cur, 2);
   assert.ok(useItem(S, 'bomb')); assert.equal(S.load, 'bomb'); assert.ok(!useItem(S, 'sweep')); assert.equal(S.load, 'bomb');
   assert.ok(useItem(S, 'icebreaker')); assert.equal(S.breaker, 5); assert.ok(!useItem(S, 'rollback'));
+});
+
+test('payout: first win on the best level pays frags and loot, replays pay nothing', () => {
+  const lv = [...Array(300).keys()].map(i => i + 1).find(l => lootFor(l));
+  const S = { level: lv, grid: new Map(), frags: 42 };   // won: empty grid
+  const p = payout({ frags: 10, items: {} }, S, lv);
+  assert.equal(p.frags, 42); assert.equal(p.loot, lootFor(lv));
+  assert.equal(p.deck.frags, 52); assert.equal(p.deck.items[lootFor(lv)], 1);
+  const r = payout({ frags: 10, items: {} }, S, lv + 1);
+  assert.deepEqual([r.frags, r.loot, r.deck.frags], [0, null, 10]);
+  const notWon = payout({ frags: 10, items: {} }, { ...S, grid: new Map([[0, 1]]) }, lv);
+  assert.equal(notWon.frags, 0);
 });

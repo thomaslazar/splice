@@ -5,7 +5,7 @@ import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
 import { drawHost } from './hostdraw.js';
 import { ICONS } from './icons.js';
-import { item, deckFrom, give, take, owned, hits, useItem, unload } from './items.js';
+import { item, deckFrom, give, take, owned, hits, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -78,7 +78,7 @@ let strip = 0, stripAt = null, refit = false;   // refit: fit() at the start of 
 // Win sequence: log line, QUIET ms, GLITCH ms into the accent colour, then the sheet.
 // win: null, or { at, done }; done once the sheet is due (a reload on a won board starts done).
 const QUIET = 600, GLITCH = 1200;   // the glitch: bursts apart and turns the accent colour
-let win = null;
+let win = null, paid = null;   // paid: what the last win paid, for the sheet
 const busy = () => win !== null && !win.done;
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
 const X = u => u * sc, Y = u => (u - view * RH) * sc;
@@ -99,6 +99,7 @@ function load() {   // a valid save, or [level, fails] to begin: an invalid save
 // begins behind a short loading card; it stays up at least LOAD_MIN so it never just flickers.
 const LOAD_MIN = 500; let loading = false;
 async function begin(level, fails) {
+  const unlock = level > run.best && UNLOCKS.includes(level);
   const e = enter(run, level, fails); run = e.run; fails = e.fails; saveRun();
   loading = true; aim = aimId = null; fly = win = null; $('#sheet').hidden = true; closeDrawer();   // an old flight or win never reaches its sheet
   setTheme(level); $('#loadT').textContent = t('level', { n: level }); $('#loadM').textContent = t('loading'); $('#load').hidden = false;
@@ -107,14 +108,14 @@ async function begin(level, fails) {
   const s = startState(level, fails);
   await new Promise(r => setTimeout(r, Math.max(0, LOAD_MIN - (performance.now() - t0))));
   $('#load').hidden = true; loading = false; start(s);
-  if (ice) flash('ice');   // a fresh start only; a reload of a saved board calls start() directly
+  if (unlock) { log(t('logUnlock')); flash('unlock'); } else if (ice) flash('ice');   // a fresh start only; a reload of a saved board calls start() directly
 }
 // Running out: 'low' at 25% of the shots or fewer, 'crit' at 3 or fewer (same thresholds as the trace log lines).
 const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
-  $('#lvl').textContent = t('lvl', { n: S.level }); $('#score').textContent = S.score;
+  $('#lvl').textContent = t('lvl', { n: S.level }); const best = S.level === run.best; $('#score').textContent = best ? t('frags', { n: S.frags }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
   $('#menuBtn').ariaLabel = t('menu'); $('#deckBtn').textContent = t('deck'); $('#deckBtn').classList.toggle('empty', !owned(deck).length); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
   const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
@@ -144,6 +145,12 @@ function sheet() {   // result sheet; a pending restart question stays open unle
   const w = won(S), l = lost(S); if (asking && !w && !l) return;
   asking = false; $('#sheetC').hidden = $('#sheetP').hidden = true; $('#sheet').hidden = !w && !l; if (!w && !l) return;
   $('#sheetT').textContent = w ? t('winTitle') : t('loseTitle'); $('#sheetB').textContent = w ? t('winButton') : t('loseButton');
+  // Flatline rescue: out of shots (not the loss line) and an Overclock in the deck
+  $('#sheetO').hidden = !(l && S.shots <= 0 && deck.items.overclock > 0 && ![...S.grid.keys()].some(k => (k >> 4) >= lossRow(S))); $('#sheetO').textContent = t('rescue');
+  if (w && paid) {   // frags and loot of this win; a reload of a won board shows neither
+    $('#sheetP').hidden = false; $('#sheetP').textContent = paid.replay ? t('winReplay') : t('winFrags', { n: paid.frags });
+    if (paid.loot) { const d = document.createElement('div'); d.className = 'loot'; d.innerHTML = svg(paid.loot); d.append(t('winLoot', { item: ITEM_NAMES[paid.loot]() })); $('#sheetP').append(d); }
+  }
 }
 function setTheme(level) {
   theme = themeFor(level);
@@ -155,7 +162,7 @@ let lines = [], seen = {}, logTop = 0, logPct = 0;
 // A trace warning also flashes once, big, in the middle of the screen (amber, then red).
 let alertT;
 function flash(kind) {
-  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : kind === 'breaker' ? t('alertBreaker') : kind === 'ice' ? t('alertIce', { ice: iceName(ice) }) : t('alertTrace'); a.dataset.kind = kind;
+  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : kind === 'breaker' ? t('alertBreaker') : kind === 'unlock' ? t('alertUnlock') : kind === 'ice' ? t('alertIce', { ice: iceName(ice) }) : t('alertTrace'); a.dataset.kind = kind;
   a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
   clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 1400);
 }
@@ -256,7 +263,7 @@ function glitchBlocks(now, bottom) {
 function start(s) {
   S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); restore = clearHid = 0; prev = null; hid = [false, iceOn() === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
-  win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
+  paid = null; win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
   hud(); fit(); save(); sheet(); calm();
 }
@@ -266,12 +273,16 @@ const GRACE = 400; let calmAt = 0;
 const calm = () => { calmAt = performance.now() + GRACE; };
 const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; calm(); };
 function ask(kind) {   // the restart and start-over questions share the sheet
-  asking = kind; aim = aimId = null; $('#sheet').hidden = $('#sheetC').hidden = false; $('#sheetP').hidden = kind !== 'over';
+  asking = kind; aim = aimId = null; $('#sheetO').hidden = true; $('#sheet').hidden = $('#sheetC').hidden = false; $('#sheetP').hidden = kind !== 'over';
   const o = kind === 'over';
   $('#sheetT').textContent = o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = o ? t('overText') : '';
   $('#sheetB').textContent = o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = o ? t('cancel') : t('keepPlaying');
 }
 $('#sheetB').onclick = () => asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
+$('#sheetO').onclick = () => {
+  const d = take(deck, 'overclock'); if (!d || !useItem(S, 'overclock')) return;
+  deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm();
+};
 $('#sheetC').onclick = keep;
 $('#sheet').onclick = e => { if (asking && e.target === $('#sheet')) keep(); };
 /* ---------- menu ---------- */
@@ -338,7 +349,7 @@ function drawer() {
   for (const [id, n] of owned(deck)) {
     const b = document.createElement('button'), nm = document.createElement('span'), c = document.createElement('b');
     b.innerHTML = svg(id); nm.textContent = ITEM_NAMES[id](); c.textContent = `\u00d7${n}`; b.append(nm, c);
-    b.disabled = id === 'rollback' ? !prev : item(id).kind === 'shot' && !!S.load;   // one loaded at a time
+    b.disabled = id === 'rollback' ? !prev || won(S) || lost(S) : item(id).kind === 'shot' && !!S.load;   // one loaded at a time
     b.onclick = () => use(id); d.append(b);
   }
 }
@@ -362,7 +373,7 @@ function decrypt(col) {
 }
 function unloadItem() { const id = S.load; unload(S); deck = give(deck, id); saveDeck(); save(); hud(); }
 function rollback() {
-  const d = take(deck, 'rollback'); if (!d || !prev) return;
+  const d = take(deck, 'rollback'); if (!d || !prev || won(S) || lost(S)) return;
   S = fromSave(prev.s); S.load = null; deck = prev.id ? give(d, prev.id) : d; restore = prev.restore; prev = null;   // the fired item goes back to the deck
   hid = [false, iceOn() === 'scrambler' && scrambled()]; fx = []; asking = false; win = won(S) ? { at: -Infinity, done: true } : null; logTop = S.top; logPct = pct();
   if (S.top) { stripAt = null; strip = 0; }   // the ceiling may be out of view again
@@ -390,7 +401,7 @@ function land() {
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(m.cell ? key(...m.cell) : m.dropped[0]), k: 0 });
   }
   logShot(m.dropped.length);
-  if (won(S)) { win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
+  if (won(S)) { const p = payout(deck, S, run.best); deck = p.deck; saveDeck(); paid = { frags: p.frags, loot: p.loot, replay: S.level !== run.best }; hud(); win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
   reveal();
 }
 
@@ -434,6 +445,11 @@ function drawStrip(now) {   // the host, base just above the board, fading in as
   const acc = p >= 1 || p >= 0 && (reduced || Math.sin(now / 1000 * 55) > 1 - 2.5 * q);
   drawHost(sg, host, W / 2, sh - 3, STRIP * sc * .78, acc ? theme.a : colour(host.hue),
     go && p < 1 ? .5 * (1 - q) : 0, now / 1000, go ? 1 - (1 - q) ** 2 : 0);
+  if (S.level === run.best && !won(S) && lootFor(S.level)) {   // the level's loot, right of the host
+    const rr = STRIP * sc * .3, x = W * .8;
+    itemBubble(x, sh * .45, lootFor(S.level), 1, rr, sg);
+    sg.fillStyle = '#fff'; sg.font = `${Math.max(9, rr * .5)}px 'Chakra Petch', monospace`; sg.textAlign = 'center'; sg.fillText(t('loot').toUpperCase(), x, sh * .45 + rr * 1.5);
+  }
   sg.globalAlpha = 1;
 }
 function draw() {

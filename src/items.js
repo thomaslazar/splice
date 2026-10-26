@@ -1,5 +1,5 @@
 // Items: the shop table, level loot and the deck (frags and held items). Pure: no DOM, no storage.
-import { mulberry32, hash, key, rc, nk, trace, snap, connected, flood, lossRow, clampAim, cellsIn, HIT, RH } from './core.js';
+import { mulberry32, hash, key, rc, nk, trace, snap, connected, flood, lossRow, clampAim, cellsIn, HIT, RH, won } from './core.js';
 import { tierFor, iceFor, ICE } from './hosts.js';
 import { isLong, winRows } from './levels.js';   // circular: used only inside function bodies
 
@@ -39,6 +39,13 @@ export const take = (d, id) => {
 };
 export const buy = (d, id) => item(id) && d.frags >= PRICES[id] ? give({ frags: d.frags - PRICES[id], items: d.items }, id) : null;
 export const owned = d => ITEMS.filter(i => d.items[i.id] > 0).map(i => [i.id, d.items[i.id]]);
+
+// A first win on the best level pays the pending frags and the level's loot; replays and unwon boards pay nothing.
+export const payout = (d, S, best) => {
+  if (S.level !== best || !won(S)) return { deck: d, frags: 0, loot: null };
+  const loot = lootFor(S.level), n = { frags: d.frags + S.frags, items: d.items };
+  return { deck: loot ? give(n, loot) : n, frags: S.frags, loot };
+};
 
 /* ---------- hex helpers (odd-r offset: odd rows sit half a cell right, as nbrs) ---------- */
 const cube = k => { const r = k >> 4, x = (k & 15) - (r - (r & 1)) / 2; return [x, -x - r, r]; };

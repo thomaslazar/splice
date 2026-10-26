@@ -81,5 +81,14 @@
   "logBreaker": "> ice suspended (5 shots)",
   "logIceBack": "> {ice} back online",
   "alertBreaker": "ICE suspended",
-  "logRollback": "> rollback complete"
+  "logRollback": "> rollback complete",
+  "frags": "ƒ {n}",
+  "fragsReplay": "ƒ –",
+  "winFrags": "+ ƒ {n}",
+  "winLoot": "{item} added",
+  "winReplay": "Replay: no frags",
+  "loot": "Loot",
+  "alertUnlock": "New items in the shop",
+  "logUnlock": "> new items in the shop",
+  "rescue": "Overclock: +5 shots"
 }

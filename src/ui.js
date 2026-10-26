@@ -274,12 +274,12 @@ const GRACE = 400; let calmAt = 0;
 const calm = () => { calmAt = performance.now() + GRACE; };
 const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; calm(); };
 function ask(kind) {   // the restart and start-over questions share the sheet
-  asking = kind; aim = aimId = null; $('#sheetO').hidden = true; $('#sheet').hidden = $('#sheetC').hidden = false; $('#sheetP').hidden = kind !== 'over';
-  const o = kind === 'over';
-  $('#sheetT').textContent = o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = o ? t('overText') : '';
-  $('#sheetB').textContent = o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = o ? t('cancel') : t('keepPlaying');
+  asking = kind; aim = aimId = null; $('#sheetO').hidden = true; $('#sheet').hidden = $('#sheetC').hidden = false;
+  const o = kind === 'over', r = kind === 'reset'; $('#sheetP').hidden = !o && !r;
+  $('#sheetT').textContent = r ? t('resetAsk') : o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = r ? t('resetText') : o ? t('overText') : '';
+  $('#sheetB').textContent = r ? t('resetYes') : o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = o || r ? t('cancel') : t('keepPlaying');
 }
-$('#sheetB').onclick = () => asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
+$('#sheetB').onclick = () => asking === 'reset' ? resetAll() : asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
 $('#sheetO').onclick = () => {
   const d = take(deck, 'overclock'); if (!d || !useItem(S, 'overclock')) return;
   deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm();
@@ -292,7 +292,7 @@ function menuText() {   // every panel text; Info adds its own here
   const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabInfo');
   $('#curL').textContent = t('curLevel'); $('#curN').textContent = S.level; $('#bestL').textContent = t('bestLevel'); $('#bestN').textContent = run.best;
   $('#mRestart').textContent = t('restartLevel'); $('#mBack').textContent = t('backTo', { n: run.best }); $('#mBack').hidden = S.level >= run.best;
-  $('#mOver').textContent = t('startOver'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
+  $('#mOver').textContent = t('startOver'); $('#mReset').textContent = t('resetProgress'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
   $('#lvlDn').ariaLabel = t('levelDown'); $('#lvlUp').ariaLabel = t('levelUp'); $('#mKeep').textContent = t('keepPlaying'); pick();
   $('#iName').textContent = t('appName'); $('#iText').textContent = t('infoText'); $('#iHow').textContent = t('howTo'); $('#iShare').textContent = t('share');
   $('#balL').textContent = t('balance'); $('#demoX').textContent = t('close'); shop();
@@ -369,6 +369,8 @@ $('#menuBtn').onclick = () => { if (!shut() || loading || busy() || fly) return;
 $('#mKeep').onclick = closeMenu;
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
 $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
+function resetAll() { for (const k of [KEY, RUN_KEY, DECK_KEY]) try { localStorage.removeItem(k); } catch (e) {} deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
+$('#mReset').onclick = () => { closeMenu(); ask('reset'); };
 $('#mOver').onclick = () => { closeMenu(); ask('over'); };
 $('#mPlay').onclick = () => { const n = picked(); closeMenu(); begin(n, 0); };
 for (const b of document.querySelectorAll('#tabs button')) b.onclick = () => tab(b.dataset.tab);

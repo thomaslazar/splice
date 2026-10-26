@@ -20,7 +20,7 @@ Read before changing behaviour:
   `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
   phone: Kiln's service worker controls that origin and mixes its files in.
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
-  fallback). `CACHE` is `splice-3`. Rename it when `sw.js` changes how it caches or the `SHELL`
+  fallback). `CACHE` is `splice-4`. Rename it when `sw.js` changes how it caches or the `SHELL`
   list changes, so `activate` drops the old cache. The fonts are in `SHELL`.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
 - Balance: `node tools/sim.mjs [levels] [runs]`, e.g. `node tools/sim.mjs 3,25,50 3` or
@@ -51,6 +51,8 @@ Read before changing behaviour:
   `tests/lang.test.mjs` checks the lang files.
 - `src/run.js`: run rules, pure: `runFrom` (saved run or fallback), `enter` (best level and its earned fails), `clampLevel`. Tested in
   `tests/run.test.mjs`.
+- `src/items.js`: item table, `PRICES`, `unlocked`, `lootFor`, deck helpers (`deckFrom`, `buy`, `take`, `give`,
+  `owned`), `hits`, `useItem`, `unload`, `payout`; pure. `src/icons.js`: `ICONS`, one drawing per item.
 - `src/bot.js`: greedy bot over the core API, pure; sets each attempt's shot limit. Tested in
   `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
 - `fonts/`: Chakra Petch (latin 400 and 600, woff2), self-hosted, with `OFL.txt`. `style.css`
@@ -246,7 +248,7 @@ other). It is not saved: it is recomputed from the level.
   (`sym`), so colour is never the only cue. `bubble()` draws one packet. Text uses Chakra Petch
   with a monospace fallback (the log stays monospace).
 - HUD (DOM): header ("Jacked in" over `hostFor(level).label`, wrapping to two lines at most;
-  level over score; menu button), corner brackets (`#frame::after`), packets bar (up to 20 segments,
+  level over pending frags `ƒ n` (dim `ƒ –` when the level will not pay), not the score; menu button), corner brackets (`#frame::after`), packets bar (up to 20 segments,
   each `ceil(maxShots / 20)` shots; lit ones are the shots left, `S.maxShots` is set by
   `startState`), two reserved log lines, and a full-screen scanline overlay
   (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
@@ -291,10 +293,10 @@ other). It is not saved: it is recomputed from the level.
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
   jitter seeded from the key) and a `-n` text (only for drops of 6 or more). With reduced motion, results show at once.
 - Menu (`#menu`, opened by the header button, which replaces Restart; ignored while a packet flies, loading or `busy()`): full-screen
-  panel with tabs Run, Shop (disabled, later) and Info; `menuText()` fills every text. Run: current and best level,
+  panel with tabs Run, Shop (buying, with demo popups) and Info; `menuText()` fills every text. Run: current and best level,
   Restart level and Start over (each asks first on the sheet, `asking` = `'restart'` or `'over'`; only the confirm button acts,
   restart is not a fail), Back to best level (when below it), a level stepper (`clampLevel`, 1..best) with the host's label and
-  Play. Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
+  Play, then Reset progress (red, asks first, `asking` = `'reset'`: deletes `splice-v1`, `splice-run` and `splice-deck`, keeps `splice-lang`, restarts at level 1 with an empty deck; Start over keeps the deck). Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
   in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit and a language `<select>` from `LANGS`
   (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
 - Sheets: one sheet for win ("Root access"), loss ("Flatline") and the two questions.
@@ -305,6 +307,17 @@ other). It is not saved: it is recomputed from the level.
   The run (`localStorage['splice-run']`: `{best, fails}`) is the best level reached and the fails earned on it, set by
   `enter` in `begin`; replaying a lower level keeps it. A missing or invalid run falls back to `runFrom(o, level, fails)`,
   and best is never below the current level.
+
+## Items (`src/items.js`, `src/ui.js`)
+
+- Deck (`splice-deck`: `{frags, items}`, `deckFrom` repairs corrupt data): frags are the currency, items are
+  counts. A first win of the best level pays frags and loot at the winning shot (`payout`); a level pays once
+  (`run.paid`, in `splice-run`), so replays and reloads of a won board pay nothing. `pays()` drives header, loot and sheet.
+- Shop tab buys items for frags (demo popup `#demo`); items unlock at levels 31, 61, 91 (flash). The drawer
+  (`#deckBtn`, `#drawer`) loads an item as the packet, unloads it, fires instants, or does Rollback.
+- Item shots use no shot (owner ruling); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
+- Rollback is disabled once a level is won or lost. Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
+- Reset progress (Run tab) wipes level, frags and items.
 
 ## Not built yet
 
@@ -352,7 +365,7 @@ like an orphaned process.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-3`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-4`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

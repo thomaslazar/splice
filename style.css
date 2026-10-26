@@ -141,3 +141,4 @@ canvas { display: block; touch-action: none; }
 #demo canvas { max-width: 100%; border: 1px solid #ffffff22; }
 #demo canvas[hidden] { display: none; }
 #demoD { margin: 0; text-align: center; }
+#menu #mReset { margin-top: 28px; border-color: #ff2a4a; color: #ff2a4a; }

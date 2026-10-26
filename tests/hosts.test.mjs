@@ -79,25 +79,27 @@ test('label limits hold everywhere: none over 52, a government jurisdiction only
 });
 
 import { iceFor, ICE } from '../src/hosts.js';
-import { hardness } from '../src/levels.js';
+import { runPos } from '../src/levels.js';
 
 const SEV = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
-test('ice follows hardness, tier and the black ice rule', () => {
+// ICE follows the run of 30: none at 1-11, every other level 12-20 (mild), every level 21-26
+// (up to medium) and 27-30 (up to harsh), capped by the host's tier; black only at 27-30 on high stakes
+test('ice follows the 30-level run, the tier caps and the black ice rule', () => {
   const seen = new Set();
-  for (let lv = 1; lv <= 4000; lv++) { const ice = iceFor(lv), h = hardness(lv), host = hostFor(lv);
+  for (let lv = 1; lv <= 4000; lv++) { const ice = iceFor(lv), p = runPos(lv), host = hostFor(lv);
     assert.equal(iceFor(lv), ice);
-    if (h < 0.35) assert.equal(ice, null, `level ${lv}`);
+    const due = p >= 21 || p >= 12 && p % 2 === 0;
+    assert.equal(!!ice, due, `level ${lv} (run position ${p})`);
     if (!ice) continue; seen.add(ice);
     assert.ok(SEV[ICE[ice]] <= CAP[host.tier], `${ice} on ${host.tier}`);
-    if (ice === 'black') assert.ok(h >= 0.8 && host.tier === 'high');
-    if (h < .55) assert.equal(ICE[ice], 'mild', `level ${lv}: ${ice} too early in the run`);
-    if (h < .8) assert.ok(ICE[ice] !== 'harsh', `level ${lv}: ${ice} too early in the run`);
+    if (p <= 20) assert.equal(ICE[ice], 'mild', `level ${lv}: ${ice} too early in the run`);
+    if (p <= 26) assert.ok(ICE[ice] !== 'harsh', `level ${lv}: ${ice} too early in the run`);
+    if (ice === 'black') assert.ok(p >= 27 && host.tier === 'high');
   }
   assert.deepEqual([...seen].sort(), Object.keys(ICE).sort());
 });
-test('about 70% of the hardest levels have ice', () => {
-  const top = Array.from({ length: 200 }, (_, i) => 20 * (i + 1)), n = top.filter(l => iceFor(l)).length;
-  assert.ok(n > 0.55 * 200 && n < 0.85 * 200, `${n}/200`);
+test('half of every run has ice', () => {
+  for (let run = 0; run < 50; run++) assert.equal(Array.from({ length: 30 }, (_, i) => 30 * run + i + 1).filter(l => iceFor(l)).length, 15);
 });
 test('ice types are spread: each is 5% to 30% of the levels with ice (1-2000)', () => {
   const n = {}; let all = 0;

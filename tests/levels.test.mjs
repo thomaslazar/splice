@@ -53,20 +53,20 @@ test('fails 1 to 3 do not ease; from the 4th, +10% per fail up to +40%', () => {
   assert.equal(shotsFor(50, 4), 55); assert.equal(shotsFor(50, 7), 70); assert.equal(shotsFor(50, 12), 70);
 });
 
-import { hardness, boardHardness } from '../src/levels.js';
+import { hardness, boardHardness, runPos } from '../src/levels.js';
 import { key, nbrs, cellsIn } from '../src/core.js';
 import { iceFor } from '../src/hosts.js';
 
 test('levels with ice get a lighter board', () => {
-  for (let lv = 1; lv <= 400; lv++) assert.equal(boardHardness(lv), (iceFor(lv) ? .5 : 1) * hardness(lv));
-  assert.ok(Array.from({ length: 400 }, (_, i) => i + 1).some(l => iceFor(l) && hardness(l) === 1), 'some hardest levels have ice');
+  for (let lv = 1; lv <= 400; lv++) assert.equal(boardHardness(lv), (iceFor(lv) ? .75 : 1) * hardness(lv));
 });
-test('hardness ramps over 20 levels and starts again', () => {
-  assert.equal(hardness(1), 0); assert.equal(hardness(20), 1); assert.equal(hardness(21), 0);
-  assert.ok(Math.abs(hardness(10) - 9 / 19) < 1e-9);
+test('hardness ramps over 30 levels and starts again', () => {
+  assert.equal(hardness(1), 0); assert.equal(hardness(30), 1); assert.equal(hardness(31), 0);
+  assert.ok(Math.abs(hardness(10) - 9 / 29) < 1e-9);
+  assert.equal(runPos(1), 1); assert.equal(runPos(30), 30); assert.equal(runPos(31), 1);
 });
-// full-strength boards: hardness 1 without ICE (ICE levels get a lighter board)
-const easy = Array.from({ length: 40 }, (_, i) => 1 + 20 * i), hard = easy.map(l => l + 19).filter(l => boardHardness(l) === 1);
+// the ends of runs: hardness 1, every one with ICE, so a board at .75
+const easy = Array.from({ length: 40 }, (_, i) => 1 + 30 * i), hard = easy.map(l => l + 29);
 const designed = ls => ls.filter(l => makeLayout(l).kind === 'designed');
 const stems = L => new Set([...L.cells.values()].filter(g => g >= 1e6).map(g => Math.floor(g / 1000))).size;   // a mirrored pair (grp, grp + 500) is one stem
 const avg = (ls, f) => ls.reduce((a, l) => a + f(l), 0) / ls.length;

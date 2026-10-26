@@ -1,6 +1,6 @@
 // Host systems: the fictional corporation or agency each level breaks into. Pure: no DOM, no storage.
 import { mulberry32, hash } from './core.js';
-import { difficulty, isLong, hardness } from './levels.js';   // circular: used only inside function bodies
+import { difficulty, isLong, hardness, runPos } from './levels.js';   // circular: used only inside function bodies
 
 /* ---------- themes ---------- */
 // hue: the bubble hue each accent resembles (magenta 0, cyan 1, acid 2, amber 3, violet 4, red 5)
@@ -165,18 +165,21 @@ const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'ji
   defense: ['black', 'monochrome', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
   pharma: ['static', 'scrambler', 'jam'], energy: ['jam', 'scrambler', 'static'], logistics: ['jam', 'scrambler', 'static'] };
 const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high: ['monochrome', 'black', 'lock'] };
+// ICE follows the run (runPos 1..30): none at 1-11, every other level 12-20 (mild), every level
+// 21-26 (up to medium) and 27-30 (up to harsh), always capped by the host's tier.
 export function iceFor(level) {
-  const h = hardness(level), r = mulberry32(hash(level, 13));
-  const chance = r(), pickR = r();   // always drawn, so one choice never shifts the other
-  // ICE from h 0.35, mild first, medium from 0.55, the tier's full cap from 0.8; about 70% at h = 1
-  if (h < 0.35 || chance >= (h - 0.35) / 0.65 * 0.7) return null;
-  const { gov, industry, tier } = hostFor(level), cap = Math.min(CAP[tier], h < .55 ? 1 : h < .8 ? 2 : 3);
-  const ok = t => SEVERITY[ICE[t]] <= cap && (t !== 'black' || h >= 0.8 && tier === 'high');
+  const p = runPos(level), pickR = mulberry32(hash(level, 13))();
+  if (p < 12 || p <= 20 && p % 2) return null;
+  const { gov, industry, tier } = hostFor(level), cap = Math.min(CAP[tier], p <= 20 ? 1 : p <= 26 ? 2 : 3);
+  const ok = t => SEVERITY[ICE[t]] <= cap && (t !== 'black' || p >= 27 && tier === 'high');
   const likes = (gov ? GOV_LIKES[tier] : LIKES[industry]).filter(ok);
-  const list = likes.length ? likes : Object.keys(ICE).filter(ok);   // any type within the cap
+  let list = likes.length ? likes : Object.keys(ICE).filter(ok);   // any type within the cap
+  // the end of a run on high stakes is always harsh; the mild stretch spreads evenly over both mild types
+  if (cap === 3) list = Object.keys(ICE).filter(t => ok(t) && ICE[t] === 'harsh');
+  if (cap === 1) list = Object.keys(ICE).filter(ok);
   // ponytail: preferred types weighted 2:1:1 by order; tune by playing
   // types at the current severity cap count double, so the end of a run brings the harsher ICE
-  const w = list.map((t, i) => (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1));
+  const even = cap === 1 || cap === 3, w = list.map((t, i) => even ? 1 : (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1));
   let x = pickR * w.reduce((a, b) => a + b);
   return list.find((_, i) => (x -= w[i]) < 0);
 }

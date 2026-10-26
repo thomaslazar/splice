@@ -26,7 +26,8 @@ Big moments should stay, just rarer; the real feel is tuned by playing.
 
 ## Goals
 
-1. Hardness `h` in 0..1 that climbs over each stretch of 20 levels and starts again
+1. Hardness `h` in 0..1 that climbs over each stretch of 20 levels and starts again (now 30,
+   see the revision under ICE)
    (chapter-like rhythm; chapters themselves come later).
 2. At `h = 0` levels look and play as today (same kinds of layouts and colouring rules).
 3. At `h = 1`: shapes hang from up to 3 stems, mirrored halves and bands carry different
@@ -127,6 +128,11 @@ effects in `src/ui.js`.
   The first type in a row weighs 2, the others 1. An owner whose preferred types are all
   above its cap takes any type within the cap. Over levels 1-2000 every type makes up 5% to
   30% of the levels with ICE (a test checks it).
+- Revised again after a weekend of play (few ICE levels, long dry spells): runs are 30 levels
+  and ICE follows the run position instead of a chance: none at 1-11, every other level 12-20
+  (mild), every level 21-26 (up to medium) and 27-30 (up to harsh), so 15 of every 30 levels;
+  black only at 27-30 on high stakes; a level with ICE gets its board at three quarters of its
+  hardness. The text below is the earlier version.
 - Chance of ICE at all: 0 for `h < 0.35`, then `(h - 0.35) / 0.65 * 0.7` (about 70% at `h = 1`).
   Revised after playtesting ("too hard at times"): ICE is introduced on lighter boards. Mild
   only below `h = 0.55`, medium up to 0.8, then the tier's cap (types at the current cap count

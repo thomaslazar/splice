@@ -110,16 +110,16 @@ function bodies, so keep it that way.
 ## Levels (`src/levels.js`)
 
 - `difficulty(level)` ramps to 1 at level 40. `isLong(level)`: every 5th level is longer.
-  `hardness(level)` = `((level - 1) % 20) / 19`: a sawtooth, 0 at levels 1, 21, 41 ... and 1 at
-  20, 40, 60 ... Unlike `difficulty` it never saturates; it drives how fragmented a level is
-  and, from 0.5 up, whether it has ICE.
+  `hardness(level)` = `(runPos(level) - 1) / 29` over runs of `RUN` = 30 levels (`runPos` 1..30):
+  a sawtooth, 0 at levels 1, 31, 61 ... and 1 at 30, 60, 90 ... Unlike `difficulty` it never
+  saturates; it drives how fragmented a level is, and the run position decides ICE.
   `winRows(cols)` is the visible height in rows.
 - `makeLayout(level)` (cached, last 4 levels) depends on the level only. Kind is `designed` or `noise`
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
   downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group.
   Hardness breaks groups up, using the board's share `h = boardHardness(level)` (hardness,
-  halved on levels with ICE so ICE arrives on lighter boards; all draws seeded): per shape, with
+  three quarters on levels with ICE so ICE does not stack on the hardest boards; all draws seeded): per shape, with
   probability `0.7 h` (`SPLIT`) the right half of a mirrored shape becomes its own group (axis cells stay
   left), and each shape is cut at x positions into 2 segments (3 with probability `0.7 h`); a
   group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
@@ -177,9 +177,13 @@ or reading the board harder. `iceFor(level)` returns its type or null; pure, see
 (`hash(level, 13)`, two draws always taken so the chance and the pick never shift each
 other). It is not saved: it is recomputed from the level.
 
-- Chance: 0 below hardness 0.35, else `(h - 0.35) / 0.65 * 0.7` (70% at h = 1). Severity is capped by
-  the run too: mild only below 0.55, medium up to 0.8, then the tier's cap; types at the current
-  cap count double. A level with ICE gets a board at half hardness (`boardHardness`).
+- Schedule (owner: ICE is part of the run's climb, not a dice roll): by run position, none at
+  1-11, every other level 12-20 (even positions, mild only), every level 21-26 (up to medium) and
+  27-30 (up to harsh), always capped by the host's tier: 15 of every 30 levels. Black only at
+  27-30 on high stakes. In the mild and harsh stretches all allowed types are equally likely (at
+  27-30 a high-stakes host always gets a harsh type); the industry flavour picks in between. A
+  level with ICE gets a board at three quarters of its hardness (`boardHardness`). Shares over
+  1-2000: static 29%, jitter 26%, scrambler 13%, lock 13%, monochrome 6%, black 6%, jam 6%.
 - Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
   level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`.
 - Types and severity (`ICE`): mild `static`, `jitter`; medium `scrambler`, `lock`, `jam`;

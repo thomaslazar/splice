@@ -5,10 +5,11 @@ import { iceFor } from './hosts.js';   // circular: used only inside function bo
 export const difficulty = level => Math.min(1, level / 40);
 export const isLong = level => level % 5 === 0;
 const SPLIT = .7;   // at full hardness, mirrors and bands split 70% of the time (100% made the front confetti)
-export const hardness = level => ((level - 1) % 20) / 19;
-// The board's share of the hardness: a level with ICE gets a lighter board (half), so ICE is
-// introduced on easier layouts instead of stacking on the hardest ones.
-export const boardHardness = level => (iceFor(level) ? .5 : 1) * hardness(level);
+// Hardness climbs over each run of RUN levels and starts again; runPos is 1..RUN within the run.
+export const RUN = 30, runPos = level => (level - 1) % RUN + 1, hardness = level => (runPos(level) - 1) / (RUN - 1);
+// The board's share of the hardness: a level with ICE gets a lighter board (three quarters), so
+// ICE does not stack on the hardest layouts.
+export const boardHardness = level => (iceFor(level) ? .75 : 1) * hardness(level);
 export const winRows = cols => Math.round(1.7 * cols);
 const xOf = k => (k & 15) + (k >> 4) % 2 / 2;   // a cell key's x in unit coords (odd rows +0.5)
 

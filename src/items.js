@@ -181,10 +181,10 @@ export function resolve(S, shot) {
   for (let i = 0; i < queue.length; i++) {   // item bubbles go off at their own cell; the queue grows with chains
     const k = queue[i]; fired.push(k); g.delete(k); clear.add(k);
     const first = hitOf.get(k) ?? g.get(nk(cols, k).find(x => g.has(x) && isColour(g.get(x))));
-    const e = effect(S, g, itemOf(S.grid.get(k)), k, first ?? null, dir); apply(e, k); enqueue(e.clear);
+    const e = effect(S, g, itemOf(S.grid.get(k)), k, first ?? null, dir); apply(e, k); if (g.has(k)) clear.delete(k); enqueue(e.clear);   // a bubble that became a colour stays
   }
   const recolour = new Map(); for (const [k, v] of g) if (S.grid.has(k) && S.grid.get(k) !== v) recolour.set(k, v);
-  if (id && !clear.size && !recolour.size && !popped.size) return null;   // nothing to do: the item stays loaded
+  if (id && id !== 'wildcard' && !clear.size && !recolour.size && !popped.size) return null;   // nothing to do: the item stays loaded
   return { pts, cell, clear, popped, recolour, land, fired, after: g };
 }
 

@@ -149,7 +149,7 @@ export function fire(S, ang) {
   if (won(S) || !S.load && S.shots <= 0) return null;
   const R = resolve(S, S.load ? { ang, id: S.load } : { ang }); if (!R) return null;
   for (const [k, v] of R.after) S.grid.set(k, v);
-  const gone = [...new Set([...R.clear, ...R.popped])].filter(k => !R.after.has(k)), adv = !S.load; S.load = null;
+  const gone = [...new Set([...R.clear, ...R.popped])], adv = !S.load; S.load = null;
   return { pts: R.pts, cell: R.cell, ...settle(S, gone, [], adv), recolour: R.recolour, fired: R.fired };
 }
 // Same-colour group (in S.grid) containing the start keys.

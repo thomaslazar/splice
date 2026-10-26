@@ -313,13 +313,22 @@ test('a chain that removes the next colour re-deals it', () => {
   const f = fire(S, aimAt(S, 2, 3));   // the packet lands under the sweep bubble, row 1 goes, the packet falls
   assert.deepEqual(f.fired, [key(1, 3)]); assert.equal(S.next, 1); assert.equal(S.cur, 1);
 });
-test('the preview from hits equals what fire does', () => {
-  for (const id of ['bomb', 'sweep', 'star', 'lightning', 'pierce', 'purge']) for (let seed = 1; seed <= 12; seed++) {
+test('a deck wildcard beside singles still lands a colour bubble', () => {
+  const S = board(['12345123', '.......'], { cur: 1, load: 'wildcard' }), a = aimAt(S, 1, 3);
+  assert.ok(resolve(S, { ang: a, id: 'wildcard' }));
+  const f = fire(S, a); assert.ok(f); assert.ok(S.grid.get(f.cell.join() && key(...f.cell)) < 6);
+});
+test('the preview from hits equals what fire does, item bubbles and normal shots included', () => {
+  const ids = SHOTS; let n = 0;
+  for (let seed = 1; seed <= 40; seed++) for (const id of [null, ...ids]) for (const ang of [-1.2, -1.57, -1.9, -2.4, -.8]) {
     const rows = Array.from({ length: 8 }, (_, r) => [...Array(r % 2 ? 7 : 8)].map((_, c) => (hash(seed, r, c) % 9) < 1 ? '.' : String(hash(seed, r, c, 2) % 3 + 1)).join(''));
-    for (const ang of [-1.2, -1.57, -1.9, -2.4, -.8]) {
-      const S = board(rows, { load: id }), h = hits(S, id, ang), before = new Map(S.grid); if (!h) continue;
-      const f = fire(S, ang), removed = new Set([...before.keys()].filter(k => !S.grid.has(k))); for (const k of f.dropped) removed.delete(k);
-      same(h.clear, removed);
-    }
+    const S = board(rows, { load: id, cur: 1, next: 2 });
+    for (let i = 0; i < 4; i++) S.grid.set([...S.grid.keys()][hash(seed, i, 7) % S.grid.size], valueOf(ids[hash(seed, i, 8) % ids.length]));
+    const R = resolve(S, { ang, id: id ?? undefined }); if (!R) continue; n++;
+    const before = new Map(S.grid), f = fire(S, ang), removed = new Set([...before.keys()].filter(k => !S.grid.has(k)));
+    for (const k of f.dropped) removed.delete(k);
+    const pre = new Set([...R.clear, ...R.popped]); if (R.cell) pre.delete(key(...R.cell));
+    same(pre, removed);
   }
+  assert.ok(n > 500, `cases ${n}`);
 });

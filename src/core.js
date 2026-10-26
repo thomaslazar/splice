@@ -33,6 +33,7 @@ export function connected(grid, cols, gone) {
 import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
 import { needFor, limitFor } from './bot.js';   // circular too
 import { iceFor } from './hosts.js';   // circular too
+import { ITEMS, hits } from './items.js';   // circular too
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 10;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
@@ -80,7 +81,7 @@ const need = new Map();
 const lowRow = grid => { let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4); return low; };
 export function startState(level, fails) {
   const L = makeLayout(level), S = { level, fails, cols: L.cols, kind: L.kind, grid: colourize(L, level, fails),
-    shots: Infinity, score: 0, cur: null, next: null, hist: [], draws: 0 };
+    shots: Infinity, score: 0, cur: null, next: null, hist: [], draws: 0, frags: 0, load: null, breaker: 0 };
   S.top = viewTop(S.grid, S.cols); S.cur = deal(S); S.next = deal(S);
   const id = `${level}/${fails}`;
   if (!need.has(id)) { need.set(id, needFor(S));
@@ -123,32 +124,56 @@ export const swap = S => { [S.cur, S.next] = [S.next, S.cur]; };
 export const won = S => !S.grid.size;
 export const lossRow = S => S.top + winRows(S.cols) - 2;   // the row directly above the shooter row
 export const lost = S => !won(S) && (S.shots <= 0 || [...S.grid.keys()].some(k => k >> 4 >= lossRow(S)));
-export function fire(S, ang) {
-  const a = clampAim(ang); if (a === null || S.shots <= 0 || won(S)) return null;
-  const { pts, cell } = trace(S.grid, S.cols, a, S.top); if (!cell) return null;
-  const [r, c] = cell, k0 = key(r, c), col = S.cur, grp = [k0], seen = new Set(grp);
-  S.grid.set(k0, col);
-  for (let i = 0; i < grp.length; i++) for (const [x, y] of nbrs(S.cols, ...rc(grp[i]))) {
-    const k = key(x, y); if (S.grid.get(k) === col && !seen.has(k)) { seen.add(k); grp.push(k); } }
-  const popped = grp.length >= 3 ? grp : [], dropped = [];
+// Removes popped, drops what lost the ceiling, scores, scrolls, re-deals missing colours. advance: a normal shot also
+// moves next to cur and costs a shot. extra is for item bubbles (unused so far).
+export function settle(S, popped, extra = [], advance = false) {
   for (const k of popped) S.grid.delete(k);
+  const dropped = [];
   if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { S.grid.delete(k); dropped.push(k); } }
   const points = 10 * popped.length + 10 * dropped.length ** 2;
   // Never retracts; moves toward the ceiling only once just the top SCROLL_AT visible rows hold
   // bubbles, or at most SCROLL_FEW bubbles are left on screen.
   let low = -1, nv = 0; for (const k of S.grid.keys()) { low = Math.max(low, k >> 4); if (k >> 4 >= S.top) nv++; }
   if (low < S.top + SCROLL_AT || nv <= SCROLL_FEW) S.top = Math.min(S.top, viewTop(S.grid, S.cols));
-  S.score += points; S.shots--; S.cur = S.next; S.next = deal(S);
+  S.frags += dropped.length; S.score += points;
+  if (advance) { S.shots--; S.cur = S.next; S.next = deal(S); }
   if (S.grid.size) { const has = new Set(S.grid.values());
     if (!has.has(S.cur)) S.cur = deal(S); if (!has.has(S.next)) S.next = deal(S); }
-  return { pts, cell, popped, dropped, points };
+  return { popped, dropped, points };
+}
+export function fire(S, ang) {
+  if (S.load) return fireItem(S, ang);
+  const a = clampAim(ang); if (a === null || S.shots <= 0 || won(S)) return null;
+  const { pts, cell } = trace(S.grid, S.cols, a, S.top); if (!cell) return null;
+  const [r, c] = cell, k0 = key(r, c), col = S.cur, grp = [k0], seen = new Set(grp);
+  S.grid.set(k0, col);
+  for (let i = 0; i < grp.length; i++) for (const [x, y] of nbrs(S.cols, ...rc(grp[i]))) {
+    const k = key(x, y); if (S.grid.get(k) === col && !seen.has(k)) { seen.add(k); grp.push(k); } }
+  return { pts, cell, ...settle(S, grp.length >= 3 ? grp : [], [], true) };
+}
+// A loaded item flies instead of the packet: no shot spent, the packets stay.
+function fireItem(S, ang) {
+  const a = clampAim(ang); if (a === null || won(S)) return null;
+  const h = hits(S, S.load, a); if (!h) return null;
+  for (const [k, v] of h.recolour) S.grid.set(k, v);
+  const pops = [...h.clear];
+  if (h.cell && h.land !== null) { const k0 = key(...h.cell); S.grid.set(k0, h.land);
+    if (S.load === 'wildcard') { const g = flood(S, [k0], h.land); if (g.length >= 3) pops.push(...g); } }
+  S.load = null;
+  return { pts: h.pts, cell: h.cell, ...settle(S, pops), recolour: h.recolour };
+}
+// Same-colour group (in S.grid) containing the start keys.
+export function flood(S, start, col) {
+  const g = [...new Set(start)], seen = new Set(g);
+  for (let i = 0; i < g.length; i++) for (const n of nk(S.cols, g[i])) if (S.grid.get(n) === col && !seen.has(n)) { seen.add(n); g.push(n); }
+  return g;
 }
 
 /* ---------- saves ---------- */
 export const toSave = S => ({ v: 1, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
   shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws, top: S.top,
-  maxShots: S.maxShots, startLow: S.startLow });
-export const fromSave = o => ({ maxShots: Math.max(o.shots, 1), startLow: lowRow(new Map(o.grid)), ...o, grid: new Map(o.grid), hist: [...o.hist] });
+  maxShots: S.maxShots, startLow: S.startLow, frags: S.frags, load: S.load, breaker: S.breaker });
+export const fromSave = o => ({ maxShots: Math.max(o.shots, 1), startLow: lowRow(new Map(o.grid)), frags: 0, load: null, breaker: 0, ...o, grid: new Map(o.grid), hist: [...o.hist] });
 export function validSave(o) {
   const col = c => Number.isInteger(c) && c >= 0 && c <= 5, nul = c => c === null || col(c);
   return !!o && o.v === 1 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
@@ -156,5 +181,7 @@ export function validSave(o) {
     o.grid.every(e => Array.isArray(e) && Number.isInteger(e[0]) && e[0] >= 0 && (e[0] & 15) < cellsIn(o.cols, e[0] >> 4) && col(e[1])) &&
     nul(o.cur) && nul(o.next) && ['designed', 'noise'].includes(o.kind) &&
     Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws, o.top].every(n => Number.isInteger(n) && n >= 0) &&
-    (o.maxShots === undefined || Number.isInteger(o.maxShots) && o.maxShots >= 1) && (o.startLow === undefined || Number.isInteger(o.startLow) && o.startLow >= 0);
+    (o.maxShots === undefined || Number.isInteger(o.maxShots) && o.maxShots >= 1) && (o.startLow === undefined || Number.isInteger(o.startLow) && o.startLow >= 0) &&
+    [o.frags, o.breaker].every(n => n === undefined || Number.isInteger(n) && n >= 0) &&
+    (o.load === undefined || o.load === null || ITEMS.some(i => i.id === o.load && i.kind === 'shot'));
 }

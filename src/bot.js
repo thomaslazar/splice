@@ -1,6 +1,7 @@
 // Greedy bot over the core API, pure. startState uses it to set each attempt's shot limit;
 // tools/sim.mjs uses it to report balance.
 import { trace, fire, swap, won, lost, lossRow, clampAim, MIN_ANGLE, key, nbrs, nk, connected } from './core.js';   // circular: used only inside function bodies
+import { resolve, isItem } from './items.js';   // circular: used only inside function bodies
 import { ICE, ICE_K, ICE_TYPE_K } from './hosts.js';   // circular: used only inside function bodies
 
 // Shot limit = bot's need on this exact colouring * HUMAN_K * the ICE factor (ICE_K, 1 without ICE)
@@ -20,6 +21,13 @@ function outcome(grid, cols, cell, col) {
   return { popped: grp.length, dropped: grid.size - seen.size - connected(grid, cols, seen).size };
 }
 
+// Landing next to an item bubble: resolve it on a copy of S with cur = col. Cleared bubbles (colour or
+// item, bombs included) count as popped; dropped is what the rest loses its hold on, as in outcome.
+function itemOutcome(S, ang, col) {
+  const r = resolve({ ...S, cur: col }, { ang }); if (!r) return { popped: 0, dropped: 0 };
+  return { popped: r.popped.size + r.clear.size, dropped: r.after.size - connected(r.after, S.cols).size };
+}
+
 // One shot: best of angles x (no swap, swap), scored by popped + 2 * dropped.
 export function bestShot(S, n = 120) {
   ANGLES[n] ??= Array.from({ length: n }, (_, i) => -Math.PI + MIN_ANGLE + i * (Math.PI - 2 * MIN_ANGLE) / (n - 1));
@@ -29,7 +37,7 @@ export function bestShot(S, n = 120) {
     for (const sw of [false, true]) {
       const col = sw ? S.next : S.cur, id = key(...cell) * 8 + col;
       if (col === null || seen.has(id)) continue; seen.add(id);
-      const r = outcome(S.grid, S.cols, cell, col);
+      const r = nk(S.cols, key(...cell)).some(x => isItem(S.grid.get(x))) ? itemOutcome(S, clampAim(ang), col) : outcome(S.grid, S.cols, cell, col);
       const side = nbrs(S.cols, ...cell).some(([a, b]) => S.grid.get(key(a, b)) === col) ? 0.1 : 0;
       const low = !r.popped && cell[0] >= loss - 1 ? LOW : 0;   // sticking a bubble next to the loss line
       const sc = r.popped + 2 * r.dropped + side - low;

@@ -336,7 +336,7 @@ function demoDraw(c, S, rr, ox, h) {   // one frame of the board at x offset ox;
   const X = (r, k) => [ox + (1 + 2 * k + r % 2) * rr, (1 + r * RH) * rr];
   if (h) { c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.setLineDash([4, 4]); c.beginPath(); h.pts.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](ox + p.x * rr, p.y * rr)); c.stroke(); c.setLineDash([]); }
   for (const [k, v] of S.grid) bubble(...X(k >> 4, k & 15), v, 1, rr, c);
-  if (h) for (const k of [...h.clear, ...h.popped, ...h.recolour.keys()]) { const [x, y] = X(k >> 4, k & 15); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, rr, 0, 7); c.stroke(); }
+  if (h) for (const k of [...h.clear, ...h.popped, ...h.recolour.keys()]) { const [x, y] = X(k >> 4, k & 15); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, rr * 1.05, 0, 7); c.stroke(); }
 }
 function demo(id) {
   const kind = item(id).kind === 'shot', cv = $('#demoC'), c = cv.getContext('2d'), S = demoState(id);
@@ -534,8 +534,8 @@ function draw() {
   fxOf().over?.(now, ly - 2);
   const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {
-    const L = S.load, t0 = trace(S.grid, S.cols, a, S.top), h = L ? hits(S, L, a) : t0.cell && nk(S.cols, key(...t0.cell)).some(x => isItem(S.grid.get(x))) ? resolve(S, { ang: a }) : null;   // a normal shot that touches item bubbles previews them too
-    const tr = L ? h || { pts: t0.pts, cell: null } : t0, pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
+    const L = S.load, t0 = L ? null : trace(S.grid, S.cols, a, S.top), h = L ? hits(S, L, a) : !f0.hide?.('cur') && t0.cell && nk(S.cols, key(...t0.cell)).some(x => isItem(S.grid.get(x))) ? resolve(S, { ang: a }) : null;   // a normal shot that touches item bubbles previews them too, unless the packet is hidden (it would give its colour away)
+    const tr = L ? h || { pts: trace(S.grid, S.cols, a, S.top).pts, cell: null } : t0, pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
     // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
     const jammed = iceOn() === 'jam' && restore === 0, n = performance.now();
     g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;

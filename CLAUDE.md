@@ -329,11 +329,11 @@ other). It is not saved: it is recomputed from the level.
 - A loaded item goes back to the deck when the level is left (`begin()`, and `load()` for a save that fails validation), except on Reset progress. An item with no effect at the aim cannot be fired (`hits` null, no preview). ICE breaker is only usable on a level with active ICE and not while it already runs (`useItem` refuses). Decrypt only offers and accepts colours (`isColour`). A tap outside the drawer, or the menu button, closes it.
 - Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
 - Item bubbles on the board (grid values from `ITEM_BASE`, never dealt, never a colour). `itemPlan(level)`: none below level 3,
-  else 25% of levels have them, a fifth of those `full` (3 per screen), the rest `normal` (0 to 2 per screen). `placeItems`
+  else 25% of levels have them, a fifth of those `full` (3 per screen; code caps at 3, not 4), the rest `normal` (0 to 2 per screen). `placeItems`
   runs after colouring from the level only (same on every try). Screens: designed levels use row bands
   `[s*sec, (s+1)*sec)` with `sec = round(1.6 * cols)`; noise splits its occupied rows into `layout.screens` bands. An item bubble goes off
   when a landed packet or a shot touches it; its effect is the item's, centred on it. Chains: breadth first, each item bubble
-  once, so two that reach each other cannot loop. A deck Wildcard always fires; any other deck item whose effect changes
+  once, so two that reach each other cannot loop. Colour pops never set off item bubbles (only a landing next to one, or a shot or chain reaching it). A deck Wildcard always fires; any other deck item whose effect changes
   nothing cannot fire. They never count as colours (the winning test, `deal`), but count for the loss line and fall like any bubble.
 - Bot (`src/bot.js`): plays item bubbles through `resolve`, only when the landing cell touches one; it never uses deck items.
 - UI: `bubble()` hands grid values from `ITEM_BASE` to `itemBubble` (white in every theme, also monochrome; static blocks cover

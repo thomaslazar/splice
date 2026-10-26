@@ -2,6 +2,7 @@
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
+import { runFrom, enter } from './run.js';
 import { drawHost } from './hostdraw.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
@@ -70,6 +71,8 @@ const X = u => u * sc, Y = u => (u - view * RH) * sc;
 const target = () => S.top;
 const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && $('#sheet').hidden && S.cur !== null && S.grid.size > 0;
 function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
+const RUN_KEY = 'splice-run'; let run;   // run: { best, fails }, the best level reached
+function saveRun() { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); } catch (e) {} }
 function load() {   // a valid save, or [level, fails] to begin: an invalid save keeps its level, unreadable means level 1
   let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
   return o && Number.isInteger(o.level) && o.level >= 1 ? [o.level, Number.isInteger(o.fails) && o.fails >= 0 ? o.fails : 0] : [1, 0];
@@ -78,6 +81,7 @@ function load() {   // a valid save, or [level, fails] to begin: an invalid save
 // begins behind a short loading card; it stays up at least LOAD_MIN so it never just flickers.
 const LOAD_MIN = 500; let loading = false;
 async function begin(level, fails) {
+  const e = enter(run, level, fails); run = e.run; fails = e.fails; saveRun();
   loading = true; aim = aimId = null; fly = win = null; $('#sheet').hidden = true;   // an old flight or win never reaches its sheet
   setTheme(level); $('#loadT').textContent = t('level', { n: level }); $('#loadM').textContent = t('loading'); $('#load').hidden = false;
   const t0 = performance.now();
@@ -374,4 +378,6 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 let lastTap = 0;
 document.addEventListener('touchend', e => { if (e.timeStamp - lastTap < 350 && !e.target.closest('button')) e.preventDefault(); lastTap = e.timeStamp; }, { passive: false });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});   // offline play
-{ const n = +PLAY.level, l = Number.isInteger(n) && n >= 1 ? [n, 0] : load(); Array.isArray(l) ? begin(...l) : start(l); } draw();
+{ const n = +PLAY.level, l = Number.isInteger(n) && n >= 1 ? [n, 0] : load(), [lv, fl] = Array.isArray(l) ? l : [l.level, l.fails];
+  let o; try { o = JSON.parse(localStorage.getItem(RUN_KEY)); } catch (e) {}
+  run = runFrom(o, lv, fl); saveRun(); Array.isArray(l) ? begin(...l) : start(l); } draw();

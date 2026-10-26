@@ -316,7 +316,7 @@ test('a chain that removes the next colour re-deals it', () => {
 test('a deck wildcard beside singles still lands a colour bubble', () => {
   const S = board(['12345123', '.......'], { cur: 1, load: 'wildcard' }), a = aimAt(S, 1, 3);
   assert.ok(resolve(S, { ang: a, id: 'wildcard' }));
-  const f = fire(S, a); assert.ok(f); assert.ok(S.grid.get(f.cell.join() && key(...f.cell)) < 6);
+  const f = fire(S, a); assert.ok(f); assert.ok(S.grid.get(key(...f.cell)) < 6);
 });
 test('the preview from hits equals what fire does, item bubbles and normal shots included', () => {
   const ids = SHOTS; let n = 0;

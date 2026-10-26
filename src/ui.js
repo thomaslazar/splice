@@ -90,6 +90,7 @@ async function begin(level, fails) {
   const s = startState(level, fails);
   await new Promise(r => setTimeout(r, Math.max(0, LOAD_MIN - (performance.now() - t0))));
   $('#load').hidden = true; loading = false; start(s);
+  if (ice) flash('ice');   // a fresh start only; a reload of a saved board calls start() directly
 }
 // Running out: 'low' at 25% of the shots or fewer, 'crit' at 3 or fewer (same thresholds as the trace log lines).
 const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
@@ -137,7 +138,7 @@ let lines = [], seen = {}, logTop = 0, logPct = 0;
 // A trace warning also flashes once, big, in the middle of the screen (amber, then red).
 let alertT;
 function flash(kind) {
-  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : t('alertTrace'); a.dataset.kind = kind;
+  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : kind === 'ice' ? t('alertIce', { ice: iceName(ice) }) : t('alertTrace'); a.dataset.kind = kind;
   a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
   clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 1400);
 }

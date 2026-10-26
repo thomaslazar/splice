@@ -232,7 +232,9 @@ other). It is not saved: it is recomputed from the level.
   - `black`: no aim line and no landing ring at all.
 - Announcements: the header shows a bordered tag (`#ice`) after "Jacked in" with the ICE name
   (`iceStatic` and so on in `lang/`), and the log gets `ice detected: {ice}` right after
-  `connecting to {host}` at level start.
+  `connecting to {host}` at level start. A fresh start (`begin()`: next level, retry, restart,
+  menu jump, `?ice=`) also flashes `{ice} deployed` mid-screen in the accent colour (`#alert`,
+  `flash('ice')`, about 1.4 s) after the loading card; a reload of a saved board does not.
 
 ## UI (`src/ui.js`)
 

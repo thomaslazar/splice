@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems } from '../src/items.js';
-import { key, nbrs, trace, fire, won, lost, lossRow, deal, settle, startState, toSave, fromSave, validSave } from '../src/core.js';
+import { resolve, ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems } from '../src/items.js';
+import { hash, key, nbrs, trace, fire, won, lost, lossRow, deal, settle, startState, toSave, fromSave, validSave } from '../src/core.js';
 import { tierFor, iceFor, ICE } from '../src/hosts.js';
 import { isLong, makeLayout, colourize } from '../src/levels.js';
 
@@ -133,8 +133,8 @@ test('rainbow pops every touched group of 2 or more', () => {
   const S = board(['11223344', '1.2.3.4', '.......']);
   S.grid.delete(key(1, 1)); S.grid.delete(key(1, 3)); S.grid.set(key(1, 0), 1); S.grid.set(key(1, 2), 3);
   const a = aimAt(S, 1, 1), h = hits(S, 'rainbow', a);
-  assert.ok(h.clear.size >= 2 && h.land === null);
-  const cols = new Set([...h.clear].map(k => S.grid.get(k)));
+  assert.ok(h.popped.size >= 2 && h.land === null);
+  const cols = new Set([...h.popped].map(k => S.grid.get(k)));
   for (const c of cols) assert.ok(c >= 1 && c <= 4);
 });
 test('virus recolours within 4 and pops nothing', () => {
@@ -252,4 +252,74 @@ test('virus and purge ignore item bubbles', () => {
   if (h) for (const k of h.recolour.keys()) assert.ok(g.get(k) < 6);
   const P = board(['16', '66']); P.grid.set(key(1, 0), 1);
   const p = hits(P, 'purge', aimAt(P, 2, 0)); if (p) for (const k of p.clear) assert.ok(P.grid.get(k) < 6);
+});
+
+/* ---------- item bubbles and chains ---------- */
+const V = id => valueOf(id);
+test('a packet touching an item bubble sets it off', () => {
+  const S = board(full(6)); S.grid.delete(key(5, 3)); S.grid.set(key(4, 3), V('sweep')); S.cur = 2;
+  const R = resolve(S, { ang: aimAt(S, 5, 3) });
+  assert.deepEqual(R.fired, [key(4, 3)]); assert.ok(R.clear.has(key(4, 3)));
+  for (let c = 0; c < 7; c++) assert.ok(R.clear.has(key(4, c)), 'whole row of the item bubble');
+});
+test('two touched item bubbles both go off', () => {
+  const S = board(full(6)); S.grid.delete(key(5, 3)); S.cur = 2;
+  S.grid.set(key(4, 3), V('bomb')); S.grid.set(key(5, 2), V('sweep'));
+  const f = fire(S, aimAt(S, 5, 3));
+  assert.deepEqual(f.fired.sort((a, b) => a - b), [key(4, 3), key(5, 2)]);
+  assert.ok(!S.grid.has(key(4, 3)) && !S.grid.has(key(5, 2)));
+});
+test('a bomb inside another bomb\'s blast chains', () => {
+  const S = board(full(8)); S.grid.delete(key(7, 3)); S.cur = 2;
+  S.grid.set(key(6, 3), V('bomb')); S.grid.set(key(4, 3), V('bomb'));   // second one 2 away from the first
+  const R = resolve(S, { ang: aimAt(S, 7, 3) });
+  assert.deepEqual(R.fired.sort((a, b) => a - b), [key(4, 3), key(6, 3)]);
+  assert.ok(R.clear.has(key(2, 3)), 'the second blast reaches 2 further');
+});
+test('mutual chain: each goes off once', () => {
+  const S = board(full(8)); S.grid.delete(key(7, 3)); S.cur = 2;
+  S.grid.set(key(6, 3), V('bomb')); S.grid.set(key(6, 2), V('bomb'));
+  const R = resolve(S, { ang: aimAt(S, 7, 3) });
+  assert.equal(R.fired.length, 2);
+});
+const above = (r, c) => key(...nbrs(8, r, c).find(([x]) => x === r - 1));   // a neighbour of cell (r, c) in the row above
+test('an item bubble in a colour pop does not go off', () => {
+  const S = board(['.11.....', '.......'], { cur: 1 }); S.grid.set(key(0, 3), V('bomb')); S.grid.set(key(0, 7), 3);
+  const R = resolve(S, { ang: aimAt(S, 0, 0) });   // lands at (0,0), pops (0,0) (0,1) (0,2); the bomb touches (0,2) only
+  assert.deepEqual([...R.popped].sort((a, b) => a - b), [key(0, 0), key(0, 1), key(0, 2)]);
+  assert.deepEqual(R.fired, []); assert.ok(R.after.has(key(0, 3)));
+});
+test('a falling item bubble does nothing', () => {
+  const S = board(['.11.....', '2.......', '3.......'], { cur: 1 }); S.grid.set(key(2, 0), V('bomb')); S.grid.set(key(0, 7), 3);
+  S.grid.set(key(0, 0), 1); S.grid.delete(key(0, 1)); S.grid.set(key(0, 1), 1); S.grid.delete(key(0, 2));
+  const f = fire(S, aimAt(S, 0, 2));   // pops (0,0) (0,1) (0,2): everything hanging below them falls, including the item
+  assert.deepEqual(f.fired, []); assert.ok(f.dropped.includes(key(2, 0))); assert.ok(!S.grid.has(key(2, 0)));
+});
+test('virus bubble spreads the colour of the packet that hit it', () => {
+  const S = board(['11111111', '2222222', '3333333', '1111111'], { cur: 4 });
+  const v = above(4, 3); S.grid.set(v, V('virus'));
+  const R = resolve(S, { ang: aimAt(S, 4, 3) });
+  assert.deepEqual(R.fired, [v]);
+  assert.ok(R.recolour.size > 0); for (const x of R.recolour.values()) assert.equal(x, 4);
+});
+test('pierce bubble continues in the shot\'s direction', () => {
+  const S = board(full(10)); S.grid.delete(key(9, 3)); S.cur = 2; const p = above(9, 3); S.grid.set(p, V('pierce'));
+  const R = resolve(S, { ang: aimAt(S, 9, 3) });
+  assert.deepEqual(R.fired, [p]); assert.ok(R.clear.size > 2 && R.clear.size <= 11);
+  assert.ok([...R.clear].every(k => k >> 4 < 9), 'it flies up, not back down');
+});
+test('a chain that removes the next colour re-deals it', () => {
+  const S = board(['11111111', '2222222', '.......'], { cur: 1, next: 2 }); S.grid.set(key(1, 3), V('sweep'));
+  const f = fire(S, aimAt(S, 2, 3));   // the packet lands under the sweep bubble, row 1 goes, the packet falls
+  assert.deepEqual(f.fired, [key(1, 3)]); assert.equal(S.next, 1); assert.equal(S.cur, 1);
+});
+test('the preview from hits equals what fire does', () => {
+  for (const id of ['bomb', 'sweep', 'star', 'lightning', 'pierce', 'purge']) for (let seed = 1; seed <= 12; seed++) {
+    const rows = Array.from({ length: 8 }, (_, r) => [...Array(r % 2 ? 7 : 8)].map((_, c) => (hash(seed, r, c) % 9) < 1 ? '.' : String(hash(seed, r, c, 2) % 3 + 1)).join(''));
+    for (const ang of [-1.2, -1.57, -1.9, -2.4, -.8]) {
+      const S = board(rows, { load: id }), h = hits(S, id, ang), before = new Map(S.grid); if (!h) continue;
+      const f = fire(S, ang), removed = new Set([...before.keys()].filter(k => !S.grid.has(k))); for (const k of f.dropped) removed.delete(k);
+      same(h.clear, removed);
+    }
+  }
 });

@@ -33,7 +33,7 @@ export function connected(grid, cols, gone) {
 import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
 import { needFor, limitFor } from './bot.js';   // circular too
 import { iceFor } from './hosts.js';   // circular too
-import { ITEMS, hits, ITEM_BASE, SHOTS, placeItems } from './items.js';   // circular too
+import { ITEMS, resolve, ITEM_BASE, SHOTS, placeItems } from './items.js';   // circular too
 export const MIN_ANGLE = 0.12, HIT = 0.82 * 2, SCROLL_AT = 2, SCROLL_FEW = 10;
 export function viewTop(grid, cols) {
   let low = 0; for (const k of grid.keys()) low = Math.max(low, k >> 4);
@@ -143,26 +143,14 @@ export function settle(S, popped, extra = [], advance = false) {
     if (!has.has(S.cur)) S.cur = deal(S); if (!has.has(S.next)) S.next = deal(S); }
   return { popped, dropped, points };
 }
+// A normal shot flies the packet S.cur; a loaded item flies instead (no shot spent, the packets stay). Item bubbles
+// the shot touches go off, with chains (resolve in items.js).
 export function fire(S, ang) {
-  if (S.load) return fireItem(S, ang);
-  const a = clampAim(ang); if (a === null || S.shots <= 0 || won(S)) return null;
-  const { pts, cell } = trace(S.grid, S.cols, a, S.top); if (!cell) return null;
-  const [r, c] = cell, k0 = key(r, c), col = S.cur, grp = [k0], seen = new Set(grp);
-  S.grid.set(k0, col);
-  for (let i = 0; i < grp.length; i++) for (const [x, y] of nbrs(S.cols, ...rc(grp[i]))) {
-    const k = key(x, y); if (S.grid.get(k) === col && !seen.has(k)) { seen.add(k); grp.push(k); } }
-  return { pts, cell, ...settle(S, grp.length >= 3 ? grp : [], [], true) };
-}
-// A loaded item flies instead of the packet: no shot spent, the packets stay.
-function fireItem(S, ang) {
-  const a = clampAim(ang); if (a === null || won(S)) return null;
-  const h = hits(S, S.load, a); if (!h) return null;
-  for (const [k, v] of h.recolour) S.grid.set(k, v);
-  const pops = [...h.clear];
-  if (h.cell && h.land !== null) { const k0 = key(...h.cell); S.grid.set(k0, h.land);
-    if (S.load === 'wildcard') { const g = flood(S, [k0], h.land); if (g.length >= 3) pops.push(...g); } }
-  S.load = null;
-  return { pts: h.pts, cell: h.cell, ...settle(S, pops), recolour: h.recolour };
+  if (won(S) || !S.load && S.shots <= 0) return null;
+  const R = resolve(S, S.load ? { ang, id: S.load } : { ang }); if (!R) return null;
+  for (const [k, v] of R.after) S.grid.set(k, v);
+  const gone = [...new Set([...R.clear, ...R.popped])].filter(k => !R.after.has(k)), adv = !S.load; S.load = null;
+  return { pts: R.pts, cell: R.cell, ...settle(S, gone, [], adv), recolour: R.recolour, fired: R.fired };
 }
 // Same-colour group (in S.grid) containing the start keys.
 export function flood(S, start, col) {

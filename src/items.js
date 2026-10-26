@@ -1,5 +1,5 @@
 // Items: the shop table, level loot and the deck (frags and held items). Pure: no DOM, no storage.
-import { mulberry32, hash, key, isColour, rc, nk, trace, snap, connected, flood, lossRow, clampAim, cellsIn, HIT, RH, won } from './core.js';
+import { mulberry32, hash, key, isColour, rc, nk, trace, connected, flood, lossRow, clampAim, cellsIn, HIT, RH, won } from './core.js';
 import { tierFor, iceFor, ICE } from './hosts.js';
 import { isLong, winRows } from './levels.js';   // circular: used only inside function bodies
 
@@ -94,58 +94,102 @@ export function within(cols, k, n) {
 }
 
 /* ---------- effects ---------- */
-// Pierce flies its own path and takes the first 10 bubbles it passes within HIT.
-function pierce(S, ang) {
-  const { cols, grid } = S, lo = 1, hi = 2 * cols - 1, clear = new Set();
-  let x = cols, y = 1 + (S.top + winRows(cols) - 1) * RH, dx = Math.cos(ang), dy = Math.sin(ang);
-  const pts = [{ x, y }];
+const centre = k => [1 + 2 * (k & 15) + ((k >> 4) % 2), 1 + (k >> 4) * RH];
+// Pierce flies from (x, y) along the unit vector (dx, dy), bouncing off the walls, and takes the first 10 bubbles it passes within HIT.
+function pierce(S, g, x, y, dx, dy) {
+  const { cols } = S, lo = 1, hi = 2 * cols - 1, clear = new Set(), pts = [{ x, y }];
   for (let i = 0; i < 8000 && clear.size < 10 && y > 1; i++) {
     x += dx * .25; y += dy * .25;
     if (x < lo) { x = 2 * lo - x; dx = -dx; pts.push({ x, y }); }
     if (x > hi) { x = 2 * hi - x; dx = -dx; pts.push({ x, y }); }
     const lr = Math.round((y - 1) / RH);
     for (let r = Math.max(0, lr - 1); r <= lr + 1; r++) for (let c = 0; c < cellsIn(cols, r); c++) {
-      const k = key(r, c); if (grid.has(k) && !clear.has(k) && clear.size < 10 && (1 + 2 * c + r % 2 - x) ** 2 + (1 + r * RH - y) ** 2 < HIT * HIT) clear.add(k); }
+      const k = key(r, c); if (g.has(k) && !clear.has(k) && clear.size < 10 && (1 + 2 * c + r % 2 - x) ** 2 + (1 + r * RH - y) ** 2 < HIT * HIT) clear.add(k); }
   }
   pts.push({ x, y });
-  return clear.size ? { pts, cell: null, clear, recolour: new Map(), land: null } : null;
+  return { pts, clear };
 }
 
-// What shot item id would do at angle ang. Pure: S is not touched.
-export function hits(S, id, ang) {
-  const a = clampAim(ang); if (a === null) return null;
-  if (id === 'pierce') return pierce(S, a);
-  const { cols, grid } = S, { pts, cell } = trace(grid, cols, a, S.top); if (!cell) return null;
-  const k0 = key(...cell), clear = new Set(), recolour = new Map(), occ = k => grid.has(k);
-  const nb = nk(cols, k0).filter(occ), end = pts[pts.length - 1];
-  const dd = k => { const [r, c] = rc(k); return (1 + 2 * c + r % 2 - end.x) ** 2 + (1 + r * RH - end.y) ** 2; };
-  const nbc = nb.filter(k => isColour(grid.get(k))), hitCol = nbc.length ? grid.get(nbc.reduce((p, k) => dd(k) < dd(p) ? k : p)) : null;   // colour of the neighbour nearest the impact
+// The effect of shot item id centred on cell k (a landing cell, or an item bubble already taken out of g), reading g.
+// hit: the hit colour or null; dir: unit vector for Pierce. Returns { clear, pop, recolour, land }; g is not touched.
+function effect(S, g, id, k, hit, dir) {
+  const { cols } = S, [r0, c0] = rc(k), clear = new Set(), pop = new Set(), recolour = new Map(), occ = x => g.has(x);
+  const nb = nk(cols, k).filter(occ), nbc = nb.filter(x => isColour(g.get(x))), view = { cols, grid: g };
   let land = null;
-  if (id === 'bomb') within(cols, k0, 2).filter(occ).forEach(k => clear.add(k));
-  else if (id === 'sweep') for (let c = 0; c < cellsIn(cols, cell[0]); c++) occ(key(cell[0], c)) && clear.add(key(cell[0], c));
-  else if (id === 'star') for (let d = 0; d < 6; d++) ray(cols, k0, d, 4).filter(occ).forEach(k => clear.add(k));
+  if (id === 'bomb') within(cols, k, 2).filter(occ).forEach(x => clear.add(x));
+  else if (id === 'sweep') for (let c = 0; c < cellsIn(cols, r0); c++) occ(key(r0, c)) && clear.add(key(r0, c));
+  else if (id === 'star') for (let d = 0; d < 6; d++) ray(cols, k, d, 4).filter(occ).forEach(x => clear.add(x));
   else if (id === 'lightning') {   // first to the neighbour with the lowest row (nearer column, then left), then up through the row above
-    const near = (p, q) => Math.abs((p & 15) - cell[1]) - Math.abs((q & 15) - cell[1]) || (p & 15) - (q & 15);
+    const near = (p, q) => Math.abs((p & 15) - c0) - Math.abs((q & 15) - c0) || (p & 15) - (q & 15);
     let from = nb.sort((p, q) => (p >> 4) - (q >> 4) || near(p, q))[0];
     while (from !== undefined && clear.size < 8) {
       clear.add(from); const r = from >> 4; if (!r) break;
-      from = nk(cols, from).filter(k => k >> 4 === r - 1 && occ(k) && !clear.has(k)).sort(near)[0]; }
+      from = nk(cols, from).filter(x => x >> 4 === r - 1 && occ(x) && !clear.has(x)).sort(near)[0]; }
   }
-  else if (id === 'purge') { if (hitCol !== null) for (const [k, v] of grid) if (v === hitCol && (k >> 4) >= S.top && (k >> 4) <= lossRow(S)) clear.add(k); }
-  else if (id === 'virus') { land = hitCol ?? S.cur; if (hitCol !== null) within(cols, k0, 4).filter(occ).forEach(k => isColour(grid.get(k)) && grid.get(k) !== hitCol && recolour.set(k, hitCol)); }
+  else if (id === 'pierce') { const [x, y] = centre(k); pierce(S, g, x, y, dir[0], dir[1]).clear.forEach(x => clear.add(x)); }
+  else if (id === 'purge') { if (hit !== null) for (const [x, v] of g) if (v === hit && (x >> 4) >= S.top && (x >> 4) <= lossRow(S)) clear.add(x); }
+  else if (id === 'virus') { land = hit ?? (S.grid.has(k) ? null : S.cur);   // an item bubble with no colour next to it does nothing
+    if (hit !== null) within(cols, k, 4).filter(occ).forEach(x => isColour(g.get(x)) && g.get(x) !== hit && recolour.set(x, hit)); }
   else if (id === 'wildcard') {
     land = S.cur; let best = -1, bd = -1;
-    for (const col of new Set(nbc.map(k => grid.get(k)))) {
-      const g = flood(S, nb.filter(k => grid.get(k) === col), col), pop = g.length + 1 >= 3 ? g : [];
-      const gone = new Set(pop), d = grid.size - gone.size - connected(grid, cols, gone).size;
-      if (g.length > best || g.length === best && d > bd) { best = g.length; bd = d; land = col; } }
+    for (const col of new Set(nbc.map(x => g.get(x)))) {
+      const grp = flood(view, nb.filter(x => g.get(x) === col), col), gone = new Set(grp.length + 1 >= 3 ? grp : []);
+      const d = g.size - gone.size - connected(g, cols, gone).size;
+      if (grp.length > best || grp.length === best && d > bd) { best = grp.length; bd = d; land = col; } }
+    const grp = flood(view, nb.filter(x => g.get(x) === land), land); if (grp.length + 1 >= 3) { grp.forEach(x => pop.add(x)); pop.add(k); }
   }
-  else if (id === 'rainbow') for (const col of new Set(nbc.map(k => grid.get(k)))) {
-    const g = flood(S, nb.filter(k => grid.get(k) === col), col); if (g.length >= 2) g.forEach(k => clear.add(k)); }
-  else return null;
-  if (id !== 'wildcard' && !clear.size && !recolour.size) return null;   // nothing to do: the item stays loaded
-  return { pts, cell, clear, recolour, land };
+  else if (id === 'rainbow') for (const col of new Set(nbc.map(x => g.get(x)))) {
+    const grp = flood(view, nb.filter(x => g.get(x) === col), col); if (grp.length >= 2) grp.forEach(x => pop.add(x)); }
+  return { clear, pop, recolour, land };
 }
+
+const lastDir = pts => { const p = pts[pts.length - 2], q = pts[pts.length - 1], d = Math.hypot(q.x - p.x, q.y - p.y) || 1; return [(q.x - p.x) / d, (q.y - p.y) / d]; };
+
+// Plays one shot on a copy of the grid: the shot's own effect, the touched item bubbles in key order, then chains breadth
+// first, each item bubble once. shot is { ang } (the packet S.cur) or { ang, id } (a deck item). Pure. Null if the shot cannot
+// fly or a deck item would change nothing. clear = base cells taken out by item effects (fired bubbles included), popped =
+// cells taken out by colour pops (the landed packet too), recolour = surviving base cells that changed value, after = the grid.
+export function resolve(S, shot) {
+  const a = clampAim(shot.ang); if (a === null) return null;
+  const { cols } = S, id = shot.id, g = new Map(S.grid), clear = new Set(), popped = new Set(), fired = [], queue = [], seen = new Set(), hitOf = new Map();
+  const enqueue = (set, hit = null) => { for (const x of [...set].sort((p, q) => p - q)) if (isItem(S.grid.get(x)) && !seen.has(x)) { seen.add(x); queue.push(x); hitOf.set(x, hit); } };
+  const apply = (e, k) => {
+    for (const [x, v] of e.recolour) g.set(x, v);
+    if (e.land !== null && k !== null) g.set(k, e.land);
+    for (const x of e.clear) { clear.add(x); g.delete(x); }
+    for (const x of e.pop) { popped.add(x); g.delete(x); }
+  };
+  let pts, cell = null, land = null, dir;
+  if (id === 'pierce') {
+    const p = pierce(S, g, cols, 1 + (S.top + winRows(cols) - 1) * RH, Math.cos(a), Math.sin(a));
+    pts = p.pts; dir = lastDir(pts); apply({ clear: p.clear, pop: new Set(), recolour: new Map(), land: null }, null); enqueue(p.clear);
+  } else {
+    const t = trace(g, cols, a, S.top); if (!t.cell) return null;
+    pts = t.pts; cell = t.cell; dir = lastDir(pts);
+    const k0 = key(...cell), end = pts[pts.length - 1];
+    enqueue(nk(cols, k0).filter(x => isItem(g.get(x))), id ? null : S.cur);   // touched first
+    if (id) {
+      const nbc = nk(cols, k0).filter(x => g.has(x) && isColour(g.get(x)));
+      const dd = x => { const [r, c] = rc(x); return (1 + 2 * c + r % 2 - end.x) ** 2 + (1 + r * RH - end.y) ** 2; };
+      const e = effect(S, g, id, k0, nbc.length ? g.get(nbc.reduce((p, x) => dd(x) < dd(p) ? x : p)) : null, dir);
+      land = e.land; apply(e, k0); enqueue(e.clear);
+    } else {
+      g.set(k0, S.cur);
+      const grp = flood({ cols, grid: g }, [k0], S.cur); if (grp.length >= 3) for (const x of grp) { popped.add(x); g.delete(x); }
+    }
+  }
+  for (let i = 0; i < queue.length; i++) {   // item bubbles go off at their own cell; the queue grows with chains
+    const k = queue[i]; fired.push(k); g.delete(k); clear.add(k);
+    const first = hitOf.get(k) ?? g.get(nk(cols, k).find(x => g.has(x) && isColour(g.get(x))));
+    const e = effect(S, g, itemOf(S.grid.get(k)), k, first ?? null, dir); apply(e, k); enqueue(e.clear);
+  }
+  const recolour = new Map(); for (const [k, v] of g) if (S.grid.has(k) && S.grid.get(k) !== v) recolour.set(k, v);
+  if (id && !clear.size && !recolour.size && !popped.size) return null;   // nothing to do: the item stays loaded
+  return { pts, cell, clear, popped, recolour, land, fired, after: g };
+}
+
+// What a deck item would do at angle ang: the preview (resolve with chains).
+export const hits = (S, id, ang) => resolve(S, { ang, id });
 
 /* ---------- use ---------- */
 export function useItem(S, id, arg) {

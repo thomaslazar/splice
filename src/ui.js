@@ -335,7 +335,7 @@ function demoDraw(c, S, rr, ox, h) {   // one frame of the board at x offset ox;
   const X = (r, k) => [ox + (1 + 2 * k + r % 2) * rr, (1 + r * RH) * rr];
   if (h) { c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.setLineDash([4, 4]); c.beginPath(); h.pts.forEach((p, i) => c[i ? 'lineTo' : 'moveTo'](ox + p.x * rr, p.y * rr)); c.stroke(); c.setLineDash([]); }
   for (const [k, v] of S.grid) bubble(...X(k >> 4, k & 15), v, 1, rr, c);
-  if (h) for (const k of [...h.clear, ...h.recolour.keys()]) { const [x, y] = X(k >> 4, k & 15); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, rr, 0, 7); c.stroke(); }
+  if (h) for (const k of [...h.clear, ...h.popped, ...h.recolour.keys()]) { const [x, y] = X(k >> 4, k & 15); c.strokeStyle = '#fff'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, rr, 0, 7); c.stroke(); }
 }
 function demo(id) {
   const kind = item(id).kind === 'shot', cv = $('#demoC'), c = cv.getContext('2d'), S = demoState(id);
@@ -543,7 +543,7 @@ function draw() {
       const ring = (k, dash) => { const c = centre(...rc(k)); g.setLineDash(dash); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); };
       if (h) {   // item preview: white rings on what it clears, dashed on what it recolours
         g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, sc * .12);
-        for (const k of h.clear) ring(k, []);
+        for (const k of [...h.clear, ...h.popped]) ring(k, []);
         for (const k of h.recolour.keys()) ring(k, [4, 3]);
       }
       if (tr.cell) {

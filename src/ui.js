@@ -178,12 +178,12 @@ const SCRAMBLE = .4; let hid = [false, false];
 const scrambled = () => hash(S.level, S.fails, S.draws, 77) % 100 < SCRAMBLE * 100;
 const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
-const cut = pts => pts.slice(0, 2);
+const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none
 // jam: the first bounce or JAM_LEN radii (about four bubbles), whichever is shorter, so a jam also
 // bites on levels that need no bounces
 const JAM_LEN = 8, short = pts => { const [a, b] = cut(pts), d = Math.hypot(b.x - a.x, b.y - a.y);
   return d <= JAM_LEN ? [a, b] : [a, { x: a.x + (b.x - a.x) * JAM_LEN / d, y: a.y + (b.y - a.y) * JAM_LEN / d }]; };
-const JAM_DROP = 6, JAMMED = '#8a93a6';   // jam: a drop of JAM_DROP or more restores the line; the jammed line's colour   // to the first wall bounce, or the end if none
+const JAM_DROP = 10, JAMMED = '#8a93a6';   // jam: a drop of JAM_DROP or more restores the line; the jammed line's colour
 const FX = {
   jam: { aim: pts => restore > 0 ? pts : short(pts) },
   // a few degrees, smooth: two slow sines; reduced motion: steady, cut at the first bounce instead

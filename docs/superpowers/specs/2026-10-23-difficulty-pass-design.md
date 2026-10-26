@@ -100,7 +100,7 @@ effects in `src/ui.js`.
 | jitter | mild | The aim line shivers (a few degrees, changing smoothly); the shot still goes exactly where you aim. |
 | scrambler | medium | The next packet shows a glitchy "?". After a shot, the next packet moves up and is revealed as usual. A swap brings the hidden packet to the shooter still hidden: it is fired blind and its colour shows once in flight. |
 | lock | medium | Swapping is disabled (tap strip and wheel do nothing; a small lock mark on the next packet). |
-| jam | medium | "Lighter ICE": the aim line stops at the first wall bounce (or the first stop if no bounce). A drop of 6 or more restores the full line for the next 3 shots. |
+| jam | medium | "Lighter ICE": the aim line stops at the first wall bounce (or the first stop if no bounce). A drop of 10 or more restores the full line for the next 3 shots (revised from 6 after playtesting; the jammed line also stops after about four bubbles). |
 | monochrome | harsh | Bubbles and packets lose their colours (one neutral tone); only the symbols tell them apart. |
 | black | harsh | No aim line at all. Nothing restores it. |
 

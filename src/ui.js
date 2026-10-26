@@ -363,8 +363,8 @@ function decrypt(col) {
 function unloadItem() { const id = S.load; unload(S); deck = give(deck, id); saveDeck(); save(); hud(); }
 function rollback() {
   const d = take(deck, 'rollback'); if (!d || !prev) return;
-  S = fromSave(prev.s); S.load = null; deck = prev.id ? give(d, prev.id) : d; prev = null;   // the fired item goes back to the deck
-  hid = [false, iceOn() === 'scrambler' && scrambled()]; fx = []; logTop = S.top; logPct = pct();
+  S = fromSave(prev.s); S.load = null; deck = prev.id ? give(d, prev.id) : d; restore = prev.restore; prev = null;   // the fired item goes back to the deck
+  hid = [false, iceOn() === 'scrambler' && scrambled()]; fx = []; asking = false; win = won(S) ? { at: -Infinity, done: true } : null; logTop = S.top; logPct = pct();
   if (S.top) { stripAt = null; strip = 0; }   // the ceiling may be out of view again
   refit = true; saveDeck(); save(); hud(); log(t('logRollback')); closeDrawer();
 }
@@ -372,11 +372,11 @@ function rollback() {
 /* ---------- moves ---------- */
 function shoot() {
   if (!ready() || aim === null) return;
-  const pre = new Map(S.grid), col = S.cur, it = S.load, snap = toSave(S), m = fire(S, shotAngle()); aim = null; drawn = null;
+  const pre = new Map(S.grid), col = S.cur, it = S.load, snap = toSave(S), rs = restore, m = fire(S, shotAngle()); aim = null; drawn = null;
   if (!m) return;
-  prev = { s: snap, id: it };
+  prev = { s: snap, id: it, restore: rs };
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
-  if (restore > 0 && --restore === 0) log(t('logJammed'));
+  if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
   if (S.breaker > 0 && --S.breaker === 0 && ice) { log(t('logIceBack', { ice: iceName(ice) })); flash('ice'); }
   save(); hud(); fly = { m, pre, col, it, i: 0, p: { ...m.pts[0] } };
   if (reduced) land();

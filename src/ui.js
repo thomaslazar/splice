@@ -1,11 +1,11 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
-import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour } from './core.js';
+import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
 import { drawHost } from './hostdraw.js';
 import { ICONS } from './icons.js';
-import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
+import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, resolve, isItem, itemOf, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -46,6 +46,7 @@ function sym(i, x, y, s, ctx = g) {
   g.stroke();
 }
 function bubble(x, y, col, a = 1, rr = sc, ctx = g) {   // x, y, rr in px
+  if (isItem(col)) return itemBubble(x, y, itemOf(col), a, rr, ctx);   // a board item bubble
   const g = ctx;
   const mono = fxOf().mono, c = mono ? '#a9aeb8' : colour(col);   // monochrome ICE: one neutral tone
   g.globalAlpha = Math.max(0, a);
@@ -453,7 +454,9 @@ function land() {
   const { m, pre, col } = fly; fly = null;
   if (!reduced) {
     const at = k => { const p = centre(...rc(k)); return { x: p.x, y: p.y - view * RH }; };   // screen units
-    for (const k of m.popped) fx.push({ t: 'pop', ...at(k), col: pre.get(k) ?? col, k: 0 });
+    const lag = m.fired.length ? -6 : 0;   // fired item bubbles flash white first, then the clears pop
+    for (const k of m.fired) fx.push({ t: 'flash', ...at(k), k: 0 });
+    for (const k of m.popped) if (!m.fired.includes(k)) fx.push({ t: 'pop', ...at(k), col: pre.get(k) ?? col, k: lag });
     for (const k of m.dropped) fx.push({ t: 'fall', ...at(k), col: pre.get(k), key: k, vx: (hash(k, 1) % 1000 / 1000 - .5) * .1, vy: -hash(k, 2) % 1000 / 1000 * .1, k: 0 });
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(m.cell ? key(...m.cell) : m.dropped[0]), k: 0 });
   }
@@ -531,7 +534,8 @@ function draw() {
   fxOf().over?.(now, ly - 2);
   const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {
-    const L = S.load, h = L && hits(S, L, a), tr = L ? h || { pts: trace(S.grid, S.cols, a, S.top).pts, cell: null } : trace(S.grid, S.cols, a, S.top), pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
+    const L = S.load, t0 = trace(S.grid, S.cols, a, S.top), h = L ? hits(S, L, a) : t0.cell && nk(S.cols, key(...t0.cell)).some(x => isItem(S.grid.get(x))) ? resolve(S, { ang: a }) : null;   // a normal shot that touches item bubbles previews them too
+    const tr = L ? h || { pts: t0.pts, cell: null } : t0, pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
     // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
     const jammed = iceOn() === 'jam' && restore === 0, n = performance.now();
     g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
@@ -540,11 +544,11 @@ function draw() {
     g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
     // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
     if (pts?.length === tr.pts.length && !jammed) {
-      const ring = (k, dash) => { const c = centre(...rc(k)); g.setLineDash(dash); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); };
+      const ring = (k, dash, m = .9) => { const c = centre(...rc(k)); g.setLineDash(dash); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * m, 0, 7); g.stroke(); };
       if (h) {   // item preview: white rings on what it clears, dashed on what it recolours
         g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, sc * .12);
-        for (const k of [...h.clear, ...h.popped]) ring(k, []);
-        for (const k of h.recolour.keys()) ring(k, [4, 3]);
+        for (const k of [...h.clear, ...h.popped]) ring(k, [], 1.05);   // just outside the bubble's own edge
+        for (const k of h.recolour.keys()) ring(k, [4, 3], 1.05);
       }
       if (tr.cell) {
         const c = centre(...tr.cell); g.setLineDash([]);
@@ -573,6 +577,8 @@ function draw() {
   fx = fx.filter(a => {
     a.k++;
     const on = a.y * sc > -2 * sc && a.y * sc < H + 2 * sc;   // skip off-canvas effects (shadowBlur is costly)
+    if (a.t === 'flash') { if (on) { g.globalAlpha = Math.max(0, 1 - a.k / 8); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = sc * .8; g.beginPath(); g.arc(X(a.x), a.y * sc, sc * 1.3, 0, 7); g.fill(); g.shadowBlur = 0; g.globalAlpha = 1; } return a.k < 8; }
+    if (a.k < 0) return true;   // delayed
     if (a.t === 'pop') { if (on) bubble(X(a.x), a.y * sc, a.col, 1 - a.k / 12, sc * (1 + a.k / 12)); return a.k < 12; }
     if (a.t === 'fall') {   // glitch jitter seeded from the bubble key
       a.vy += .025; a.y += a.vy; a.x += a.vx + (a.k % 6 < 1 ? (hash(a.key, a.k) % 1000 / 1000 - .5) : 0);

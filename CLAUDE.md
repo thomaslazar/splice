@@ -20,7 +20,7 @@ Read before changing behaviour:
   `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
   phone: Kiln's service worker controls that origin and mixes its files in.
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
-  fallback). `CACHE` is `splice-4`. Rename it when `sw.js` changes how it caches or the `SHELL`
+  fallback). `CACHE` is `splice-5`. Rename it when `sw.js` changes how it caches or the `SHELL`
   list changes, so `activate` drops the old cache. The fonts are in `SHELL`.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
 - Balance: `node tools/sim.mjs [levels] [runs]`, e.g. `node tools/sim.mjs 3,25,50 3` or
@@ -52,7 +52,7 @@ Read before changing behaviour:
 - `src/run.js`: run rules, pure: `runFrom` (saved run or fallback), `enter` (best level and its earned fails), `clampLevel`. Tested in
   `tests/run.test.mjs`.
 - `src/items.js`: item table, `PRICES`, `unlocked`, `lootFor`, deck helpers (`deckFrom`, `buy`, `take`, `give`,
-  `owned`), `hits`, `useItem`, `unload`, `payout`; pure. `src/icons.js`: `ICONS`, one drawing per item.
+  `owned`), item bubbles (`ITEM_BASE`, `itemPlan`, `placeItems`), `resolve`, `hits`, `useItem`, `unload`, `payout`; pure. `src/icons.js`: `ICONS`, one drawing per item.
 - `src/bot.js`: greedy bot over the core API, pure; sets each attempt's shot limit. Tested in
   `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
 - `fonts/`: Chakra Petch (latin 400 and 600, woff2), self-hosted, with `OFL.txt`. `style.css`
@@ -71,7 +71,7 @@ Read before changing behaviour:
 ## Core (`src/core.js`)
 
 Sections are marked `/* ---------- name ---------- */`. A level's board is a `Map` from
-`key(r, c)` (`r * 16 + c`) to a colour `0..5`. Positions are in bubble radii: `centre(r, c)`,
+`key(r, c)` (`r * 16 + c`) to a colour `0..5`, or from `ITEM_BASE` (6) up an item bubble (`SHOTS[v - ITEM_BASE]`). Positions are in bubble radii: `centre(r, c)`,
 row height `RH` = sqrt(3). Rows are offset: `cellsIn(cols, r)` is `cols` on even rows and
 one fewer on odd rows.
 
@@ -109,7 +109,10 @@ one fewer on odd rows.
   is the same-colour group. `fire` has an item branch: with `S.load` set it flies the item through `hits()` instead of
   the packet (no shot spent, packets stay); it returns null when the item would change nothing, and the item stays
   loaded. `isColour(v)` is 0..5.
-- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 1`). Saves include `top`; an old save without it fails
+  `fire` runs `resolve(S, {ang, id?})` from `src/items.js` (a pure play on a copy of the grid: landing, pops, touched item bubbles
+  and their chains, each once) and also returns `recolour` and `fired` (the item bubbles that went off). A normal shot
+  that lands next to an item bubble sets it off.
+- **saves**: `toSave`, `fromSave`, `validSave` (version `v: 2`). Saves include `top`; an older save (v 1, or without `top`) fails
   validation and restarts its level. `S.maxShots` (the starting shot limit) and `S.startLow`
   (the lowest bubble row at the start) feed the packets bar and the log; an older save without
   them gets defaults in `fromSave`.
@@ -325,6 +328,18 @@ other). It is not saved: it is recomputed from the level.
 - Item shots use no shot (builder's call, the spec is silent; easy to change in `fire`); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
 - A loaded item goes back to the deck when the level is left (`begin()`, and `load()` for a save that fails validation), except on Reset progress. An item with no effect at the aim cannot be fired (`hits` null, no preview). ICE breaker is only usable on a level with active ICE and not while it already runs (`useItem` refuses). Decrypt only offers and accepts colours (`isColour`). A tap outside the drawer, or the menu button, closes it.
 - Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
+- Item bubbles on the board (grid values from `ITEM_BASE`, never dealt, never a colour). `itemPlan(level)`: none below level 3,
+  else 25% of levels have them, a fifth of those `full` (3 per screen), the rest `normal` (0 to 2 per screen). `placeItems`
+  runs after colouring from the level only (same on every try). Screens: designed levels use row bands
+  `[s*sec, (s+1)*sec)` with `sec = round(1.6 * cols)`; noise splits its occupied rows into `layout.screens` bands. An item bubble goes off
+  when a landed packet or a shot touches it; its effect is the item's, centred on it. Chains: breadth first, each item bubble
+  once, so two that reach each other cannot loop. A deck Wildcard always fires; any other deck item whose effect changes
+  nothing cannot fire. They never count as colours (the winning test, `deal`), but count for the loss line and fall like any bubble.
+- Bot (`src/bot.js`): plays item bubbles through `resolve`, only when the landing cell touches one; it never uses deck items.
+- UI: `bubble()` hands grid values from `ITEM_BASE` to `itemBubble` (white in every theme, also monochrome; static blocks cover
+  them). The normal-shot aim preview outlines `clear` and `popped` of `resolve` when the landing cell touches an item bubble,
+  under the same rules as the landing ring (none with black ICE or a jammed line). A set-off flashes each fired bubble white
+  (radius 1.3), then the clears pop; a falling item bubble just falls. Reduced motion: at once.
 - Reset progress (Run tab) wipes level, frags and items.
 
 ## Not built yet
@@ -373,7 +388,7 @@ like an orphaned process.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-4`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-5`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

@@ -249,9 +249,9 @@ test('an item bubble on the loss line loses', () => {
 test('virus and purge ignore item bubbles', () => {
   const S = board(['111', '2.6.']); S.grid.set(key(1, 1), 6); S.grid.set(key(1, 2), 6);
   const g = new Map(S.grid); const h = hits(S, 'virus', aimAt(S, 2, 0));
-  if (h) for (const k of h.recolour.keys()) assert.ok(g.get(k) < 6);
+  assert.ok(h); for (const k of h.recolour.keys()) assert.ok(g.get(k) < 6);
   const P = board(['16', '66']); P.grid.set(key(1, 0), 1);
-  const p = hits(P, 'purge', aimAt(P, 2, 0)); if (p) for (const k of p.clear) assert.ok(P.grid.get(k) < 6);
+  const p = hits(P, 'purge', aimAt(P, 2, 0)); assert.ok(p); for (const k of p.clear) assert.ok(P.grid.get(k) < 6);
 });
 
 /* ---------- item bubbles and chains ---------- */

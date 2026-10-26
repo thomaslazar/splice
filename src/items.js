@@ -147,7 +147,7 @@ const lastDir = pts => { const p = pts[pts.length - 2], q = pts[pts.length - 1],
 
 // Plays one shot on a copy of the grid: the shot's own effect, the touched item bubbles in key order, then chains breadth
 // first, each item bubble once. shot is { ang } (the packet S.cur) or { ang, id } (a deck item). Pure. Null if the shot cannot
-// fly or a deck item would change nothing. clear = base cells taken out by item effects (fired bubbles included), popped =
+// fly or a deck item would change nothing. clear = base cells taken out by item effects (a fired item bubble is in clear unless it turns into a colour bubble, Wildcard or Virus; a fired Wildcard that then pops is in both clear and popped), popped =
 // cells taken out by colour pops (the landed packet too), recolour = surviving base cells that changed value, after = the grid.
 export function resolve(S, shot) {
   const a = clampAim(shot.ang); if (a === null) return null;

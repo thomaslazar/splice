@@ -126,8 +126,8 @@ export const won = S => ![...S.grid.values()].some(isColour);
 export const lossRow = S => S.top + winRows(S.cols) - 2;   // the row directly above the shooter row
 export const lost = S => !won(S) && (S.shots <= 0 || [...S.grid.keys()].some(k => k >> 4 >= lossRow(S)));
 // Removes popped, drops what lost the ceiling, scores, scrolls, re-deals missing colours. advance: a normal shot also
-// moves next to cur and costs a shot. extra is for item bubbles (unused so far).
-export function settle(S, popped, extra = [], advance = false) {
+// moves next to cur and costs a shot.
+export function settle(S, popped, advance = false) {
   for (const k of popped) S.grid.delete(k);
   const dropped = []; let colDrop = 0;   // colDrop: dropped colour bubbles (item bubbles pay no frags)
   if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { colDrop += isColour(S.grid.get(k)); S.grid.delete(k); dropped.push(k); } }
@@ -150,7 +150,7 @@ export function fire(S, ang) {
   const R = resolve(S, S.load ? { ang, id: S.load } : { ang }); if (!R) return null;
   for (const [k, v] of R.after) S.grid.set(k, v);
   const gone = [...new Set([...R.clear, ...R.popped])], adv = !S.load; S.load = null;
-  return { pts: R.pts, cell: R.cell, ...settle(S, gone, [], adv), recolour: R.recolour, fired: R.fired };
+  return { pts: R.pts, cell: R.cell, ...settle(S, gone, adv), recolour: R.recolour, fired: R.fired };
 }
 // Same-colour group (in S.grid) containing the start keys.
 export function flood(S, start, col) {

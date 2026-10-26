@@ -8,6 +8,8 @@ test('runFrom keeps a valid run, else starts from the save', () => {
   for (const bad of [{}, { best: 0, fails: 0 }, { best: '5', fails: 0 }, { best: 5, fails: -1 }, { best: 2.5, fails: 0 }, 'x'])
     assert.deepEqual(runFrom(bad, 7, 1), { best: 7, fails: 1 });
   assert.equal(runFrom({ best: 5, fails: 0 }, 9, 0).best, 9);
+  assert.deepEqual(runFrom({ best: 5, fails: 3 }, 9, 0), { best: 9, fails: 0 });
+  assert.deepEqual(runFrom({ best: 5, fails: 3 }, 9, 2), { best: 9, fails: 2 });
 });
 test('enter: a new level becomes best with its fails', () => {
   assert.deepEqual(enter({ best: 22, fails: 4 }, 23, 0), { run: { best: 23, fails: 0 }, fails: 0 });

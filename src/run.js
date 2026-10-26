@@ -4,7 +4,7 @@
 export function runFrom(o, level, fails) {
   const ok = o && typeof o === 'object' && Number.isInteger(o.best) && o.best >= 1 && Number.isInteger(o.fails) && o.fails >= 0;
   const run = ok ? o : { best: level, fails };
-  return run.best >= level ? run : { best: level, fails: run.fails };
+  return run.best >= level ? run : { best: level, fails };
 }
 
 // Starting a level: returns the run to store and the fails to play with. The best level keeps its earned fails.

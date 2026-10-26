@@ -1,7 +1,7 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave } from './core.js';
 import { winRows } from './levels.js';
-import { themeFor, hostFor, iceFor } from './hosts.js';
+import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { drawHost } from './hostdraw.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
@@ -164,11 +164,18 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
 // aim(pts) returns the part of the traced path to draw (null: none); the target ring shows only
 // with the whole path. hide(slot) ('cur' or 'next') draws that queue packet as a glitchy "?";
 // swapped() runs after a swap; locked ignores swaps and marks the next packet. ang(a) bends the
-// drawn aim angle (the shot keeps the true one); over() draws on top of the board; mono draws
-// bubbles in one neutral tone. Only drawing and swapping change: firing, landing and dealing are
-// the same as without ICE.
+// aim angle: the line drawn and the shot both use the bent angle, so the line never lies and
+// the challenge is timing the release; over() draws on top of the board; mono draws bubbles in
+// one neutral tone. Firing, landing and dealing are the same as without ICE.
+// Local playtest: ?ice=<type> forces that ICE on every level (effects only; the shot limit keeps
+// the level's own), ?level=N starts level N fresh. Not linked anywhere in the game.
+const PLAY = Object.fromEntries(new URLSearchParams(location.search));
 let ice = null, restore = 0;   // jam: full aim line for the next `restore` shots; a reload starts jammed
-let blind = false;   // scrambler: the packet at the shooter is the hidden one (after a swap, until fired); a reload shows it
+// scrambler: each new packet arrives hidden with chance SCRAMBLE (seeded from the draw count);
+// a hidden packet stays "?" in the next slot and at the shooter and shows only in flight.
+// hid = [cur, next]; a swap swaps them; a reload shows the shooter packet.
+const SCRAMBLE = .4; let hid = [false, false];
+const scrambled = () => hash(S.level, S.fails, S.draws, 77) % 100 < SCRAMBLE * 100;
 const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
 const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none
@@ -179,7 +186,7 @@ const FX = {
   static: { over: glitchBlocks },
   monochrome: { mono: true },
   black: { aim: () => null },
-  scrambler: { hide: slot => slot === 'next' || blind, swapped: () => { blind = !blind; } },
+  scrambler: { hide: slot => hid[slot === 'cur' ? 0 : 1], swapped: () => { hid = [hid[1], hid[0]]; } },
   lock: { locked: true },
 };
 function trySwap() { const f = fxOf(); if (f.locked) return; swap(S); f.swapped?.(); save(); }
@@ -215,7 +222,7 @@ function glitchBlocks(now, bottom) {
   }
 }
 function start(s) {
-  S = s; ice = iceFor(S.level); restore = 0; blind = false; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); restore = 0; hid = [false, ice === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
@@ -239,9 +246,9 @@ addEventListener('keydown', e => { if (asking && e.key === 'Escape') keep(); });
 /* ---------- moves ---------- */
 function shoot() {
   if (!ready() || aim === null) return;
-  const pre = new Map(S.grid), col = S.cur, m = fire(S, aim); aim = null;
+  const pre = new Map(S.grid), col = S.cur, m = fire(S, shotAngle()); aim = null; drawn = null;
   if (!m) return;
-  blind = false;   // the packet that moves up shows as usual; the fired one flies in colour
+  hid = [hid[1], ice === 'scrambler' && scrambled()];   // the next one moves up as it was; a new one arrives
   save(); hud(); fly = { m, pre, col, i: 0, p: { ...m.pts[0] } };
   if (restore > 0 && --restore === 0) log(t('logJammed'));
   if (reduced) land();
@@ -261,6 +268,10 @@ function land() {
 
 /* ---------- input ---------- */
 const pos = e => { const b = cv.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top - PAD }; };
+// the angle the shot takes: the aim, bent by jitter ICE exactly as the drawn line is
+let drawn = null;   // the bent angle on screen this frame; the shot takes exactly that one
+const bend = () => { const f = fxOf(), a = clampAim(aim ?? 0); return a === null || !f.ang ? aim : clampAim(Math.min(-.001, f.ang(a))); };
+const shotAngle = () => fxOf().ang && drawn !== null ? drawn : bend();
 const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
@@ -315,13 +326,13 @@ function draw() {
   g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
   fxOf().over?.(now, ly - 2);
-  const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : clampAim(Math.min(-.001, f0.ang(a0)));   // drawn angle only; shoot() uses aim
+  const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {
     const tr = trace(S.grid, S.cols, a, S.top), pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
     g.strokeStyle = theme.a; g.globalAlpha = .7; g.lineWidth = 2; g.setLineDash([2, 6]);
     g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]);
-    // no ring under jitter (the bent line may point at a cell the shot won't hit); neutral when the packet is hidden
-    if (tr.cell && !f0.ang && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = f0.mono || f0.hide?.('cur') ? '#a9aeb8' : colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
+    // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
+    if (tr.cell && pts?.length === tr.pts.length) { const c = centre(...tr.cell); g.strokeStyle = f0.mono || f0.hide?.('cur') ? '#a9aeb8' : colour(S.cur); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * .9, 0, 7); g.stroke(); }
     g.globalAlpha = 1;
   }
   if (fly) {   // packet moves about 1.1 radius per frame along the traced path
@@ -354,4 +365,4 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 let lastTap = 0;
 document.addEventListener('touchend', e => { if (e.timeStamp - lastTap < 350 && !e.target.closest('button')) e.preventDefault(); lastTap = e.timeStamp; }, { passive: false });
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});   // offline play
-{ const l = load(); Array.isArray(l) ? begin(...l) : start(l); } draw();
+{ const n = +PLAY.level, l = Number.isInteger(n) && n >= 1 ? [n, 0] : load(); Array.isArray(l) ? begin(...l) : start(l); } draw();

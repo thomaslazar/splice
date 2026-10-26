@@ -131,9 +131,12 @@ function bodies, so keep it that way.
   bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * boardHardness`, else
   draws a random colour, so easy noise levels have big same-colour clumps and hard ones are
   nearly uniform.
-- Shot limit (`src/bot.js`, called from `startState`): the bot plays a copy of the exact
-  attempt (layout, colours, dealing) with no limit; the limit is `limitFor(used)` =
-  `ceil(used * HUMAN_K * k + HUMAN_C)` (1.4 and 3; `k` is `ICE_K[ICE[ice]]` for a level with
+- Shot limit (`src/bot.js`, called from `startState`): the bot plays copies of the exact
+  attempt (layout, colours) with no limit, three times with different colour luck
+  (`solve(S, salt)`; `deal()` mixes `S.salt` into its seed), and `needFor(S)` takes the middle
+  result, so one lucky or unlucky run does not set the limit (owner, issue #2). The limit is
+  `limitFor(need, ice)` = `ceil(need * HUMAN_K * k + HUMAN_C)` (1.4 and 3; `k` is
+  `ICE_TYPE_K[ice] ?? ICE_K[ICE[ice]]` for a level with
   ICE, else 1; the constant 3 is not scaled), then `shotsFor(base, fails)` adds 10% per fail
   from the 4th, capped at +40%. The bot tries 120 angles with and without a swap and scores
   `popped + 2 * dropped`, minus a penalty near the loss line; it aims perfectly and sees
@@ -177,9 +180,12 @@ other). It is not saved: it is recomputed from the level.
 - Chance: 0 below hardness 0.35, else `(h - 0.35) / 0.65 * 0.7` (70% at h = 1). Severity is capped by
   the run too: mild only below 0.55, medium up to 0.8, then the tier's cap; types at the current
   cap count double. A level with ICE gets a board at half hardness (`boardHardness`).
+- Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
+  level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`.
 - Types and severity (`ICE`): mild `static`, `jitter`; medium `scrambler`, `lock`, `jam`;
   harsh `monochrome`, `black`. Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
-  1.25, harsh 1.5, applied by `limitFor` in `src/bot.js` (the bot itself plays without ICE:
+  1.25, harsh 1.5, applied by `limitFor` in `src/bot.js`; scrambler overrides it with 1.1 (`ICE_TYPE_K`: shooting a
+  wrong colour away is cheap, so it gets less room) (the bot itself plays without ICE:
   it aims perfectly and ignores every effect, so the factor only pays the human for it).
 - Who runs what: the host's tier caps severity (`CAP`: small mild, corporate up to medium,
   high up to harsh). `black` also needs hardness 0.8 or more and a `high` host. A host picks
@@ -198,17 +204,18 @@ other). It is not saved: it is recomputed from the level.
     hidden whenever the line is cut. Dropping 6 or more bubbles (not on a winning or losing
     shot) restores the full line for the next 3 shots (`restore`), logged as `targeting
     restored (n)` and, when the count runs out, `targeting jammed`. A reload starts jammed.
-  - `jitter`: the drawn aim angle wobbles a few degrees (two slow sines); the shot keeps the
-    true angle. No landing ring (the bent line can point at a cell the shot won't hit). With
-    reduced motion it is steady and the line is cut at the first bounce.
+  - `jitter`: the aim angle wobbles a few degrees (two slow sines, `bend`); the line, the landing
+    ring and the shot all use the angle on screen at release (`drawn`), so the line never lies
+    and the challenge is timing (owner, issue #4). With reduced motion it is steady and the line
+    is cut at the first bounce.
   - `static`: 3 blocks of grey noise about 2 x 2 bubbles drift over the board above the loss
     line, never the shooter zone (`glitchBlocks`, drawn by `over`). They hide the board but
     not the flying packet or the pop and fall effects (those draw after them). Reduced
     motion: fixed blocks.
-  - `scrambler`: the next packet is always a grey "?"; a swap makes the packet at the
-    shooter hidden too (`blind`, until fired), and the landing ring turns neutral grey; a reload
-    shows it. Rare in practice (tune by
-    playing).
+  - `scrambler`: each new packet arrives hidden with chance `SCRAMBLE` (0.4, seeded from
+    `S.draws`); a hidden packet stays a grey "?" in the next slot and at the shooter and shows only
+    in flight, so two blind packets in a row happen (owner, issue #3). `hid = [cur, next]`, a swap
+    swaps them, the landing ring turns grey for a hidden one; a reload shows the shooter packet.
   - `lock`: swapping (strip touch and wheel) is ignored and a small padlock marks the next
     packet.
   - `monochrome`: bubbles draw in one neutral tone with brighter, thicker symbols, and the

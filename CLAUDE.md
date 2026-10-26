@@ -20,7 +20,7 @@ Read before changing behaviour:
   `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
   phone: Kiln's service worker controls that origin and mixes its files in.
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
-  fallback). `CACHE` is `splice-2`. Rename it when `sw.js` changes how it caches or the `SHELL`
+  fallback). `CACHE` is `splice-3`. Rename it when `sw.js` changes how it caches or the `SHELL`
   list changes, so `activate` drops the old cache. The fonts are in `SHELL`.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
 - Balance: `node tools/sim.mjs [levels] [runs]`, e.g. `node tools/sim.mjs 3,25,50 3` or
@@ -340,7 +340,7 @@ like an orphaned process.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-2`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-3`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

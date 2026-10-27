@@ -270,7 +270,7 @@ other). It is not saved: it is recomputed from the level.
   shot. Every level start (`begin(level, fails)`: next level, retry, confirmed restart, first load)
   shows a full-screen loading card ("Level n" / "Preparing new attack vector" with a blinking
   cursor) for at least `LOAD_MIN` (500 ms) while `startState` runs the bot. Board touches are ignored for `GRACE` (400 ms) after any sheet closes or a level starts, so a
-  lingering tap on a sheet button never fires. A touch that starts in the strip at the shooter's height swaps `cur` and `next` and
+  lingering tap on a sheet button never fires. Dragging below the dashed loss line cancels the aim (release there fires nothing; moving back up resumes). A touch that starts in the strip at the shooter's height swaps `cur` and `next` and
   never aims or fires. The mouse wheel also swaps (one swap per gesture). Swapping works
   any time no sheet is open, also while a packet flies. Aiming and firing wait until the
   packet has landed, the view has settled and no sheet is open (`ready()`).
@@ -324,7 +324,7 @@ other). It is not saved: it is recomputed from the level.
   counts. A first win of the best level pays frags and loot at the winning shot (`payout`); a level pays once
   (`run.paid`, in `splice-run`), so replays and reloads of a won board pay nothing. `pays()` drives header, loot and sheet.
 - Shop tab buys items for frags (demo popup `#demo`); items unlock at levels 31, 61, 91 (flash). The drawer
-  (`#deckBtn`, `#drawer`) loads an item as the packet, unloads it, fires instants, or does Rollback.
+  (`#deckBtn`, `#drawer`) loads an item as the packet, unloads it, fires instants, or does Rollback; it always opens, and its last button opens the Shop tab. The header frags (`shown`) count up one by one as dropped colour bubbles leave the screen.
 - Item shots use no shot (builder's call, the spec is silent; easy to change in `fire`); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
 - A loaded item goes back to the deck when the level is left (`begin()`, and `load()` for a save that fails validation), except on Reset progress. An item with no effect at the aim cannot be fired (`hits` null, no preview). ICE breaker is only usable on a level with active ICE and not while it already runs (`useItem` refuses). Decrypt only offers and accepts colours (`isColour`). A tap outside the drawer, or the menu button, closes it.
 - Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).

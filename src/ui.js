@@ -79,7 +79,7 @@ let strip = 0, stripAt = null, refit = false;   // refit: fit() at the start of 
 // Win sequence: log line, QUIET ms, GLITCH ms into the accent colour, then the sheet.
 // win: null, or { at, done }; done once the sheet is due (a reload on a won board starts done).
 const QUIET = 600, GLITCH = 1200;   // the glitch: bursts apart and turns the accent colour
-let win = null, paid = null;   // paid: what the last win paid, for the sheet
+let win = null, paid = null, shown = 0;   // shown: the frags the header shows; it trails S.frags while dropped bubbles fall   // paid: what the last win paid, for the sheet
 const busy = () => win !== null && !win.done;
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
 const X = u => u * sc, Y = u => (u - view * RH) * sc;
@@ -117,10 +117,13 @@ async function begin(level, fails) {
 // Running out: 'low' at 25% of the shots or fewer, 'crit' at 3 or fewer (same thresholds as the trace log lines).
 const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
+// counts one frag up in the header, with a short pulse
+function fragUp() { shown++; const e = $('#score'); if (e.classList.contains('dim')) return; e.textContent = t('frags', { n: shown }); e.classList.remove('up'); void e.offsetWidth; e.classList.add('up'); }
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
-  $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays() || paid && !paid.replay; $('#score').textContent = best ? t('frags', { n: S.frags }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
-  $('#menuBtn').ariaLabel = t('menu'); $('#deckBtn').textContent = t('deck'); $('#deckBtn').classList.toggle('empty', !owned(deck).length); $('#wip').textContent = t('wip');
+  $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays() || paid && !paid.replay; if (!fly && !fx.some(a => a.t === 'fall')) shown = S.frags;   // nothing falling: catch up (new level, reload, rollback)
+  $('#score').textContent = best ? t('frags', { n: shown }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
+  $('#menuBtn').ariaLabel = t('menu'); $('#deckBtn').textContent = t('deck'); $('#wip').textContent = t('wip');
   // packets bar: up to 20 segments, each standing for per shots
   const per = Math.ceil(S.maxShots / 20), n = Math.ceil(S.maxShots / per), lit = Math.min(n, Math.ceil(S.shots / per));
   $('#pk').textContent = t('packets'); $('#shots').textContent = S.shots; $('#bar').dataset.warn = warn();
@@ -405,12 +408,14 @@ function drawer() {
     b.disabled = id === 'rollback' ? !prev || won(S) || lost(S) : id === 'icebreaker' ? !ice || S.breaker > 0 : item(id).kind === 'shot' && !!S.load;   // one loaded at a time
     b.onclick = () => use(id); d.append(b);
   }
+  const sh = document.createElement('button'); sh.className = 'shop'; sh.textContent = t('tabShop');   // straight to the Shop tab
+  sh.onclick = () => { closeDrawer(); openMenu(); tab('shop'); }; d.append(sh);
 }
 document.addEventListener('pointerdown', e => { if (!e.target.closest('#drawer, #deckBtn')) closeDrawer(); });
 function closeDrawer() { if ($('#drawer').hidden) return; $('#drawer').hidden = true; picking = false; calm(); }
 $('#deckBtn').onclick = () => {
   if (!$('#drawer').hidden) return closeDrawer();
-  if (!shut() || loading || busy() || fly || !owned(deck).length) return;
+  if (!shut() || loading || busy() || fly) return;
   aim = aimId = null; picking = false; drawer(); $('#drawer').hidden = false;
 };
 function use(id) {
@@ -447,7 +452,7 @@ function shoot() {
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
   if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
   if (S.breaker > 0 && --S.breaker === 0 && ice) { log(t('logIceBack', { ice: iceName(ice) })); flash('ice'); }
-  save(); hud(); fly = { m, pre, col, it, i: 0, p: { ...m.pts[0] } };
+  save(); fly = { m, pre, col, it, i: 0, p: { ...m.pts[0] } }; hud();
   if (reduced) land();
 }
 function land() {
@@ -462,7 +467,7 @@ function land() {
   }
   logShot(m.dropped.length);
   if (won(S)) { hud(); win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
-  reveal();
+  reveal(); hud();
 }
 
 /* ---------- input ---------- */
@@ -471,7 +476,8 @@ const pos = e => { const b = cv.getBoundingClientRect(); return { x: e.clientX -
 let drawn = null;   // the bent angle on screen this frame; the shot takes exactly that one
 const bend = () => { const f = fxOf(), a = clampAim(aim ?? 0); return a === null || !f.ang ? aim : clampAim(Math.min(-.001, f.ang(a))); };
 const shotAngle = () => fxOf().ang && drawn !== null ? drawn : bend();
-const setAim = p => { aim = Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
+// a finger below the dashed loss line cancels the aim; moving back up resumes it
+const setAim = p => { aim = p.y > (1 + (winRows(S.cols) - 2.5) * RH) * sc ? null : Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
@@ -582,7 +588,9 @@ function draw() {
     if (a.t === 'pop') { if (on) bubble(X(a.x), a.y * sc, a.col, 1 - a.k / 12, sc * (1 + a.k / 12)); return a.k < 12; }
     if (a.t === 'fall') {   // glitch jitter seeded from the bubble key
       a.vy += .025; a.y += a.vy; a.x += a.vx + (a.k % 6 < 1 ? (hash(a.key, a.k) % 1000 / 1000 - .5) : 0);
-      if (on) bubble(X(a.x), a.y * sc, a.col, .9); return a.y * sc < H + sc;
+      if (on) bubble(X(a.x), a.y * sc, a.col, .9); if (a.y * sc < H + sc) return true;
+      if (isColour(a.col) && shown < S.frags) fragUp();   // a dropped colour bubble left the screen: count it
+      return false;
     }
     g.fillStyle = theme.a; g.font = `bold ${sc * 1.4}px 'Chakra Petch', ui-monospace, Menlo, monospace`; g.textAlign = 'center';
     g.globalAlpha = Math.max(0, 1 - a.k / 50); g.fillText(a.s, X(a.x), a.y * sc - a.k); g.globalAlpha = 1; return a.k < 50;

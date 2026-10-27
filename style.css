@@ -69,9 +69,9 @@ button { background: transparent; color: var(--acc); border: 1px solid var(--acc
   border-radius: 2px; cursor: pointer; }
 canvas { display: block; touch-action: none; }
 #wip { margin: 0; padding-top: 2px; font-size: 11px; opacity: .45; }
-#sheet { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--dim); }
+#sheet { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: var(--dim); }
 #sheet[hidden], #load[hidden] { display: none; }
-#load { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); }
+#load { position: fixed; inset: 0; z-index: 8; display: flex; align-items: center; justify-content: center; background: var(--bg); }
 #loadM { margin: 0; color: var(--fg); opacity: .8; }
 #loadM::after { content: "_"; animation: blink 1s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
@@ -110,9 +110,11 @@ canvas { display: block; touch-action: none; }
 #sheetP[hidden], #sheetO[hidden] { display: none; }
 #sheetP .loot { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; color: #fff; }
 #hud b.dim { opacity: .5; }
+#score.up { animation: fragUp .2s ease-out; }   /* a fallen bubble counts up */
+@keyframes fragUp { from { color: var(--acc); text-shadow: 0 0 6px currentColor; } }
+@media (prefers-reduced-motion: reduce) { #score.up { animation: none; } }
 /* deck: button over the shooter strip (bottom left), drawer above it */
 #deckBtn { position: absolute; left: 8px; bottom: 10px; z-index: 5; padding: 6px 10px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; background: var(--bg); }
-#deckBtn.empty { opacity: .35; }
 #drawer { position: absolute; left: 8px; bottom: 48px; z-index: 5; display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 190px; max-height: 60%; overflow-y: auto;
   background: var(--bg); border: 1px solid var(--acc); }
 #drawer[hidden] { display: none; }
@@ -122,6 +124,7 @@ canvas { display: block; touch-action: none; }
 #drawer button span { flex: 1; text-align: left; }
 #drawer button b { color: #fff; font-weight: 600; }
 #drawer svg { flex: none; }
+#drawer button.shop { justify-content: center; }
 /* shop and demo */
 #balL { opacity: .55; }
 #balN { font-size: 32px; }

@@ -246,7 +246,7 @@ other). It is not saved: it is recomputed from the level.
   (`iceStatic` and so on in `lang/`), and the log gets `ice detected: {ice}` right after
   `connecting to {host}` at level start. A fresh start (`begin()`: next level, retry, restart,
   menu jump, `?ice=`) also flashes `{ice} deployed` mid-screen in the accent colour (`#alert`,
-  `flash('ice')`, about 1.4 s) after the loading card; a reload of a saved board does not.
+  `flash('ice')`, about 2.8 s) after the loading card; a reload of a saved board does not.
 
 ## UI (`src/ui.js`)
 
@@ -288,7 +288,7 @@ other). It is not saved: it is recomputed from the level.
 - Running out of shots: at 25% or fewer the packets bar, its number and the loss line turn amber;
   at 3 or fewer they turn red and pulse (colours only with reduced motion). Same thresholds as the
   trace log lines; fixed colours in every theme. The two trace events also flash once, big, in the
-  middle of the screen (`#alert`, "Trace rising" amber / "Trace critical" red, about 1.4 s, never
+  middle of the screen (`#alert`, "Trace rising" amber / "Trace critical" red, about 2.8 s, never
   blocks taps; static with reduced motion).
 - No zoom and no landscape: the viewport sets `maximum-scale=1, user-scalable=no`, `gesturestart` and
   `gesturechange` are blocked (iOS ignores the meta), the second touchend of a quick double tap is

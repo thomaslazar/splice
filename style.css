@@ -43,12 +43,12 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
 #alert { position: fixed; left: 0; right: 0; top: 40%; z-index: 20; pointer-events: none; text-align: center; padding: 14px 0;
   background: linear-gradient(90deg, transparent, rgba(0,0,0,.75) 20%, rgba(0,0,0,.75) 80%, transparent);
   font-size: 30px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #ffb020; text-shadow: 0 0 18px #ffb020;
-  animation: flash 1.4s ease-out forwards; }
+  animation: flash 2.8s ease-out forwards; }
 #alert[data-kind=critical] { color: #ff2a4a; text-shadow: 0 0 18px #ff2a4a; }
 #alert[data-kind=restored], #alert[data-kind=ice], #alert[data-kind=unlock], #alert[data-kind=breaker] { color: var(--acc); text-shadow: 0 0 18px var(--acc); }
 #alert[data-kind=note] { font-size: 16px; color: var(--acc); text-shadow: 0 0 12px var(--acc); letter-spacing: .08em; }
 #alert[hidden] { display: none; }
-@keyframes flash { 0% { opacity: 0; transform: scale(1.25); } 12% { opacity: 1; transform: scale(1); } 22% { opacity: .35; } 32% { opacity: 1; } 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes flash { 0% { opacity: 0; transform: scale(1.25); } 6% { opacity: 1; transform: scale(1); } 11% { opacity: .35; } 16% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { #alert { animation: none; } }
 /* phones held sideways: the board does not fit, so ask to turn upright (iOS ignores the manifest lock) */
 #turn { display: none; }

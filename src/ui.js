@@ -171,7 +171,7 @@ let alertT;
 function flash(kind) {
   const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : kind === 'breaker' ? t('alertBreaker') : kind === 'unlock' ? t('alertUnlock') : kind === 'ice' ? t('alertIce', { ice: iceName(ice) }) : t('alertTrace'); a.dataset.kind = kind;
   a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
-  clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 1400);
+  clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 2800);
 }
 function log(text) { lines.unshift(text); lines.length = Math.min(lines.length, 2); showLog(); }
 function showLog() {

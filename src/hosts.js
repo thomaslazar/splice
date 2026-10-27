@@ -179,7 +179,8 @@ export function iceFor(level) {
   if (cap === 1) list = Object.keys(ICE).filter(ok);
   // ponytail: preferred types weighted 2:1:1 by order; tune by playing
   // types at the current severity cap count double, so the end of a run brings the harsher ICE
-  const even = cap === 1 || cap === 3, w = list.map((t, i) => even ? 1 : (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1));
+  // jitter counts a third everywhere (owner: it annoys more than static, which should come far more often)
+  const even = cap === 1 || cap === 3, w = list.map((t, i) => (even ? 1 : (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1)) * (t === 'jitter' ? 1 / 3 : 1));
   let x = pickR * w.reduce((a, b) => a + b);
   return list.find((_, i) => (x -= w[i]) < 0);
 }

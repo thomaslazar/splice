@@ -9,7 +9,7 @@ export const ITEMS = [['bomb', 'shot', 1], ['sweep', 'shot', 1], ['pierce', 'sho
   ['lightning', 'shot', 31], ['virus', 'shot', 61], ['purge', 'shot', 61], ['rainbow', 'shot', 61],
   ['rollback', 'instant', 91]].map(([id, kind, from]) => ({ id, kind, from }));
 export const item = id => ITEMS.find(i => i.id === id);
-// ponytail: placeholder prices, tune by playing
+// prices and loot rates: owner OK after playtest (early frags build a nest egg for the hard levels)
 export const PRICES = { bomb: 400, sweep: 350, pierce: 450, wildcard: 300, overclock: 500, decrypt: 300, icebreaker: 450,
   star: 500, lightning: 500, virus: 600, purge: 700, rainbow: 700, rollback: 600 };
 export const UNLOCKS = [31, 61, 91];

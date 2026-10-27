@@ -196,8 +196,8 @@ other). It is not saved: it is recomputed from the level.
   27-30 (up to harsh), always capped by the host's tier: 15 of every 30 levels. Black only at
   27-30 on high stakes. In the mild and harsh stretches all allowed types are equally likely (at
   27-30 a high-stakes host always gets a harsh type); the industry flavour picks in between. A
-  level with ICE gets a board at three quarters of its hardness (`boardHardness`). Shares over
-  1-2000: static 29%, jitter 26%, scrambler 13%, lock 13%, monochrome 6%, black 6%, jam 6%.
+  level with ICE gets a board at three quarters of its hardness (`boardHardness`). Jitter weighs a third of any other type everywhere (owner: it annoys). Shares over
+  1-2000: static 40%, jitter 15%, scrambler 14%, lock 13%, monochrome 6%, black 6%, jam 6%.
 - Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
   level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`.
 - Types and severity (`ICE`): mild `static`, `jitter`; medium `scrambler`, `lock`, `jam`;
@@ -214,7 +214,7 @@ other). It is not saved: it is recomputed from the level.
   government hosts from `GOV_LIKES` by tier (small none, corporate `scrambler`, `static`,
   `lock`, high `monochrome`, `black`, `lock`), filtered by the cap and the `black` rule. If
   nothing is left it takes any allowed type. The first liked type is weighted 2, the others 1
-  (tune by playing). Over levels 1-2000 each type is 5% to 30% of the levels with ICE
+  (tune by playing). Over levels 1-2000 each type is 5% to 45% of the levels with ICE
   (`tests/hosts.test.mjs`).
 - UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
   swapping change, firing, landing and dealing are the same as without ICE):

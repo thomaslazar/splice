@@ -24,11 +24,13 @@ What comes next for Splice, roughly in order. Issues live on
 
 - **Scrambler ICE.** Scrambler levels feel hard; consider moving them to higher difficulty or
   giving them more shots.
-- **Shot limits on item levels.** Levels full of item bubbles (for example 25 and 55) got 25 to 35%
-  fewer shots, since the bot uses the items. If they feel tight, give item levels their own factor.
+- **Shot limits on item levels.** The bot uses item bubbles, so levels with them get fewer shots. Since
+  items are placed where they do the most, limits dropped further (level 25 from 71 to 59, 33 from 51
+  to 36, 55 from 121 to 87). If they feel tight, give item levels their own factor so the limit
+  assumes only some items are used.
 - **Human factor.** Lower `HUMAN_K` (now 1.4) once items are in regular use.
-- **Mobile misfires near the swap strip.** Dragging below the dashed line now cancels a shot; check
-  whether the swap zone still causes misfires.
+- **Mobile misfires near the swap strip.** Dragging below the dashed line cancels a shot, and only a
+  quick tap swaps now (a drag from the strip aims). Check whether misfires and surprise swaps are gone.
 
 ## Later
 

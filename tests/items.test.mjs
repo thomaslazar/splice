@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolve, ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems } from '../src/items.js';
-import { hash, key, nbrs, trace, fire, won, lost, lossRow, deal, settle, startState, toSave, fromSave, validSave } from '../src/core.js';
+import { resolve, ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems, worth, openOf, reach } from '../src/items.js';
+import { hash, key, nbrs, nk, isColour, trace, fire, won, lost, lossRow, deal, settle, startState, toSave, fromSave, validSave } from '../src/core.js';
 import { tierFor, iceFor, ICE } from '../src/hosts.js';
 import { isLong, makeLayout, colourize } from '../src/levels.js';
 
@@ -224,6 +224,31 @@ test('per screen: at most 2 on normal levels, at most 4 on full ones', () => {
     for (const [k] of itemKeys(S)) { const b = Math.floor((k >> 4) / sec); per.set(b, (per.get(b) || 0) + 1); seen++; }
     for (const c of per.values()) assert.ok(c <= (itemPlan(lv).kind === 'full' ? 4 : 2), `level ${lv}`); }
   assert.ok(seen > 0);
+});
+
+test('item bubbles sit where their item removes more than most reachable spots, and pops can open them while they hang', () => {
+  let seen = 0;
+  for (let lv = 3; lv <= 60; lv++) {
+    const { L, grid } = placed(lv), sec = secOf(L, grid), items = [...grid].filter(([, v]) => isItem(v)); if (!items.length) continue;
+    for (const [k, v] of items) {
+      const s = Math.floor((k >> 4) / sec), g = new Map([...grid].filter(([x]) => (x >> 4) < (s + 1) * sec)), open = openOf(g, L.cols);   // screens below cleared
+      seen++; const id = itemOf(v), band = [...g.keys()].filter(x => Math.floor((x >> 4) / sec) === Math.floor((k >> 4) / sec) && isColour(g.get(x)) && reach(g, L.cols, x, open));
+      const ws = band.map(x => worth(g, L.cols, id, x)).sort((a, b) => a - b), mine = worth(g, L.cols, id, k);
+      const mid = ws[Math.floor(ws.length / 2)];   // placement takes one of the 3 best; later item bubbles shift the scores a little
+      assert.ok(ws.length < 6 || mine >= mid, `level ${lv} ${id}: ${mine} below the reachable median ${mid}`);
+      assert.ok(reach(grid, L.cols, k, open), `level ${lv} ${id} at ${k} cannot be reached`);
+      if (id === 'sweep') for (const [x, w] of items) assert.ok(x === k || w !== v || x >> 4 !== k >> 4, `level ${lv}: two sweeps in row ${k >> 4}`);
+    }
+  }
+  assert.ok(seen > 0);
+});
+test('an item inside a ring that is its only hold cannot be reached; a hanging one with space below can', () => {
+  const cols = 10, k = key(4, 4), g = new Map([[k, 6]]);
+  for (const n of nk(cols, k)) g.set(n, 0);   // the ring, one colour: popping any of it pops all of it
+  for (let r = 0; r < 3; r++) g.set(key(r, 4), 0);   // and its stem to the ceiling, same group
+  assert.ok(!reach(g, cols, k, openOf(g, cols)), 'the only way in drops it');
+  const h = new Map([[key(0, 0), 0], [key(1, 0), 1], [key(2, 0), 6]]);
+  assert.ok(reach(h, cols, key(2, 0), openOf(h, cols)), 'open below: reachable');
 });
 
 /* ---------- colour rules ---------- */

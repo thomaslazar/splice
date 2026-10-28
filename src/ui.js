@@ -1,5 +1,5 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
-import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk } from './core.js';
+import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk, ITEM_DROP } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
@@ -118,7 +118,7 @@ async function begin(level, fails) {
 const warn = () => won(S) ? '' : S.shots <= 3 ? 'crit' : S.shots <= .25 * S.maxShots ? 'low' : '';
 const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 // counts one frag up in the header, with a short pulse
-function fragUp() { shown++; const e = $('#score'); if (e.classList.contains('dim')) return; e.textContent = t('frags', { n: shown }); e.classList.remove('up'); void e.offsetWidth; e.classList.add('up'); }
+function fragUp(n = 1) { shown = Math.min(S.frags, shown + n); const e = $('#score'); if (e.classList.contains('dim')) return; e.textContent = t('frags', { n: shown }); e.classList.remove('up'); void e.offsetWidth; e.classList.add('up'); }
 function hud() {
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
   $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays() || paid && !paid.replay; if (!fly && !fx.some(a => a.t === 'fall')) shown = S.frags;   // nothing falling: catch up (new level, reload, rollback)
@@ -616,7 +616,7 @@ function draw() {
     if (a.t === 'fall') {   // glitch jitter seeded from the bubble key
       a.vy += .025; a.y += a.vy; a.x += a.vx + (a.k % 6 < 1 ? (hash(a.key, a.k) % 1000 / 1000 - .5) : 0);
       if (on) bubble(X(a.x), a.y * sc, a.col, .9); if (a.y * sc < H + sc) return true;
-      if (isColour(a.col) && shown < S.frags) fragUp();   // a dropped colour bubble left the screen: count it
+      if (shown < S.frags) fragUp(isColour(a.col) ? 1 : ITEM_DROP);   // a dropped bubble left the screen: count it
       return false;
     }
     g.fillStyle = theme.a; g.font = `bold ${sc * 1.4}px 'Chakra Petch', ui-monospace, Menlo, monospace`; g.textAlign = 'center';

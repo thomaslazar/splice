@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolve, ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems, worth, openOf, reach } from '../src/items.js';
-import { hash, key, nbrs, nk, isColour, trace, fire, won, lost, lossRow, deal, settle, startState, toSave, fromSave, validSave } from '../src/core.js';
+import { hash, key, nbrs, nk, isColour, trace, fire, won, lost, lossRow, deal, settle, ITEM_DROP, startState, toSave, fromSave, validSave } from '../src/core.js';
 import { tierFor, iceFor, ICE } from '../src/hosts.js';
 import { isLong, makeLayout, colourize } from '../src/levels.js';
 
@@ -255,7 +255,7 @@ test('an item inside a ring that is its only hold cannot be reached; a hanging o
 test('only item bubbles left: won, they fall', () => {
   const S = board(['16', '66']); S.grid.set(key(0, 1), 7);
   assert.ok(!won(S)); const r = settle(S, [key(0, 0)]);
-  assert.ok(won(S)); assert.equal(S.grid.size, 0); assert.equal(r.dropped.length, 3); assert.equal(S.frags, 0, 'item bubbles pay no frags');
+  assert.ok(won(S)); assert.equal(S.grid.size, 0); assert.equal(r.dropped.length, 3); assert.equal(S.frags, 3 * ITEM_DROP, 'a dropped item bubble pays ITEM_DROP');
 });
 test('deal never gives an item value', () => {
   const S = board(['1666', '6666', '6666']); S.hist = [];

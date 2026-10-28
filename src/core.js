@@ -127,11 +127,13 @@ export const lossRow = S => S.top + winRows(S.cols) - 2;   // the row directly a
 export const lost = S => !won(S) && (S.shots <= 0 || [...S.grid.keys()].some(k => k >> 4 >= lossRow(S)));
 // Removes popped, drops what lost the ceiling, scores, scrolls, re-deals missing colours. advance: a normal shot also
 // moves next to cur and costs a shot.
+export const ITEM_DROP = 50;   // frags for a dropped item bubble (owner)
 export function settle(S, popped, advance = false) {
   for (const k of popped) S.grid.delete(k);
-  const dropped = []; let colDrop = 0;   // colDrop: dropped colour bubbles (item bubbles pay no frags)
-  if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) { colDrop += isColour(S.grid.get(k)); S.grid.delete(k); dropped.push(k); } }
-  if (won(S)) for (const k of [...S.grid.keys()]) { S.grid.delete(k); dropped.push(k); }   // only item bubbles left: they fall
+  const dropped = []; let colDrop = 0;   // colDrop: the frags of the dropped bubbles, 1 per colour bubble, ITEM_DROP per item bubble
+  const fall = k => { colDrop += isColour(S.grid.get(k)) ? 1 : ITEM_DROP; S.grid.delete(k); dropped.push(k); };
+  if (popped.length) { const keep = connected(S.grid, S.cols); for (const k of [...S.grid.keys()]) if (!keep.has(k)) fall(k); }
+  if (won(S)) for (const k of [...S.grid.keys()]) fall(k);   // only item bubbles left: they fall
   const points = 10 * popped.length + 10 * dropped.length ** 2;
   // Never retracts; moves toward the ceiling only once just the top SCROLL_AT visible rows hold
   // bubbles, or at most SCROLL_FEW bubbles are left on screen.

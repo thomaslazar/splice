@@ -78,10 +78,11 @@ const sameNeighbour = (L, col) => { let s = 0, n = 0;
   for (const [k, c] of col) for (const [r, cc] of nbrs(L.cols, k >> 4, k & 15)) { const o = col.get(key(r, cc)); if (o !== undefined) { n++; if (o === c) s++; } }
   return s / n; };
 test('hard levels break up colours', () => {
-  const share = ls => avg(ls, l => { const L = makeLayout(l); return sameNeighbour(L, colourize(L, l, 0)); });
+  // shape bubbles only: the strands between big parts (several colours on purpose) would swamp it
+  const share = ls => avg(ls, l => { const L = makeLayout(l); return sameNeighbour(L, new Map([...colourize(L, l, 0)].filter(([k]) => L.cells.get(k) < 1e6))); });
   // compare within each kind: the easy and hard sets mix noise and designed levels differently
   for (const kind of ['designed', 'noise']) { const of = ls => ls.filter(l => makeLayout(l).kind === kind);
     assert.ok(share(of(hard)) < share(of(easy)) - 0.05, `${kind} same-colour neighbours ${share(of(easy))} -> ${share(of(hard))}`); }
-  const groups = ls => avg(designed(ls), l => new Set(makeLayout(l).cells.values()).size / makeLayout(l).cells.size);
+  const groups = ls => avg(designed(ls), l => { const g = [...makeLayout(l).cells.values()].filter(g => g < 1e6); return new Set(g).size / g.length; });
   assert.ok(groups(hard) > 1.3 * groups(easy), 'more, smaller colour groups');
 });

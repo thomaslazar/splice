@@ -54,17 +54,21 @@ function shapeMakers(rnd, cols) {
 
 // Connect every floating component to the ceiling with thin stems (the anchors).
 // Each structure gets 1 + extra stems (extra grows with hardness h), spread along its top edge.
-function addStems(cells, cols, rnd, mirror, h) {
+// A structure of BIG or more bubbles hung from other bubbles (not the ceiling) by its one stem adds that
+// stem to links, for strands().
+const BIG = 20;
+function addStems(cells, cols, rnd, mirror, h, links) {
   const grow = (r, c) => {
-    const grp = 1e6 + cells.size * 1000;
+    const grp = 1e6 + cells.size * 1000, path = []; let hung = false;
     while (r > 0) {
       const ups = nbrs(cols, r, c).filter(([a]) => a === r - 1);
       [r, c] = ups[Math.floor(rnd() * ups.length)];
-      if (cells.has(key(r, c))) break;
-      cells.set(key(r, c), grp);
+      if (cells.has(key(r, c))) { hung = true; break; }
+      cells.set(key(r, c), grp); path.push([r, c]);
       const m = cellsIn(cols, r) - 1 - c; // mirrored layouts get mirrored stems
       if (mirror && !cells.has(key(r, m))) cells.set(key(r, m), grp + 500);
     }
+    return { grp, path, hung, mirror };
   };
   for (;;) {
     const seen = connected(cells, cols), loose = new Set([...cells.keys()].filter(k => !seen.has(k)));
@@ -72,16 +76,37 @@ function addStems(cells, cols, rnd, mirror, h) {
     // topmost loose bubble; prefer the middle of its row
     const top = Math.min(...[...loose].map(k => k >> 4)), row = [...loose].filter(k => k >> 4 === top);
     const start = row[Math.floor(row.length / 2)], extra = Math.min(2, Math.floor(h * 2 + rnd()));
-    grow(...rc(start));
-    if (!extra) continue;
     const comp = new Set([start]), st = [start]; // the structure this stem holds
     while (st.length) for (const [r, c] of nbrs(cols, ...rc(st.pop()))) { const k = key(r, c); if (loose.has(k) && !comp.has(k)) { comp.add(k); st.push(k); } }
+    const main = grow(...rc(start)), one = () => { if (main.hung && comp.size >= BIG) links.push(main); };
+    if (!extra) { one(); continue; }
     // top edge near the top: nothing above; extra stems go left and right of the main one
     const edge = [...comp].filter(k => k >> 4 <= top + 2 && nbrs(cols, ...rc(k)).every(([a, b]) => a !== (k >> 4) - 1 || !cells.has(key(a, b))))
       .sort((a, b) => xOf(a) - xOf(b));
     const ends = [edge[0], edge[edge.length - 1]].filter(k => Math.abs(xOf(k) - xOf(start)) >= 2);
     if (extra === 1 && ends.length === 2) ends.splice(Math.floor(rnd() * 2), 1);
+    if (!ends.length) one();
     for (const k of ends) grow(...rc(k));
+  }
+}
+
+// Strands between big parts (owner): each link gets a width (1 40%, 2 35%, 3 25%) and a colouring: one
+// colour 25%, its lines of bubbles (columns) each a colour 30%, top and bottom halves or thirds each a
+// colour 20%, or both lines and bands 25%. A neighbouring line joins the previous one's group a third of the
+// time, so blue, blue, green happens too (touching groups get different colours). Runs once the level is
+// built and draws from hash, so no other cell moves.
+function strands(cells, cols, links) {
+  for (const { grp, path, mirror } of links) {
+    const x = hash(grp, 31), pick = n => { const v = (x >>> 8 * n & 255) / 256; return v; };
+    const a = pick(0), w = a < .4 ? 1 : a < .75 ? 2 : 3, b = pick(1), kind = b < .25 ? 'one' : b < .55 ? 'lines' : b < .75 ? 'bands' : 'both';
+    const n = kind === 'bands' || kind === 'both' ? 2 + (pick(2) < .5) : 1, lines = kind === 'lines' || kind === 'both';
+    const line = [0, 1, 2]; for (let j = 1; j < 3; j++) if (!lines || (x >>> 20 + j * 3 & 7) < 3) line[j] = line[j - 1];   // joined lines share a group
+    path.forEach(([r, c], i) => [0, 1, -1].map(d => c + d).filter((x, j) => x >= 0 && x < cellsIn(cols, r) && (!j || !cells.has(key(r, x)))).slice(0, w)
+      .forEach((x, j) => {
+        const g = grp + Math.floor(i * n / path.length) * 4 + line[j], m = cellsIn(cols, r) - 1 - x;   // under 500: the mirror adds 500
+        cells.set(key(r, x), g);
+        if (mirror && m !== x && (!cells.has(key(r, m)) || cells.get(key(r, m)) === grp + 500)) cells.set(key(r, m), g + 500);
+      }));
   }
 }
 
@@ -92,13 +117,14 @@ function generate(level) {
   if (isLong(level)) { const m = Math.min(0.15, w[0]); w[0] -= m; w[2] += m; }
   const p = rnd(); // weights sum to 1
   const cols = [8, 10, 12][p < w[0] ? 0 : p < w[0] + w[1] ? 1 : 2];
-  const nColours = Math.min(6, 3 + Math.floor(d * 3.5)), sec = Math.round(1.6 * cols), cells = new Map();
+  const nColours = Math.min(6, 3 + Math.floor(d * 3.5)), sec = Math.round(1.6 * cols), cells = new Map(), links = [];
   if (kind === 'noise') {
     const rows = 2 * sec + Math.round(d * 6); let id = 0;
     for (let r = 0; r < rows; r++) for (let c = 0; c < cellsIn(cols, r); c++) cells.set(key(r, c), id++);
     return { cols, kind, screens: 2, nColours, cells };
   }
   const screens = 4 + Math.round(d * 4) + (isLong(level) ? 2 + Math.floor(rnd() * 3) : 0);
+  let off = 0;   // rows every later screen moves by, so strand lengths vary (even: odd rows stay odd)
   for (let s = 0; s < screens; s++) {
     const base = s * sec;
     for (let tries = 0; tries < 20; tries++) {
@@ -122,11 +148,16 @@ function generate(level) {
       for (const [k, g] of part) { const S = cut.get(g % 1000 / 100 | 0);
         const id = g + (S.asym && xOf(k) > half ? 3e5 : 0); part.set(k, id); size.set(id, (size.get(id) || 0) + 1); }
       const split = new Set([...size].filter(([, n]) => n >= 6 && rnd() < SPLIT * h).map(([id]) => id));
-      for (const [k, g] of part) cells.set(k, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => fx(k) > a).length : g);
-      addStems(cells, cols, rnd, mirror, h);
+      // Gap to the bubbles above (the strands' length, roughly) set to 3 to 12 rows from hash, not rnd, so the shapes stay.
+      if (s) { const top = Math.min(...[...part.keys()].map(k => k >> 4)) + off, above = Math.max(...[...cells.keys()].map(k => k >> 4)),
+          gap = top - above - 1, want = 3 + (hash(level, s, 41) >>> 16) % 10;
+        let move = 2 * Math.round((want - gap) / 2); while (gap + move < 1) move += 2; off += move; }
+      for (const [k, g] of part) cells.set(k + off * 16, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => fx(k) > a).length : g);
+      addStems(cells, cols, rnd, mirror, h, links);
       break;
     }
   }
+  strands(cells, cols, links);
   return { cols, kind, screens, nColours, cells };
 }
 

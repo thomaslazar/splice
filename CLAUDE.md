@@ -139,7 +139,13 @@ function bodies, so keep it that way.
   group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
   parts to the ceiling with 1 + `min(2, floor(2h + rnd))` stems per structure, the extra ones
   at the left and right ends of its top edge (about 2 or more columns from the main stem);
-  mirrored layouts get mirrored stems. Noise is full rows, every bubble its own group.
+  mirrored layouts get mirrored stems. Each screen after the first moves up or down (an even number of
+  rows, `off`) so its gap to the bubbles above is 3 to 12 rows, so strands vary in length. A structure of
+  `BIG` (20) or more bubbles hung from other bubbles (not the ceiling) by its one stem gets a strand
+  (`strands`, once the level is built): 1 wide 40%, 2 wide 35%, 3 wide 25%; one colour 25%, each line of
+  bubbles its own colour 30% (a neighbouring line sometimes shares one), top and bottom halves or thirds
+  20%, or both 25% (owner: big parts hung from each other by one thin strand made levels too easy). Gap and
+  strand draw from `hash`, not the level's `rnd`, so the shapes stay as they were. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours. Noise is clumpy: a
   bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * boardHardness`, else

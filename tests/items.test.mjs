@@ -204,11 +204,11 @@ test('item values map to shot ids', () => {
   for (const id of SHOTS) assert.equal(itemOf(valueOf(id)), id);
   assert.ok(isItem(6) && !isItem(5));
 });
-test('item plan: none below 3, about a quarter with items, a fifth of those full', () => {
+test('item plan: none below 3, about half with items, a fifth of those full', () => {
   for (let lv = 1; lv < 3; lv++) assert.equal(itemPlan(lv).kind, 'none');
   let has = 0, full = 0; const n = 2998;
   for (let lv = 3; lv <= 3000; lv++) { const k = itemPlan(lv).kind; if (k !== 'none') has++; if (k === 'full') full++; }
-  assert.ok(has / n > .2 && has / n < .3, `items ${has / n}`); assert.ok(full / has > .13 && full / has < .27, `full ${full / has}`);
+  assert.ok(has / n > .45 && has / n < .55, `items ${has / n}`); assert.ok(full / has > .13 && full / has < .27, `full ${full / has}`);
 });
 test('placement is seeded by level, not fails', () => {
   for (let lv = 3; lv <= 40; lv++) assert.deepEqual(itemKeys(placed(lv, 0)), itemKeys(placed(lv, 4)), `level ${lv}`);

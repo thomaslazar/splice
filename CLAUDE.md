@@ -339,7 +339,7 @@ other). It is not saved: it is recomputed from the level.
 - A loaded item goes back to the deck when the level is left (`begin()`, and `load()` for a save that fails validation), except on Reset progress. An item with no effect at the aim cannot be fired (`hits` null, no preview). ICE breaker is only usable on a level with active ICE and not while it already runs (`useItem` refuses). Decrypt only offers and accepts colours (`isColour`). A tap outside the drawer, or the menu button, closes it.
 - Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
 - Item bubbles on the board (grid values from `ITEM_BASE`, never dealt, never a colour). `itemPlan(level)`: none below level 3,
-  else 25% of levels have them, a fifth of those `full` (3 per screen; code caps at 3, not 4), the rest `normal` (0 to 2 per screen). `placeItems`
+  else half the levels have them (owner; was 25%), a fifth of those `full` (3 per screen; code caps at 3, not 4), the rest `normal` (0 to 2 per screen). `placeItems`
   runs after colouring from the level only (same on every try; it scores on the fails 0 colours). Each item bubble goes to one
   of the 3 spots on its screen where its item does the most (`worth`: bubbles it clears, pops or recolours; falls do not count,
   or every item went to the neck of its screen), never next to another item bubble, never a second sweep in a row that has one, never in the group an earlier Wildcard on its screen pops (it would split it), and only where it can be reached

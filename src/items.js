@@ -23,7 +23,7 @@ export const itemOf = v => SHOTS[v - ITEM_BASE];
 export const valueOf = id => ITEM_BASE + SHOTS.indexOf(id);
 export const itemPlan = level => {
   if (level < 3) return { kind: 'none', perScreen: 0 };
-  const r = mulberry32(hash(level, 23)), has = r() < .25, full = r() < .2;
+  const r = mulberry32(hash(level, 23)), has = r() < .5, full = r() < .2;
   return !has ? { kind: 'none', perScreen: 0 } : full ? { kind: 'full', perScreen: 3 } : { kind: 'normal', perScreen: 2 };
 };
 // Rows per screen: designed layouts stack bands of sec rows from row 0; noise splits its rows into layout.screens bands.

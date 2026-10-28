@@ -216,7 +216,7 @@ const scrambled = () => hash(S.level, S.fails, S.draws, 77) % 100 < SCRAMBLE * 1
 const ITEM_NAMES = { bomb: () => t('item_bomb'), sweep: () => t('item_sweep'), pierce: () => t('item_pierce'), wildcard: () => t('item_wildcard'),
   overclock: () => t('item_overclock'), decrypt: () => t('item_decrypt'), icebreaker: () => t('item_icebreaker'), star: () => t('item_star'),
   lightning: () => t('item_lightning'), virus: () => t('item_virus'), purge: () => t('item_purge'), rainbow: () => t('item_rainbow'), rollback: () => t('item_rollback') };
-const iceName = i => ({ static: t('iceStatic'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
+const iceName = i => ({ static: t('iceStatic'), lag: t('iceLag'), blink: t('iceBlink'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
 const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none
 // jam: the first bounce or JAM_LEN radii (about four bubbles), whichever is shorter, so a jam also
@@ -224,7 +224,14 @@ const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if
 const JAM_LEN = 8, short = pts => { const [a, b] = cut(pts), d = Math.hypot(b.x - a.x, b.y - a.y);
   return d <= JAM_LEN ? [a, b] : [a, { x: a.x + (b.x - a.x) * JAM_LEN / d, y: a.y + (b.y - a.y) * JAM_LEN / d }]; };
 const JAM_DROP = 10, JAMMED = '#8a93a6';   // jam: a drop of JAM_DROP or more restores the line; the jammed line's colour
+// lag: the line eases toward the aim (time constant LAG_MS); the shot takes the angle on screen, so holding still is exact
+const LAG_MS = 120; let lagA = null, lagT = 0;
+const lagged = a => { const n = performance.now(); lagA = lagA === null ? a : lagA + (a - lagA) * (1 - Math.exp(-(n - lagT) / LAG_MS)); lagT = n; return lagA; };
+// blink: the aim line and its rings are off for BLINK_OFF of every BLINK ms; reduced motion: always on, faint
+const BLINK = 1500, BLINK_OFF = 600;
 const FX = {
+  lag: { ang: lagged },
+  blink: { faint: () => reduced ? .25 : performance.now() % BLINK < BLINK_OFF ? 0 : null },
   jam: { aim: pts => restore > 0 ? pts : short(pts) },
   // a few degrees, smooth: two slow sines; reduced motion: steady, cut at the first bounce instead
   jitter: reduced ? { aim: cut } : { ang: a => { const s = performance.now() / 1000; return a + .06 * Math.sin(s * 2.3) + .03 * Math.sin(s * 5.1 + 1); } },
@@ -234,7 +241,7 @@ const FX = {
   scrambler: { hide: slot => hid[slot === 'cur' ? 0 : 1], swapped: () => { hid = [hid[1], hid[0]]; } },
   lock: { locked: true },
 };
-function trySwap() { const f = fxOf(); if (f.locked || S.load) return; swap(S); f.swapped?.(); save(); }
+function trySwap() { const f = fxOf(); if (f.locked || S.load) return; swap(S); f.swapped?.(); swapAt = performance.now(); save(); }
 function packet(x, y, col, slot, a = 1, rr = sc) {   // a queue packet, through the ICE hooks
   const f = fxOf();
   if (f.hide?.(slot)) {   // no colour, no symbol: a grey ring and a "?" that glitches sideways (static with reduced motion)
@@ -293,7 +300,9 @@ $('#sheetO').onclick = () => {
 $('#sheetC').onclick = keep;
 $('#sheet').onclick = e => { if (asking && e.target === $('#sheet')) keep(); };
 /* ---------- menu ---------- */
-const picked = () => clampLevel($('#lvlIn').value, run.best, S.level);
+const DEV = !location.hostname.endsWith('github.io');   // a local build: the level picker goes past the best level
+const maxPick = () => DEV ? 9999 : run.best;
+const picked = () => clampLevel($('#lvlIn').value, maxPick(), S.level);
 function menuText() {   // every panel text; Info adds its own here
   const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabInfo');
   $('#curL').textContent = t('curLevel'); $('#curN').textContent = S.level; $('#bestL').textContent = t('bestLevel'); $('#bestN').textContent = run.best;
@@ -380,7 +389,7 @@ $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
 $('#mOver').onclick = () => { closeMenu(); ask('over'); };
 $('#mPlay').onclick = () => { const n = picked(); closeMenu(); begin(n, 0); };
 for (const b of document.querySelectorAll('#tabs button')) b.onclick = () => tab(b.dataset.tab);
-const step = d => { $('#lvlIn').value = Math.min(run.best, Math.max(1, picked() + d)); pick(); };
+const step = d => { $('#lvlIn').value = Math.min(maxPick(), Math.max(1, picked() + d)); pick(); };
 $('#lvlDn').onclick = () => step(-1); $('#lvlUp').onclick = () => step(1);
 $('#lvlIn').oninput = pick;
 $('#lvlIn').onchange = () => { $('#lvlIn').value = picked(); pick(); };
@@ -442,8 +451,9 @@ function rollback() {
 /* ---------- moves ---------- */
 function shoot() {
   if (!ready() || aim === null) return;
-  const pre = new Map(S.grid), col = S.cur, it = S.load, snap = toSave(S), rs = restore, m = fire(S, shotAngle()); aim = null; drawn = null;
+  const pre = new Map(S.grid), col = S.cur, it = S.load, nx = S.next, snap = toSave(S), rs = restore, m = fire(S, shotAngle()); aim = null; drawn = null;
   if (!m) return;
+  if (S.grid.size && S.cur !== (it ? col : nx)) redealAt = performance.now();   // its colour left the board: show the new one
   if (won(S)) {   // pay at the winning shot, before the save: a reload during the flight keeps it, run.paid keeps it single
     const p = payout(deck, S, run.best, run.paid); paid = { frags: p.frags, loot: p.loot, replay: !pays() };
     deck = p.deck; if (S.level === run.best) run.paid = S.level; saveDeck(); saveRun();
@@ -478,6 +488,8 @@ const bend = () => { const f = fxOf(), a = clampAim(aim ?? 0); return a === null
 const shotAngle = () => fxOf().ang && drawn !== null ? drawn : bend();
 // a finger below the dashed loss line cancels the aim; moving back up resumes it
 const setAim = p => { aim = p.y > (1 + (winRows(S.cols) - 2.5) * RH) * sc ? null : Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
+const TAP_MS = 300, TAP_PX = 10; let tapAt = null, swapAt = -Infinity, redealAt = -Infinity;   // swapAt, redealAt: when the last swap and re-deal showed
+const SWAP_MS = 180, REDEAL_MS = 450, jolt = () => reduced || performance.now() - redealAt >= REDEAL_MS ? 0 : (hash(performance.now() / 50 | 0, 6) % 1000 / 1000 - .5) * sc * .6;   // a swap tap: released within TAP_MS, moved under TAP_PX
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
 // A swap-strip touch never takes aimId, so its release never fires.
 cv.addEventListener('pointerdown', e => {
@@ -486,13 +498,19 @@ cv.addEventListener('pointerdown', e => {
   if (!shut()) return;
   if (aimId !== null) { aim = aimId = null; return; }
   const p = pos(e);
-  // the whole strip at the shooter's height swaps (or unloads a loaded item); a touch that starts there never aims or fires
-  if (p.y > SY() * sc - Math.max(1.6 * sc, 22)) { if (S.load) unloadItem(); else if (S.cur !== null) trySwap(); return; }
-  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); setAim(p);
+  // a quick tap in the strip at the shooter's height swaps (or unloads a loaded item); a drag that starts there aims as
+  // usual (players start low), so a swap never happens by accident
+  tapAt = p.y > SY() * sc - Math.max(1.6 * sc, 22) ? { ...p, t: e.timeStamp } : null;
+  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); lagA = null; setAim(p);
 });
 cv.addEventListener('pointermove', e => { if (e.pointerId === aimId) setAim(pos(e)); });
-cv.addEventListener('pointerup', e => { if (e.pointerId === aimId) { aimId = null; shoot(); } });
-cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = null; });
+cv.addEventListener('pointerup', e => {
+  if (e.pointerId !== aimId) return; aimId = null; const q = pos(e);
+  if (tapAt && e.timeStamp - tapAt.t < TAP_MS && Math.hypot(q.x - tapAt.x, q.y - tapAt.y) < TAP_PX) { aim = null; if (S.load) unloadItem(); else if (S.cur !== null) trySwap(); }
+  else shoot();
+  tapAt = null;
+});
+cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = tapAt = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
   if (n - wheelT > 150 && !loading && shut() && S && S.cur !== null && !busy()) trySwap(); wheelT = n; }, { passive: false });
@@ -546,7 +564,7 @@ function draw() {
     const jammed = iceOn() === 'jam' && restore === 0, n = performance.now();
     g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
     if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .15 ? .2 : .5 + .45 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
-    else { g.globalAlpha = .7; g.setLineDash([2, 6]); }
+    else { g.globalAlpha = f0.faint?.() ?? .7; g.setLineDash([2, 6]); }
     g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
     // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
     if (pts?.length === tr.pts.length && !jammed) {
@@ -578,7 +596,16 @@ function draw() {
   if (S.cur !== null && S.grid.size) {
     const y = SY() * sc;
     if (S.load) { itemBubble(X(S.cols), y, S.load); packet(X(S.cols + 3), y, S.cur, 'cur', .8, sc * .75); if (S.next !== null) packet(X(S.cols + 4.8), y, S.next, 'next', .6, sc * .55); }   // the packets queue behind it
-    else { packet(X(S.cols), y, S.cur, 'cur'); if (S.next !== null) packet(X(S.cols + 3), y, S.next, 'next', .8, sc * .75); }
+    else {   // a swap slides the two past each other (SWAP_MS), the new shooter packet over the top
+      const u = reduced ? 1 : Math.min(1, (now - swapAt) / SWAP_MS), e = u * u * (3 - 2 * u), arc = Math.sin(Math.PI * e) * sc * .7;
+      const lx = (a, b) => X(a + (b - a) * e);
+      if (S.next !== null) packet(lx(S.cols, S.cols + 3), y + arc, S.next, 'next', 1 - .2 * e, sc * (1 - .25 * e));
+      packet(lx(S.cols + 3, S.cols) + jolt(), y - arc, S.cur, 'cur', .8 + .2 * e, sc * (.75 + .25 * e));
+      if (now - redealAt < REDEAL_MS) {   // a re-dealt shooter packet glitches in the accent colour
+        g.strokeStyle = theme.a; g.lineWidth = 2; g.globalAlpha = reduced ? .8 : hash(now / 60 | 0, 5) % 2 ? .9 : .3;
+        g.beginPath(); g.arc(X(S.cols) + jolt(), y, sc * 1.15, 0, 7); g.stroke(); g.globalAlpha = 1;
+      }
+    }
   }
   fx = fx.filter(a => {
     a.k++;
@@ -603,7 +630,10 @@ for (const ev of ['gesturestart', 'gesturechange']) document.addEventListener(ev
 // double tap (buttons keep their clicks; the board uses pointer events, which still arrive)
 let lastTap = 0;
 document.addEventListener('touchend', e => { if (e.timeStamp - lastTap < 350 && !e.target.closest('button')) e.preventDefault(); lastTap = e.timeStamp; }, { passive: false });
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});   // offline play
+// offline play; a local build drops the worker and its caches instead, so a reload always shows the files on disk
+if (DEV) { navigator.serviceWorker?.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
+  globalThis.caches?.keys().then(ks => ks.filter(k => k.startsWith('splice-')).forEach(k => caches.delete(k))).catch(() => {}); }
+else if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 { const n = +PLAY.level, l = Number.isInteger(n) && n >= 1 ? [n, 0] : load(), [lv, fl] = Array.isArray(l) ? l : [l.level, l.fails];
   let o; try { o = JSON.parse(localStorage.getItem(RUN_KEY)); } catch (e) {}
   run = runFrom(o, lv, fl); saveRun(); Array.isArray(l) ? begin(...l) : start(l); } draw();

@@ -155,13 +155,13 @@ function settle(level, recent) {
 }
 
 /* ---------- ICE ---------- */
-export const ICE = { static: 'mild', jitter: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh' };
+export const ICE = { static: 'mild', lag: 'mild', blink: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh', jitter: 'harsh' };
 export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
 // per-type overrides: scrambler is cheap to play around (shoot a wrong colour away), so less room
 export const ICE_TYPE_K = { scrambler: 1.1 };
 const SEVERITY = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
-const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'jitter'], telecom: ['static', 'jitter'],
-  finance: ['scrambler', 'jitter'], insurance: ['scrambler', 'jitter'], ai: ['jitter', 'monochrome'],
+const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'blink'], telecom: ['static', 'lag'],
+  finance: ['scrambler', 'lag'], insurance: ['scrambler', 'blink'], ai: ['jitter', 'monochrome', 'lag'],
   defense: ['black', 'monochrome', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
   pharma: ['static', 'scrambler', 'jam'], energy: ['jam', 'scrambler', 'static'], logistics: ['jam', 'scrambler', 'static'] };
 const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high: ['monochrome', 'black', 'lock'] };
@@ -179,8 +179,7 @@ export function iceFor(level) {
   if (cap === 1) list = Object.keys(ICE).filter(ok);
   // ponytail: preferred types weighted 2:1:1 by order; tune by playing
   // types at the current severity cap count double, so the end of a run brings the harsher ICE
-  // jitter counts a third everywhere (owner: it annoys more than static, which should come far more often)
-  const even = cap === 1 || cap === 3, w = list.map((t, i) => (even ? 1 : (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1)) * (t === 'jitter' ? 1 / 3 : 1));
+  const even = cap === 1 || cap === 3, w = list.map((t, i) => (even ? 1 : (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1)));
   let x = pickR * w.reduce((a, b) => a + b);
   return list.find((_, i) => (x -= w[i]) < 0);
 }

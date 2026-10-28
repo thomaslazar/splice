@@ -51,6 +51,8 @@
   "logJammed": "> targeting jammed",
   "iceStatic": "Static ICE",
   "iceJitter": "Jitter ICE",
+  "iceLag": "Lag ICE",
+  "iceBlink": "Blink ICE",
   "iceScrambler": "Scrambler ICE",
   "iceLock": "Lock ICE",
   "iceJam": "Jam ICE",

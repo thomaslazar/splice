@@ -101,8 +101,8 @@ test('ice follows the 30-level run, the tier caps and the black ice rule', () =>
 test('half of every run has ice', () => {
   for (let run = 0; run < 50; run++) assert.equal(Array.from({ length: 30 }, (_, i) => 30 * run + i + 1).filter(l => iceFor(l)).length, 15);
 });
-test('ice types are spread: each is 5% to 45% of the levels with ice (1-2000)', () => {
+test('ice types are spread: each is 3% to 45% of the levels with ice (1-2000)', () => {
   const n = {}; let all = 0;
   for (let lv = 1; lv <= 2000; lv++) { const ice = iceFor(lv); if (ice) { n[ice] = (n[ice] || 0) + 1; all++; } }
-  for (const t of Object.keys(ICE)) { const s = (n[t] || 0) / all; assert.ok(s >= 0.05 && s <= 0.45, `${t} ${(100 * s).toFixed(1)}%`); }
+  for (const t of Object.keys(ICE)) { const s = (n[t] || 0) / all; assert.ok(s >= 0.03 && s <= 0.45, `${t} ${(100 * s).toFixed(1)}%`); }
 });

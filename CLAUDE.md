@@ -197,20 +197,20 @@ other). It is not saved: it is recomputed from the level.
   27-30 (up to harsh), always capped by the host's tier: 15 of every 30 levels. Black only at
   27-30 on high stakes. In the mild and harsh stretches all allowed types are equally likely (at
   27-30 a high-stakes host always gets a harsh type); the industry flavour picks in between. A
-  level with ICE gets a board at three quarters of its hardness (`boardHardness`). Jitter weighs a third of any other type everywhere (owner: it annoys). Shares over
-  1-2000: static 40%, jitter 15%, scrambler 14%, lock 13%, monochrome 6%, black 6%, jam 6%.
+  level with ICE gets a board at three quarters of its hardness (`boardHardness`). Shares over
+  1-2000: static 22%, lag 20%, scrambler 13%, lock 13%, blink 13%, jam 6%, jitter 4%, black 4%, monochrome 4%.
 - Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
-  level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`.
-- Types and severity (`ICE`): mild `static`, `jitter`; medium `scrambler`, `lock`, `jam`;
-  harsh `monochrome`, `black`. Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
+  level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`. Off GitHub Pages (`DEV`, any host not ending in `github.io`) the menu's level picker goes up to 9999, not just the best level. A local build also unregisters the service worker and deletes the `splice-` caches, so a reload always shows the files on disk.
+- Types and severity (`ICE`): mild `static`, `lag`, `blink`; medium `scrambler`, `lock`, `jam`;
+  harsh `monochrome`, `black`, `jitter` (owner: jitter is one of the hardest, so harsh, not mild). Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
   1.25, harsh 1.5, applied by `limitFor` in `src/bot.js`; scrambler overrides it with 1.1 (`ICE_TYPE_K`: shooting a
   wrong colour away is cheap, so it gets less room) (the bot itself plays without ICE:
   it aims perfectly and ignores every effect, so the factor only pays the human for it).
 - Who runs what: the host's tier caps severity (`CAP`: small mild, corporate up to medium,
   high up to harsh). `black` also needs hardness 0.8 or more and a `high` host. A host picks
-  from its industry's liked types (`LIKES`: security `scrambler`, `lock`, `static`; media and
-  telecom `static`, `jitter`; finance and insurance `scrambler`, `jitter`; ai `jitter`,
-  `monochrome`; defense `black`, `monochrome`, `lock`; aerospace `black`, `lock`; biotech and
+  from its industry's liked types (`LIKES`: security `scrambler`, `lock`, `static`; media
+  `static`, `blink`; telecom `static`, `lag`; finance `scrambler`, `lag`; insurance `scrambler`, `blink`; ai `jitter`,
+  `monochrome`, `lag`; defense `black`, `monochrome`, `lock`; aerospace `black`, `lock`; biotech and
   pharma `static`, `scrambler`, `jam`; energy and logistics `jam`, `scrambler`, `static`),
   government hosts from `GOV_LIKES` by tier (small none, corporate `scrambler`, `static`,
   `lock`, high `monochrome`, `black`, `lock`), filtered by the cap and the `black` rule. If
@@ -230,6 +230,10 @@ other). It is not saved: it is recomputed from the level.
     ring and the shot all use the angle on screen at release (`drawn`), so the line never lies
     and the challenge is timing (owner, issue #4). With reduced motion it is steady and the line
     is cut at the first bounce.
+  - `lag`: the line eases toward the aim (`lagged`, time constant `LAG_MS` 120 ms, reset when an aim starts); the ring
+    and the shot use the angle on screen, so holding still for a moment is exact and only rushed shots miss.
+  - `blink`: the aim line is off for `BLINK_OFF` (600 ms) of every `BLINK` (1500 ms), with the landing ring and item preview rings. Reduced
+    motion: always on, faint.
   - `static`: 3 blocks of grey noise about 2 x 2 bubbles drift over the board above the loss
     line, never the shooter zone (`glitchBlocks`, drawn by `over`). They hide the board but
     not the flying packet or the pop and fall effects (those draw after them). Reduced
@@ -271,8 +275,7 @@ other). It is not saved: it is recomputed from the level.
   shot. Every level start (`begin(level, fails)`: next level, retry, confirmed restart, first load)
   shows a full-screen loading card ("Level n" / "Preparing new attack vector" with a blinking
   cursor) for at least `LOAD_MIN` (500 ms) while `startState` runs the bot. Board touches are ignored for `GRACE` (400 ms) after any sheet closes or a level starts, so a
-  lingering tap on a sheet button never fires. Dragging below the dashed loss line cancels the aim (release there fires nothing; moving back up resumes). A touch that starts in the strip at the shooter's height swaps `cur` and `next` and
-  never aims or fires. The mouse wheel also swaps (one swap per gesture). Swapping works
+  lingering tap on a sheet button never fires. Dragging below the dashed loss line cancels the aim (release there fires nothing; moving back up resumes). A quick tap (under `TAP_MS` 300 ms, moving under `TAP_PX` 10 px) in the strip at the shooter's height swaps `cur` and `next` (or unloads a loaded item); a drag that starts there aims as usual, so a low start never swaps by accident (a playtester's shots went wrong after unnoticed swaps). A swap slides the two packets past each other (`SWAP_MS` 180 ms); a shooter packet re-dealt because its colour left the board glitches in the accent colour (`REDEAL_MS` 450 ms). The mouse wheel also swaps (one swap per gesture). Swapping works
   any time no sheet is open, also while a packet flies. Aiming and firing wait until the
   packet has landed, the view has settled and no sheet is open (`ready()`).
 - Run log (in memory only, two lines, newest on top, all text in `lang/`): `connecting to
@@ -331,7 +334,11 @@ other). It is not saved: it is recomputed from the level.
 - Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
 - Item bubbles on the board (grid values from `ITEM_BASE`, never dealt, never a colour). `itemPlan(level)`: none below level 3,
   else 25% of levels have them, a fifth of those `full` (3 per screen; code caps at 3, not 4), the rest `normal` (0 to 2 per screen). `placeItems`
-  runs after colouring from the level only (same on every try). Screens: designed levels use row bands
+  runs after colouring from the level only (same on every try; it scores on the fails 0 colours). Each item bubble goes to one
+  of the 3 spots on its screen where its item does the most (`worth`: bubbles it clears, pops or recolours; falls do not count,
+  or every item went to the neck of its screen), never next to another item bubble, never a second sweep in a row that has one, and only where it can be reached
+  (`reach`): on the board with the screens below cleared, the cheapest dig from a neighbour to open space (`openOf`, at most 3
+  groups) must leave it hanging, and the screen's earlier item bubbles must stay reachable too. Screens: designed levels use row bands
   `[s*sec, (s+1)*sec)` with `sec = round(1.6 * cols)`; noise splits its occupied rows into `layout.screens` bands. An item bubble goes off
   when a landed packet or a shot touches it; its effect is the item's, centred on it. Chains: breadth first, each item bubble
   once, so two that reach each other cannot loop. Colour pops never set off item bubbles (only a landing next to one, or a shot or chain reaching it). A deck Wildcard always fires; any other deck item whose effect changes

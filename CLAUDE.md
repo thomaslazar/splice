@@ -139,7 +139,11 @@ function bodies, so keep it that way.
   group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
   parts to the ceiling with 1 + `min(2, floor(2h + rnd))` stems per structure, the extra ones
   at the left and right ends of its top edge (about 2 or more columns from the main stem);
-  mirrored layouts get mirrored stems. Noise is full rows, every bubble its own group.
+  mirrored layouts get mirrored stems. A quarter of stems are the classic kind (one bubble wide,
+  one colour); the rest are 2 or 3 wide and cut into groups of one column by 2 or 3 rows, so a cut
+  takes about one shot per column (owner: more of those, long one-colour stems still sometimes).
+  Each screen's shapes move up (an even number of rows) to leave a gap of 1 to 4 rows to the bubbles
+  above, a quarter keep the full gap, so stems are mostly short. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours. Noise is clumpy: a
   bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * boardHardness`, else
@@ -336,7 +340,7 @@ other). It is not saved: it is recomputed from the level.
   else 25% of levels have them, a fifth of those `full` (3 per screen; code caps at 3, not 4), the rest `normal` (0 to 2 per screen). `placeItems`
   runs after colouring from the level only (same on every try; it scores on the fails 0 colours). Each item bubble goes to one
   of the 3 spots on its screen where its item does the most (`worth`: bubbles it clears, pops or recolours; falls do not count,
-  or every item went to the neck of its screen), never next to another item bubble, never a second sweep in a row that has one, and only where it can be reached
+  or every item went to the neck of its screen), never next to another item bubble, never a second sweep in a row that has one, never in the group an earlier Wildcard on its screen pops (it would split it), and only where it can be reached
   (`reach`): on the board with the screens below cleared, the cheapest dig from a neighbour to open space (`openOf`, at most 3
   groups) must leave it hanging, and the screen's earlier item bubbles must stay reachable too. Screens: designed levels use row bands
   `[s*sec, (s+1)*sec)` with `sec = round(1.6 * cols)`; noise splits its occupied rows into `layout.screens` bands. An item bubble goes off

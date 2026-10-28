@@ -52,18 +52,25 @@ function shapeMakers(rnd, cols) {
   ];
 }
 
-// Connect every floating component to the ceiling with thin stems (the anchors).
+// Connect every floating component to the ceiling with stems (the anchors).
 // Each structure gets 1 + extra stems (extra grows with hardness h), spread along its top edge.
+// A quarter of stems are the classic kind (one bubble wide, one colour); the rest are 2 or 3 wide and cut
+// into groups of one column by 2 or 3 rows, so touching groups get different colours and cutting one
+// takes about one shot per column (owner: not every stem, long one-colour stems are fine sometimes).
 function addStems(cells, cols, rnd, mirror, h) {
   const grow = (r, c) => {
-    const grp = 1e6 + cells.size * 1000;
-    while (r > 0) {
+    const grp = 1e6 + cells.size * 1000, p = rnd(), w = p < .25 ? 1 : p < .65 ? 2 : 3, seg = w === 1 ? Infinity : 2 + Math.floor(rnd() * 2);
+    for (let i = 0; r > 0; i++) {
       const ups = nbrs(cols, r, c).filter(([a]) => a === r - 1);
       [r, c] = ups[Math.floor(rnd() * ups.length)];
       if (cells.has(key(r, c))) break;
-      cells.set(key(r, c), grp);
-      const m = cellsIn(cols, r) - 1 - c; // mirrored layouts get mirrored stems
-      if (mirror && !cells.has(key(r, m))) cells.set(key(r, m), grp + 500);
+      const side = [0, 1, -1].map(d => c + d).filter(x => x >= 0 && x < cellsIn(cols, r) && !cells.has(key(r, x))).slice(0, w);
+      side.forEach((x, j) => {
+        const g = grp + Math.floor(i / seg) * 4 + j;   // under 500: the mirror adds 500
+        cells.set(key(r, x), g);
+        const m = cellsIn(cols, r) - 1 - x; // mirrored layouts get mirrored stems
+        if (mirror && !cells.has(key(r, m))) cells.set(key(r, m), g + 500);
+      });
     }
   };
   for (;;) {
@@ -121,8 +128,12 @@ function generate(level) {
         return [i, { asym, at: Array.from({ length: n - 1 }, (_, j) => lo + (hi - lo) * (j + 1 + (rnd() - .5) * .5) / n) }]; }));
       for (const [k, g] of part) { const S = cut.get(g % 1000 / 100 | 0);
         const id = g + (S.asym && xOf(k) > half ? 3e5 : 0); part.set(k, id); size.set(id, (size.get(id) || 0) + 1); }
+      // Close most of the gap to the bubbles above (rows, kept even so odd rows stay odd), so stems are
+      // mostly 1 to 4 rows; a quarter keep the full gap (owner: stems not always so long).
+      const top = Math.min(...[...part.keys()].map(k => k >> 4)), above = cells.size ? Math.max(...[...cells.keys()].map(k => k >> 4)) : -1,
+        gap = top - above - 1, keep = rnd() < .25 ? gap : 1 + Math.floor(rnd() * 4), up = Math.max(0, gap - keep) & ~1;
       const split = new Set([...size].filter(([, n]) => n >= 6 && rnd() < SPLIT * h).map(([id]) => id));
-      for (const [k, g] of part) cells.set(k, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => fx(k) > a).length : g);
+      for (const [k, g] of part) cells.set(k - up * 16, split.has(g) ? g + 1e5 * cut.get(g % 1000 / 100 | 0).at.filter(a => fx(k) > a).length : g);
       addStems(cells, cols, rnd, mirror, h);
       break;
     }

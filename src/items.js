@@ -46,7 +46,8 @@ export function placeItems(layout, level, grid) {
     const n = Math.min(ks.length, plan.kind === 'full' ? plan.perScreen : Math.floor(rnd() * 3));
     for (let i = 0; i < n; i++) {
       const id = ids[Math.floor(rnd() * ids.length)], pick = rnd(), best = [], open = openOf(g, cols);
-      const scored = ks.filter(k => isColour(g.get(k)) && !nk(cols, k).some(x => isItem(g.get(x))) && !(id === 'sweep' && mine.some(x => itemOf(g.get(x)) === 'sweep' && x >> 4 === k >> 4))).map(k => [worth(g, cols, id, k), k]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+      const wild = new Set(mine.filter(x => itemOf(g.get(x)) === 'wildcard').flatMap(x => [...area(g, cols, 'wildcard', x)]));   // splitting its group spoils it
+      const scored = ks.filter(k => isColour(g.get(k)) && !wild.has(k) && !nk(cols, k).some(x => isItem(g.get(x))) && !(id === 'sweep' && mine.some(x => itemOf(g.get(x)) === 'sweep' && x >> 4 === k >> 4))).map(k => [worth(g, cols, id, k), k]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
       for (const [, k] of scored) {   // it, and the ones already on this screen, must stay reachable
         const v = g.get(k); g.set(k, valueOf(id)); if ([k, ...mine].every(x => reach(g, cols, x, open))) best.push(k); g.set(k, v);
         if (best.length === 3) break;

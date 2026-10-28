@@ -64,6 +64,7 @@ Read before changing behaviour:
   `master` it deploys the site files to https://thomaslazar.github.io/splice/. New site files
   must be added to its copy step (`cp -r` of `index.html style.css manifest.webmanifest sw.js src
   icons lang fonts`) and, if needed offline, to `SHELL` in `sw.js`.
+- `ROADMAP.md`: next steps, tuning, parked ideas, known small issues.
 - `LICENSE.md`: PolyForm Noncommercial 1.0.0, as Kiln.
 - `spike/`: the throwaway prototype the design numbers came from. Not part of the game.
 - `docs/superpowers/`: the specs and plans (core loop, visual pass, difficulty pass).
@@ -378,12 +379,10 @@ like an orphaned process.
 5. Short, plain UI copy in sentence case.
 6. Relaxed, not punishing. A human loses sometimes; a balance bot wins nearly always.
 
-## Later ideas (parked)
+## Roadmap
 
-- Hardened bubbles that need two hits.
-- Firewall rows that only drop once everything above them is cleared.
-- Data cores embedded in the cluster as an alternative level goal, like Kiln's gems.
-- Chapters with their own palette, as in Kiln.
+`ROADMAP.md` holds what comes next, tuning items, parked ideas and known small issues, linked to
+the GitHub issues. Keep it current when work lands or a new idea is parked.
 
 ## Working rules
 

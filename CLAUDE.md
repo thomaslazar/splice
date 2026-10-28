@@ -139,11 +139,7 @@ function bodies, so keep it that way.
   group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
   parts to the ceiling with 1 + `min(2, floor(2h + rnd))` stems per structure, the extra ones
   at the left and right ends of its top edge (about 2 or more columns from the main stem);
-  mirrored layouts get mirrored stems. A quarter of stems are the classic kind (one bubble wide,
-  one colour); the rest are 2 or 3 wide and cut into groups of one column by 2 or 3 rows, so a cut
-  takes about one shot per column (owner: more of those, long one-colour stems still sometimes).
-  Each screen's shapes move up (an even number of rows) to leave a gap of 1 to 4 rows to the bubbles
-  above, a quarter keep the full gap, so stems are mostly short. Noise is full rows, every bubble its own group.
+  mirrored layouts get mirrored stems. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours. Noise is clumpy: a
   bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * boardHardness`, else

@@ -33,7 +33,7 @@ export function report(files) {
   for (const a of all) for (const e of a.shots) { const id = isUse(e) ? e.u : typeof e.c === 'string' ? e.c : null; if (!id) continue;
     const s = a.shots.find(x => !isUse(x) && x.n === e.n)?.s, pc = a.shots.find(x => !isUse(x) && x.n === e.n - 1)?.pc ?? 0;
     const u = uses[id] ??= { n: 0, s: [], pc: [] }; u.n++; if (s != null) u.s.push(s); u.pc.push(pc); }
-  for (const [id, u] of Object.entries(uses).sort()) out.push(`  ${id.padEnd(10)} uses ${u.n}, shots left median ${med(u.s)}, progress median ${med(u.pc)}%`);
+  for (const [id, u] of Object.entries(uses).sort()) out.push(`  ${id.padEnd(10)} uses ${u.n}, shots left median ${u.s.length ? med(u.s) : 'n/a'}, progress median ${med(u.pc)}%`);
   out.push(`  lost with items held, none used: ${noUse.filter(a => a.end?.startsWith('lost')).length}`,
     `  close wins (10% of the limit or less left) with items held, none used: ${noUse.filter(a => a.end === 'won' && a.left <= .1 * a.limit).length}`);
 

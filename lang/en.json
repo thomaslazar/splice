@@ -115,7 +115,7 @@
   "desc_rollback": "Undoes your last shot.",
   "playLog": "Play log",
   "playTrack": "Track plays",
-  "playCount": "{n} levels logged",
+  "playCount": "Attempts logged: {n}",
   "playShare": "Share log",
   "playClear": "Clear log",
   "playClearAsk": "Clear the play log?",

@@ -100,7 +100,7 @@ function saveDeck() { try { localStorage.setItem(DECK_KEY, JSON.stringify(deck))
 const PLAYS_KEY = 'splice-plays'; let plays, pend = { sw: [], x: 0 }, pressAt = 0, below = false, tAt = null;
 try { plays = P.logFrom(JSON.parse(localStorage.getItem(PLAYS_KEY))); } catch (e) { plays = P.logFrom(null); }
 plays.id ??= [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
-function savePlays() { if (!plays.on) return; try { P.trim(plays); localStorage.setItem(PLAYS_KEY, JSON.stringify(plays)); } catch (e) {} }
+function savePlays() { if (!plays.on) return; try { let s = JSON.stringify(plays); if (s.length > P.PLAYS_MAX) { P.trim(plays); s = JSON.stringify(plays); } localStorage.setItem(PLAYS_KEY, s); } catch (e) {} }
 const writePlays = () => { try { localStorage.setItem(PLAYS_KEY, JSON.stringify(plays)); } catch (e) {} };
 const rec = f => { if (plays.on) try { f(); } catch (e) {} };
 const tick = () => { const a = P.open(plays), n = performance.now(); if (a && tAt !== null) a.t = Math.round((a.t + (n - tAt) / 1000) * 10) / 10; tAt = document.hidden ? null : n; };
@@ -289,7 +289,7 @@ function glitchBlocks(now, bottom) {
 }
 function start(s, fresh) {   // fresh: from begin(), a new attempt; else a saved board resumes its attempt
   S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); restore = clearHid = 0; prev = null; hid = [false, iceOn() === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
-  rec(() => { tick(); if (fresh) P.startAttempt(plays, P.attemptOf(S, { ice, deck, at: new Date().toISOString() })); else P.resume(plays, S); savePlays(); });
+  rec(() => { tick(); if (fresh) P.startAttempt(plays, P.attemptOf(S, { ice, deck, at: new Date().toISOString() })); else if (P.resume(plays, S) && lost(S)) P.close(plays, S.shots <= 0 ? 'lost-shots' : 'lost-line', S); savePlays(); });
   pend = { sw: [], x: 0 }; tAt = document.hidden ? null : performance.now();
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   paid = null; win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
@@ -307,12 +307,12 @@ function ask(kind) {   // the restart and start-over questions share the sheet
   $('#sheetT').textContent = g ? t('playClearAsk') : r ? t('resetAsk') : o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = g ? t('playClearText') : r ? t('resetText') : o ? t('overText') : '';
   $('#sheetB').textContent = g ? t('playClearYes') : r ? t('resetYes') : o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = kind === 'clearLog' ? t('playKeep') : o || r || g ? t('cancel') : t('keepPlaying');
 }
-const wipeLog = () => { plays.attempts = []; writePlays(); };
+const wipeLog = () => { if (!plays.on && !plays.attempts.length) return; plays.attempts = []; writePlays(); };
 $('#sheetB').onclick = () => asking === 'clear' || asking === 'clearLog' ? (wipeLog(), keep(), menuText()) : asking === 'reset' ? resetAll() : asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
 $('#sheetO').onclick = () => {
   const d = take(deck, 'overclock'); if (!d || !useItem(S, 'overclock')) return;
   deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm();
-  rec(() => { const a = plays.attempts.at(-1); if (a?.end === 'lost-shots') a.end = a.left = null; });   // a rescue reopens the attempt
+  rec(() => { const a = plays.attempts.at(-1); if (a?.end === 'lost-shots' && a.level === S.level && a.fails === S.fails) a.end = a.left = null; });   // a rescue reopens the attempt
   used('overclock');
 };
 $('#sheetC').onclick = keep;
@@ -414,7 +414,7 @@ $('#pShare').onclick = async () => {
   if (navigator.canShare?.({ files: [f] })) {
     try { await navigator.share({ files: [f], title: name }); closeMenu(); ask('clearLog'); return; } catch (e) { if (e.name === 'AbortError') return; }
   }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
   closeMenu(); ask('clearLog');
 };
 $('#mOver').onclick = () => { closeMenu(); ask('over'); };

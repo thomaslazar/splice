@@ -328,7 +328,7 @@ other). It is not saved: it is recomputed from the level.
   deck at the start, every shot with swaps, aim time, result and progress, item uses, how it ended, time) from the next
   level start; turning it on mid-level records nothing until then. Share log hands the file to `navigator.share`; when the
   share resolves the sheet asks "Clear the play log?", and a cancelled share asks nothing. Without file sharing the file
-  downloads and the same question follows. Clear log asks first. The log is trimmed to 1 MB (oldest attempts go first).
+  downloads and the same question follows. Clear log asks first; Clear (after a share or by hand) also drops the open attempt, so the rest of that level is not recorded. The count shows attempts. The log is trimmed to 1 MB (oldest attempts go first).
   Reset progress empties the log and keeps the switch. Read files with `tools/plays.mjs`.
 - Sheets: one sheet for win ("Root access"), loss ("Flatline", with a rescue button when out of shots and an Overclock is held) and the three questions (restart, start over, reset).
   Next level and Try again start a new state. Keep playing, a tap outside the card or Escape closes it.

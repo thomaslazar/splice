@@ -593,17 +593,13 @@ function draw() {
   g.strokeStyle = WARN[w] || theme.a; g.globalAlpha = w === 'crit' && !reduced ? .45 + .4 * Math.sin(performance.now() / 160) : .5;
   g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-  fxOf().over?.(now, ly - 2);
+  let ov = false; const over = () => { if (!ov) { ov = true; fxOf().over?.(now, ly - 2); } };   // static ICE covers the board and the landing rings, not the aim line
   const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {
     const L = S.load, t0 = L ? null : trace(S.grid, S.cols, a, S.top), h = L ? hits(S, L, a) : !f0.hide?.('cur') && t0.cell && nk(S.cols, key(...t0.cell)).some(x => isItem(S.grid.get(x))) ? resolve(S, { ang: a }) : null;   // a normal shot that touches item bubbles previews them too, unless the packet is hidden (it would give its colour away)
     const tr = L ? h || { pts: trace(S.grid, S.cols, a, S.top).pts, cell: null } : t0, pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
-    // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
     const jammed = iceOn() === 'jam' && restore === 0, n = performance.now();
-    g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
-    if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .15 ? .2 : .5 + .45 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
-    else { g.globalAlpha = f0.faint?.() ?? .7; g.setLineDash([2, 6]); }
-    g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
+    g.globalAlpha = f0.faint?.() ?? .7; g.lineWidth = 2;   // the rings share the line's alpha
     // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
     if (pts?.length === tr.pts.length && !jammed) {
       const ring = (k, dash, m = .9) => { const c = centre(...rc(k)); g.setLineDash(dash); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * m, 0, 7); g.stroke(); };
@@ -620,8 +616,15 @@ function draw() {
       }
       g.setLineDash([]);
     }
+    g.globalAlpha = 1; over();
+    // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
+    g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
+    if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .15 ? .2 : .5 + .45 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
+    else { g.globalAlpha = f0.faint?.() ?? .7; g.setLineDash([2, 6]); }
+    g.beginPath(); (pts || []).forEach((p, i) => i ? g.lineTo(X(p.x), Y(p.y)) : g.moveTo(X(p.x), Y(p.y))); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0;
     g.globalAlpha = 1;
   }
+  over();
   if (fly) {   // packet moves about 1.1 radius per frame along the traced path
     const f = fly, pts = f.m.pts; let move = 1.1;
     while (move > 0 && f.i < pts.length - 1) {

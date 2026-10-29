@@ -245,8 +245,8 @@ other). It is not saved: it is recomputed from the level.
   - `blink`: the aim line is off for `BLINK_OFF` (600 ms) of every `BLINK` (1500 ms), with the landing ring and item preview rings. Reduced
     motion: always on, faint.
   - `static`: 3 blocks of grey noise about 2 x 2 bubbles drift over the board above the loss
-    line, never the shooter zone (`glitchBlocks`, drawn by `over`). They hide the board but
-    not the flying packet or the pop and fall effects (those draw after them). Reduced
+    line, never the shooter zone (`glitchBlocks`, drawn by `over`). They hide the board and the landing
+    and item preview rings (owner), but not the aim line, the flying packet or the pop and fall effects (those draw after them). Reduced
     motion: fixed blocks.
   - `scrambler`: each new packet arrives hidden with chance `SCRAMBLE` (0.4, seeded from
     `S.draws`); a hidden packet stays a grey "?" in the next slot and at the shooter and shows only

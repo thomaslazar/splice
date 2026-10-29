@@ -9,7 +9,6 @@ What comes next for Splice, roughly in order. Issues live on
 - **Item effects** ([#7](https://github.com/thomaslazar/splice/issues/7)). Each item gets its own
   visual when it goes off: the bomb explodes, lightning arcs up its path, the sweep cuts across its
   row. Today every item shows the same white flash before its bubbles pop.
-- **Level progress indicator.** Show how far into a level the player is, so it is clear whether Overclock is worth using (owner).
 - **Tutorial and first steps** ([#5](https://github.com/thomaslazar/splice/issues/5)). A short
   introduction that opens from the menu and on a fresh start or after Reset progress, possibly with
   a little story about the setting. Needs a brainstorm.
@@ -61,3 +60,4 @@ What comes next for Splice, roughly in order. Issues live on
 - Strands between big parts vary in length, width and colours.
 - Items in half the levels, and 50 frags per dropped item bubble.
 - Play log: an opt-in record of each attempt, shared from the menu and read with `tools/plays.mjs`.
+- Level progress indicator: a track in the right gutter with the percent through the level.

@@ -277,6 +277,7 @@ other). It is not saved: it is recomputed from the level.
   each `ceil(maxShots / 20)` shots; lit ones are the shots left, `S.maxShots` is set by
   `startState`), two reserved log lines, and a full-screen scanline overlay
   (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
+- Progress track (`track()`): `GUT` (16 px) is kept free on each side of the board so it stays centred; the right gutter holds a line for the level (start at the bottom, ceiling at the top), the cleared part brighter, a marker that follows the eased view (`view` against the starting top row, so it moves with the scroll; `pct()` on a level that starts at the ceiling) and the percent (`depth` in `lang/`) above it. It shows where the player is, never the level's bubbles (owner: a mini-map would make it too easy), so Overclock can be judged.
 - View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
   `sc` is px per radius. `view` is the top row shown and eases toward `S.top` (instantly
   with reduced motion). The ceiling line is drawn only when row 0 is on screen; a dashed loss line sits between `lossRow` and the row above.
@@ -357,12 +358,12 @@ other). It is not saved: it is recomputed from the level.
   (`reach`): on the board with the screens below cleared, the cheapest dig from a neighbour to open space (`openOf`, at most 3
   groups) must leave it hanging, and the screen's earlier item bubbles must stay reachable too. Screens: designed levels use row bands
   `[s*sec, (s+1)*sec)` with `sec = round(1.6 * cols)`; noise splits its occupied rows into `layout.screens` bands. An item bubble goes off
-  when a landed packet or a shot touches it; its effect is the item's, centred on it. Chains: breadth first, each item bubble
+  when a landed packet or a shot touches it; its effect is the item's, centred on it. A packet that touches item bubbles sets them off on the board as it is, then its whole same-colour group pops (owner), so an item's reach counts the packet's colour too. Pierce reaches 10 rows of length (`PIERCE`) along its line, empty space included, from the first bubble it hits (deck) or from its own cell (a Pierce bubble). Chains: breadth first, each item bubble
   once, so two that reach each other cannot loop. Colour pops never set off item bubbles (only a landing next to one, or a shot or chain reaching it). A deck Wildcard always fires; any other deck item whose effect changes
   nothing cannot fire. They never count as colours (the winning test, `deal`), but count for the loss line and fall like any bubble.
 - Bot (`src/bot.js`): plays item bubbles through `resolve`, only when the landing cell touches one; it never uses deck items.
 - UI: `bubble()` hands grid values from `ITEM_BASE` to `itemBubble` (white in every theme, also monochrome; static blocks cover
-  them). The normal-shot aim preview outlines `clear` and `popped` of `resolve` when the landing cell touches an item bubble,
+  them). The normal-shot aim preview outlines `clear` and `popped` of `resolve` when the landing cell touches an item bubble, without the packet's own colour pop (owner),
   under the same rules as the landing ring (none with black ICE or a jammed line). A set-off flashes each fired bubble white
   (radius 1.3), then the clears pop; a falling item bubble just falls. Reduced motion: at once.
 - Reset progress (Run tab) wipes level, frags and items.

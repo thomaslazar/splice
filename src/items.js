@@ -167,16 +167,19 @@ export function within(cols, k, n) {
 
 /* ---------- effects ---------- */
 const centre = k => [1 + 2 * (k & 15) + ((k >> 4) % 2), 1 + (k >> 4) * RH];
-// Pierce flies from (x, y) along the unit vector (dx, dy), bouncing off the walls, and takes the first 10 bubbles it passes within HIT.
-function pierce(S, g, x, y, dx, dy) {
+// Pierce flies from (x, y) along the unit vector (dx, dy), bouncing off the walls, and takes every bubble within HIT of its
+// line for PIERCE (10 rows straight up), empty space included (owner). wait: the length starts at the first bubble it
+// passes (a deck Pierce from the shooter), else at (x, y) (a Pierce bubble).
+const PIERCE = 10;   // rows; times RH inside the function (RH comes through a circular import)
+function pierce(S, g, x, y, dx, dy, wait) {
   const { cols } = S, lo = 1, hi = 2 * cols - 1, clear = new Set(), pts = [{ x, y }];
-  for (let i = 0; i < 8000 && clear.size < 10 && y > 1; i++) {
-    x += dx * .25; y += dy * .25;
+  for (let i = 0, left = PIERCE * RH; i < 8000 && left > 0 && y > 1; i++) {
+    x += dx * .25; y += dy * .25; if (!wait || clear.size) left -= .25;
     if (x < lo) { x = 2 * lo - x; dx = -dx; pts.push({ x, y }); }
     if (x > hi) { x = 2 * hi - x; dx = -dx; pts.push({ x, y }); }
     const lr = Math.round((y - 1) / RH);
     for (let r = Math.max(0, lr - 1); r <= lr + 1; r++) for (let c = 0; c < cellsIn(cols, r); c++) {
-      const k = key(r, c); if (g.has(k) && !clear.has(k) && clear.size < 10 && (1 + 2 * c + r % 2 - x) ** 2 + (1 + r * RH - y) ** 2 < HIT * HIT) clear.add(k); }
+      const k = key(r, c); if (g.has(k) && !clear.has(k) && (1 + 2 * c + r % 2 - x) ** 2 + (1 + r * RH - y) ** 2 < HIT * HIT) clear.add(k); }
   }
   pts.push({ x, y });
   return { pts, clear };
@@ -231,9 +234,9 @@ export function resolve(S, shot) {
     for (const x of e.clear) { clear.add(x); g.delete(x); }
     for (const x of e.pop) { popped.add(x); g.delete(x); }
   };
-  let pts, cell = null, land = null, dir;
+  let pts, cell = null, land = null, dir, own = [];
   if (id === 'pierce') {
-    const p = pierce(S, g, cols, 1 + (S.top + winRows(cols) - 1) * RH, Math.cos(a), Math.sin(a));
+    const p = pierce(S, g, cols, 1 + (S.top + winRows(cols) - 1) * RH, Math.cos(a), Math.sin(a), true);
     pts = p.pts; dir = lastDir(pts); apply({ clear: p.clear, pop: new Set(), recolour: new Map(), land: null }, null); enqueue(p.clear);
   } else {
     const t = trace(g, cols, a, S.top); if (!t.cell) return null;
@@ -245,9 +248,8 @@ export function resolve(S, shot) {
       const dd = x => { const [r, c] = rc(x); return (1 + 2 * c + r % 2 - end.x) ** 2 + (1 + r * RH - end.y) ** 2; };
       const e = effect(S, g, id, k0, nbc.length ? g.get(nbc.reduce((p, x) => dd(x) < dd(p) ? x : p)) : null, dir);
       land = e.land; apply(e, k0); enqueue(e.clear);
-    } else {
-      g.set(k0, S.cur);
-      const grp = flood({ cols, grid: g }, [k0], S.cur); if (grp.length >= 3) for (const x of grp) { popped.add(x); g.delete(x); }
+    } else {   // the touched item bubbles go off on the board as it is, then the packet's whole group pops (owner)
+      g.set(k0, S.cur); const grp = flood({ cols, grid: g }, [k0], S.cur); if (grp.length >= 3) own = grp;
     }
   }
   for (let i = 0; i < queue.length; i++) {   // item bubbles go off at their own cell; the queue grows with chains
@@ -255,6 +257,7 @@ export function resolve(S, shot) {
     const first = hitOf.get(k) ?? g.get(nk(cols, k).find(x => g.has(x) && isColour(g.get(x))));
     const e = effect(S, g, itemOf(S.grid.get(k)), k, first ?? null, dir); apply(e, k); if (g.has(k)) clear.delete(k); enqueue(e.clear);   // a bubble that became a colour stays
   }
+  for (const x of own) { popped.add(x); g.delete(x); }
   const recolour = new Map(); for (const [k, v] of g) if (S.grid.has(k) && S.grid.get(k) !== v) recolour.set(k, v);
   if (id && id !== 'wildcard' && !clear.size && !recolour.size && !popped.size) return null;   // nothing to do: the item stays loaded
   return { pts, cell, clear, popped, recolour, land, fired, after: g };

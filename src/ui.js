@@ -1,5 +1,5 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
-import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk, ITEM_DROP } from './core.js';
+import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk, flood, ITEM_DROP } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
@@ -84,7 +84,8 @@ const QUIET = 600, GLITCH = 1200;   // the glitch: bursts apart and turns the ac
 let win = null, paid = null, shown = 0;   // shown: the frags the header shows; it trails S.frags while dropped bubbles fall   // paid: what the last win paid, for the sheet
 const busy = () => win !== null && !win.done;
 const SY = () => 1 + (winRows(S.cols) - 1) * RH;   // shooter y in screen units
-const X = u => u * sc, Y = u => (u - view * RH) * sc;
+const GUT = 16;   // px kept free on each side of the board; the right one holds the progress track
+const X = u => GUT + u * sc, Y = u => (u - view * RH) * sc;
 const target = () => S.top;
 const shut = () => $('#sheet').hidden && $('#menu').hidden && $('#drawer').hidden;
 const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && shut() && S.cur !== null && S.grid.size > 0;
@@ -149,9 +150,9 @@ function fit() {
   for (let i = 0; i < 2; i++) {
     $('#deck').style.width = w + 'px';
     const rest = $('#deck').offsetHeight - cv.offsetHeight - sv.offsetHeight + $('#wip').offsetHeight;
-    w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / (hu + strip * STRIP));
+    w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / (hu + strip * STRIP) + 2 * GUT);
   }
-  sc = w / (2 * S.cols); W = w; H = hu * sc; $('#deck').style.width = W + 'px';
+  sc = (w - 2 * GUT) / (2 * S.cols); W = w; H = hu * sc; $('#deck').style.width = W + 'px';
   cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px';
   cv.width = Math.round(W * dpr); cv.height = Math.round((H + PAD) * dpr); g.setTransform(dpr, 0, 0, dpr, 0, PAD * dpr);
   const sh = strip * STRIP * sc; sv.style.width = W + 'px'; sv.style.height = sh + 'px';
@@ -275,10 +276,21 @@ const iceOn = () => S.breaker > 0 ? null : ice;   // the ICE in effect: none whi
 const fxOf = () => FX[iceOn()] || {};
 // static: 3 blocks of about 2 x 2 bubbles drift over the board above the loss line (never the
 // shooter zone), each on its own seeded slow Lissajous path; reduced motion: fixed. Purely drawn.
+// progress track in the right gutter: the level as a line (start at the bottom, the ceiling at the
+// top), the part already cleared brighter, a marker where the view is, the percent above it. It follows
+// the eased view, so it moves with the scroll; a level that starts at the ceiling uses pct() instead.
+function track(ly) {
+  const top0 = Math.max(0, S.startLow - (winRows(S.cols) - 5)), p = Math.round(top0 ? Math.min(100, Math.max(0, 100 * (1 - view / top0))) : pct()), x = W - GUT / 2, top = 24, bot = ly - 12, y = bot - (bot - top) * p / 100;
+  g.strokeStyle = g.fillStyle = theme.a; g.lineWidth = 1; g.globalAlpha = .25;
+  g.beginPath(); g.moveTo(x, top); g.lineTo(x, bot); g.moveTo(x - 4, top); g.lineTo(x + 4, top); g.moveTo(x - 4, bot); g.lineTo(x + 4, bot); g.stroke();
+  g.globalAlpha = .7; g.lineWidth = 2; g.beginPath(); g.moveTo(x, y); g.lineTo(x, bot); g.stroke();
+  g.globalAlpha = 1; g.beginPath(); g.moveTo(x - 6, y); g.lineTo(x - 1, y - 4); g.lineTo(x - 1, y + 4); g.closePath(); g.fill(); g.fillRect(x - 1, y - 1, 5, 2);
+  g.font = `600 10px 'Chakra Petch', monospace`; g.textAlign = 'right'; g.fillText(t('depth', { n: p }), W - 2, top - 8); g.textAlign = 'left';
+}
 function glitchBlocks(now, bottom) {
   const s = reduced ? 0 : now / 1000, b = 4 * sc, tk = Math.floor(now / 90), u = (i, n) => hash(S.level, i, n) % 1000 / 1000;
   for (let i = 0; i < 3; i++) {
-    const x = (W - b) * (.5 + .5 * Math.sin(s * (.15 + .1 * u(i, 1)) + 6.3 * u(i, 2)));
+    const x = GUT + (W - 2 * GUT - b) * (.5 + .5 * Math.sin(s * (.15 + .1 * u(i, 1)) + 6.3 * u(i, 2)));
     const y = Math.max(0, bottom - b) * (.5 + .5 * Math.sin(s * (.11 + .08 * u(i, 3)) + 6.3 * u(i, 4)));
     for (let r = 0; r < 8; r++) {   // horizontal bands of grey noise, re-rolled every tick (not with reduced motion)
       const h = hash(S.level, i, r, reduced ? 0 : tk), o = (h % 7 - 3) * b * .03;
@@ -524,7 +536,7 @@ let drawn = null;   // the bent angle on screen this frame; the shot takes exact
 const bend = () => { const f = fxOf(), a = clampAim(aim ?? 0); return a === null || !f.ang ? aim : clampAim(Math.min(-.001, f.ang(a))); };
 const shotAngle = () => fxOf().ang && drawn !== null ? drawn : bend();
 // a finger below the dashed loss line cancels the aim; moving back up resumes it
-const setAim = p => { aim = p.y > (1 + (winRows(S.cols) - 2.5) * RH) * sc ? null : Math.atan2(p.y - SY() * sc, p.x - S.cols * sc); };
+const setAim = p => { aim = p.y > (1 + (winRows(S.cols) - 2.5) * RH) * sc ? null : Math.atan2(p.y - SY() * sc, p.x - X(S.cols)); };
 const TAP_MS = 300, TAP_PX = 10; let tapAt = null, swapAt = -Infinity, redealAt = -Infinity;   // swapAt, redealAt: when the last swap and re-deal showed
 const SWAP_MS = 180, REDEAL_MS = 450, jolt = () => reduced || performance.now() - redealAt >= REDEAL_MS ? 0 : (hash(performance.now() / 50 | 0, 6) % 1000 / 1000 - .5) * sc * .6;   // a swap tap: released within TAP_MS, moved under TAP_PX
 // Only the pointer that started the aim moves and fires it; any second pointer cancels the aim.
@@ -593,6 +605,7 @@ function draw() {
   g.strokeStyle = WARN[w] || theme.a; g.globalAlpha = w === 'crit' && !reduced ? .45 + .4 * Math.sin(performance.now() / 160) : .5;
   g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
+  track(ly);
   let ov = false; const over = () => { if (!ov) { ov = true; fxOf().over?.(now, ly - 2); } };   // static ICE covers the board and the landing rings, not the aim line
   const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {
@@ -605,7 +618,9 @@ function draw() {
       const ring = (k, dash, m = .9) => { const c = centre(...rc(k)); g.setLineDash(dash); g.beginPath(); g.arc(X(c.x), Y(c.y), sc * m, 0, 7); g.stroke(); };
       if (h) {   // item preview: white rings on what it clears, dashed on what it recolours
         g.strokeStyle = '#fff'; g.lineWidth = Math.max(1.5, sc * .12);
-        for (const k of [...h.clear, ...h.popped]) ring(k, [], 1.05);   // just outside the bubble's own edge
+        // a normal shot outlines only what the item bubbles do, not the packet's own colour pop (owner)
+        const own = L ? new Set() : new Set(flood({ cols: S.cols, grid: new Map(S.grid).set(key(...t0.cell), S.cur) }, [key(...t0.cell)], S.cur));
+        for (const k of [...h.clear, ...h.popped]) if (h.clear.has(k) || own.size < 3 || !own.has(k)) ring(k, [], 1.05);   // just outside the bubble's own edge
         for (const k of h.recolour.keys()) ring(k, [4, 3], 1.05);
       }
       if (tr.cell) {

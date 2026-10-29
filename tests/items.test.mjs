@@ -118,9 +118,13 @@ test('an item with no effect returns null and is not spent', () => {
   none('virus', ['11111111', '1111111'], 2, 0);   // everything in range already has the hit colour
   none('sweep', ['1.......', '.......'], 1, 0);   // the landing row is empty
 });
-test('pierce clears the first 10 on its path and lands nowhere', () => {
-  const S = board(full(8)), h = hits(S, 'pierce', -Math.PI / 2 + .01);
-  assert.equal(h.cell, null); assert.equal(h.clear.size, 10); assert.equal(h.land, null);
+test('pierce reaches 10 rows from the first bubble it hits, empty rows included, and lands nowhere', () => {
+  // a straight line up the middle (x = 8: column 3 of the odd rows): one bubble at row 13, rows 7 to 11 empty, then 5, 3, 1
+  const rows = Array.from({ length: 14 }, (_, r) => r % 2 ? ([13, 5, 3, 1].includes(r) ? '...1...' : '.......') : '........');
+  const S = board(rows), h = hits(S, 'pierce', -Math.PI / 2);
+  assert.equal(h.cell, null); assert.equal(h.land, null);
+  assert.ok(h.clear.has(key(13, 3)) && h.clear.has(key(5, 3)), 'the first bubble and the block above the gap');
+  assert.ok(!h.clear.has(key(1, 3)), 'out of reach: 12 rows above the first hit');
 });
 test('wildcard joins the biggest touching group and pops it', () => {
   // landing (1,3) touches a pair of 1s and a single 2
@@ -330,8 +334,15 @@ test('virus bubble spreads the colour of the packet that hit it', () => {
 test('pierce bubble continues in the shot\'s direction', () => {
   const S = board(full(10)); S.grid.delete(key(9, 3)); S.cur = 2; const p = above(9, 3); S.grid.set(p, V('pierce'));
   const R = resolve(S, { ang: aimAt(S, 9, 3) });
-  assert.deepEqual(R.fired, [p]); assert.ok(R.clear.size > 2 && R.clear.size <= 11);
+  assert.deepEqual(R.fired, [p]); assert.ok(R.clear.size > 2); assert.ok([...R.clear].every(k => k >> 4 >= (p >> 4) - 11), 'about 10 rows from the bubble');
   assert.ok([...R.clear].every(k => k >> 4 < 9), 'it flies up, not back down');
+});
+test('a set-off item works on the board before the packet\'s colour pop, and the whole group still pops', () => {
+  // a pierce bubble over a column of 1s: the packet (1) lands beside it; the pierce line runs up through the 1s
+  const S = board(full(10)); S.cur = 1; S.grid.delete(key(9, 3)); const p = above(9, 3); S.grid.set(p, V('pierce'));
+  const R = resolve(S, { ang: aimAt(S, 9, 3) });
+  assert.ok([...R.clear].some(k => R.popped.has(k)), 'bubbles on the pierce line are also in the colour pop');
+  assert.ok(R.popped.size > 10, 'the packet\'s whole group of 1s pops');
 });
 test('a chain that removes the next colour re-deals it', () => {
   const S = board(['11111111', '2222222', '.......'], { cur: 1, next: 2 }); S.grid.set(key(1, 3), V('sweep'));

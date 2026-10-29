@@ -6,6 +6,7 @@ import { runFrom, enter, clampLevel } from './run.js';
 import { drawHost } from './hostdraw.js';
 import { ICONS } from './icons.js';
 import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, resolve, isItem, itemOf, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
+import * as P from './plays.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -93,6 +94,16 @@ function saveRun() { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); }
 const DECK_KEY = 'splice-deck'; let deck, prev = null;   // deck: { frags, items }; prev: { s: save before the last shot, id: item it fired }
 try { deck = deckFrom(JSON.parse(localStorage.getItem(DECK_KEY))); } catch (e) { deck = deckFrom(null); }
 function saveDeck() { try { localStorage.setItem(DECK_KEY, JSON.stringify(deck)); } catch (e) {} }
+// Play log (opt-in, plays.js): rec runs f only while on, and a log error never reaches play.
+// pend: this shot's swaps [src, ms] and cancelled aims; tAt: when the visible time last counted (null: hidden).
+const PLAYS_KEY = 'splice-plays'; let plays, pend = { sw: [], x: 0 }, pressAt = 0, below = false, tAt = null;
+try { plays = P.logFrom(JSON.parse(localStorage.getItem(PLAYS_KEY))); } catch (e) { plays = P.logFrom(null); }
+plays.id ??= [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
+function savePlays() { if (!plays.on) return; try { P.trim(plays); localStorage.setItem(PLAYS_KEY, JSON.stringify(plays)); } catch (e) {} }
+const rec = f => { if (plays.on) try { f(); } catch (e) {} };
+const tick = () => { const a = P.open(plays), n = performance.now(); if (a && tAt !== null) a.t = Math.round((a.t + (n - tAt) / 1000) * 10) / 10; tAt = document.hidden ? null : n; };
+const used = id => rec(() => { P.use(plays, id); savePlays(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) rec(() => { tick(); savePlays(); }); else tAt = performance.now(); });
 function load() {   // a valid save, or [level, fails] to begin: an invalid save keeps its level, unreadable means level 1
   let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
   if (o && item(o.load)?.kind === 'shot') { deck = give(deck, o.load); saveDeck(); o.load = null; try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }   // an item loaded in a save we cannot resume goes back
@@ -111,7 +122,7 @@ async function begin(level, fails) {
   await new Promise(r => requestAnimationFrame(() => setTimeout(r)));   // let the card paint first
   const s = startState(level, fails);
   await new Promise(r => setTimeout(r, Math.max(0, LOAD_MIN - (performance.now() - t0))));
-  $('#load').hidden = true; loading = false; start(s);
+  $('#load').hidden = true; loading = false; start(s, true);
   if (unlock) { log(t('logUnlock')); flash('unlock'); } else if (ice) flash('ice');   // a fresh start only; a reload of a saved board calls start() directly
 }
 // Running out: 'low' at 25% of the shots or fewer, 'crit' at 3 or fewer (same thresholds as the trace log lines).
@@ -241,7 +252,7 @@ const FX = {
   scrambler: { hide: slot => hid[slot === 'cur' ? 0 : 1], swapped: () => { hid = [hid[1], hid[0]]; } },
   lock: { locked: true },
 };
-function trySwap() { const f = fxOf(); if (f.locked || S.load) return; swap(S); f.swapped?.(); swapAt = performance.now(); save(); }
+function trySwap(src) { const f = fxOf(); if (S.load) return; if (plays.on) pend.sw.push([f.locked ? 'lock' : src, performance.now()]); if (f.locked) return; swap(S); f.swapped?.(); swapAt = performance.now(); save(); }
 function packet(x, y, col, slot, a = 1, rr = sc) {   // a queue packet, through the ICE hooks
   const f = fxOf();
   if (f.hide?.(slot)) {   // no colour, no symbol: a grey ring and a "?" that glitches sideways (static with reduced motion)
@@ -274,8 +285,10 @@ function glitchBlocks(now, bottom) {
     g.strokeStyle = theme.a; g.globalAlpha = .35; g.lineWidth = 1; g.strokeRect(x, y, b, b); g.globalAlpha = 1;
   }
 }
-function start(s) {
+function start(s, fresh) {   // fresh: from begin(), a new attempt; else a saved board resumes its attempt
   S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); restore = clearHid = 0; prev = null; hid = [false, iceOn() === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  rec(() => { tick(); if (fresh) P.startAttempt(plays, P.attemptOf(S, { ice, deck, at: new Date().toISOString() })); else P.resume(plays, S); savePlays(); });
+  pend = { sw: [], x: 0 }; tAt = document.hidden ? null : performance.now();
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   paid = null; win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
@@ -296,6 +309,8 @@ $('#sheetB').onclick = () => asking === 'reset' ? resetAll() : asking === 'over'
 $('#sheetO').onclick = () => {
   const d = take(deck, 'overclock'); if (!d || !useItem(S, 'overclock')) return;
   deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm();
+  rec(() => { const a = plays.attempts.at(-1); if (a?.end === 'lost-shots') a.end = a.left = null; });   // a rescue reopens the attempt
+  used('overclock');
 };
 $('#sheetC').onclick = keep;
 $('#sheet').onclick = e => { if (asking && e.target === $('#sheet')) keep(); };
@@ -431,13 +446,13 @@ function use(id) {
   if (id === 'rollback') return rollback();
   if (id === 'decrypt') { picking = true; return drawer(); }
   const d = take(deck, id); if (!d || !useItem(S, id)) return;
-  deck = d; prev = null; saveDeck(); save(); hud(); closeDrawer();
+  deck = d; prev = null; saveDeck(); save(); hud(); closeDrawer(); if (item(id).kind !== 'shot') used(id);
   if (id === 'icebreaker') { log(t('logBreaker')); flash('breaker'); } else if (item(id).kind === 'shot') log(t('logLoaded', { item: ITEM_NAMES[id]() }));
 }
 function decrypt(col) {
   const d = take(deck, 'decrypt'); if (!d || !useItem(S, 'decrypt', col)) return;
   deck = d; prev = null; if (iceOn() === 'scrambler') { hid[0] = false; clearHid = 3; }   // the next 3 new packets arrive unhidden
-  saveDeck(); save(); hud(); closeDrawer();
+  saveDeck(); save(); hud(); closeDrawer(); used('decrypt');
 }
 function unloadItem() { const id = S.load; unload(S); deck = give(deck, id); saveDeck(); save(); hud(); }
 function rollback() {
@@ -445,13 +460,13 @@ function rollback() {
   S = fromSave(prev.s); S.load = null; deck = prev.id ? give(d, prev.id) : d; restore = prev.restore; prev = null;   // the fired item goes back to the deck
   hid = [false, iceOn() === 'scrambler' && scrambled()]; fx = []; asking = false; win = won(S) ? { at: -Infinity, done: true } : null; logTop = S.top; logPct = pct();
   if (S.top) { stripAt = null; strip = 0; }   // the ceiling may be out of view again
-  refit = true; saveDeck(); save(); hud(); log(t('logRollback')); closeDrawer();
+  refit = true; saveDeck(); save(); hud(); log(t('logRollback')); closeDrawer(); used('rollback');
 }
 
 /* ---------- moves ---------- */
 function shoot() {
   if (!ready() || aim === null) return;
-  const pre = new Map(S.grid), col = S.cur, it = S.load, nx = S.next, snap = toSave(S), rs = restore, m = fire(S, shotAngle()); aim = null; drawn = null;
+  const pre = new Map(S.grid), col = S.cur, it = S.load, nx = S.next, snap = toSave(S), rs = restore, ang = shotAngle(), m = fire(S, ang); aim = null; drawn = null;
   if (!m) return;
   if (S.grid.size && S.cur !== (it ? col : nx)) redealAt = performance.now();   // its colour left the board: show the new one
   if (won(S)) {   // pay at the winning shot, before the save: a reload during the flight keeps it, run.paid keeps it single
@@ -459,6 +474,11 @@ function shoot() {
     deck = p.deck; if (S.level === run.best) run.paid = S.level; saveDeck(); saveRun();
   }
   prev = { s: snap, id: it, restore: rs };
+  rec(() => { const n = performance.now(), ms = v => Math.round(n - v);
+    tick(); P.shot(plays, { n: P.open(plays)?.shots.filter(e => !e.u).length + 1, s: snap.shots, c: it || col, sw: pend.sw.map(([w, v]) => [w, ms(v)]), st: +!!tapAt, x: pend.x,
+      am: ms(pressAt), a: Math.round(ang * 1000) / 1000, l: m.cell ?? null, p: m.popped.length, d: m.dropped.length, f: m.fired.length, b: S.grid.size, pc: pct() });
+    if (won(S)) P.close(plays, 'won', S, paid); savePlays(); });
+  pend = { sw: [], x: 0 };
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
   if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
   if (S.breaker > 0 && --S.breaker === 0 && ice) { log(t('logIceBack', { ice: iceName(ice) })); flash('ice'); }
@@ -476,6 +496,7 @@ function land() {
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(m.cell ? key(...m.cell) : m.dropped[0]), k: 0 });
   }
   logShot(m.dropped.length);
+  if (lost(S)) rec(() => { tick(); P.close(plays, S.shots <= 0 ? 'lost-shots' : 'lost-line', S); savePlays(); });
   if (won(S)) { hud(); win = { at: performance.now(), done: false }; asking = false; $('#sheet').hidden = true; } else sheet();
   reveal(); hud();
 }
@@ -501,19 +522,20 @@ cv.addEventListener('pointerdown', e => {
   // a quick tap in the strip at the shooter's height swaps (or unloads a loaded item); a drag that starts there aims as
   // usual (players start low), so a swap never happens by accident
   tapAt = p.y > SY() * sc - Math.max(1.6 * sc, 22) ? { ...p, t: e.timeStamp } : null;
-  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); lagA = null; setAim(p);
+  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); lagA = null; setAim(p); pressAt = performance.now(); below = false;
 });
-cv.addEventListener('pointermove', e => { if (e.pointerId === aimId) setAim(pos(e)); });
+cv.addEventListener('pointermove', e => { if (e.pointerId !== aimId) return; const was = aim; setAim(pos(e));
+  if (plays.on && was !== null && aim === null && !below) { below = true; pend.x++; } });   // a cancelled aim, once per press
 cv.addEventListener('pointerup', e => {
   if (e.pointerId !== aimId) return; aimId = null; const q = pos(e);
-  if (tapAt && e.timeStamp - tapAt.t < TAP_MS && Math.hypot(q.x - tapAt.x, q.y - tapAt.y) < TAP_PX) { aim = null; if (S.load) unloadItem(); else if (S.cur !== null) trySwap(); }
+  if (tapAt && e.timeStamp - tapAt.t < TAP_MS && Math.hypot(q.x - tapAt.x, q.y - tapAt.y) < TAP_PX) { aim = null; if (S.load) unloadItem(); else if (S.cur !== null) trySwap('tap'); }
   else shoot();
   tapAt = null;
 });
 cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = tapAt = null; });
 let wheelT = 0;   // one swap per wheel gesture; trackpads send many events
 addEventListener('wheel', e => { e.preventDefault(); const n = performance.now();
-  if (n - wheelT > 150 && !loading && shut() && S && S.cur !== null && !busy()) trySwap(); wheelT = n; }, { passive: false });
+  if (n - wheelT > 150 && !loading && shut() && S && S.cur !== null && !busy()) trySwap('wheel'); wheelT = n; }, { passive: false });
 addEventListener('resize', () => S && fit());
 // the header can change height mid-level (score digits, font swap): refit next frame on a height change only
 let hudH = 0; new ResizeObserver(([e]) => { if (S && e.contentRect.height !== hudH) { hudH = e.contentRect.height; refit = true; } }).observe($('#hud'));

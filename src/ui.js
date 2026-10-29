@@ -97,8 +97,9 @@ const DECK_KEY = 'splice-deck'; let deck, prev = null;   // deck: { frags, items
 try { deck = deckFrom(JSON.parse(localStorage.getItem(DECK_KEY))); } catch (e) { deck = deckFrom(null); }
 function saveDeck() { try { localStorage.setItem(DECK_KEY, JSON.stringify(deck)); } catch (e) {} }
 // Play log (opt-in, plays.js): rec runs f only while on, and a log error never reaches play.
-// pend: this shot's swaps [src, ms] and cancelled aims; tAt: when the visible time last counted (null: hidden).
-const PLAYS_KEY = 'splice-plays'; let plays, pend = { sw: [], x: 0 }, pressAt = 0, below = false, tAt = null;
+// pend: this shot's swaps [src, ms], cancelled aims and events in order (ev: [type, time, ...]: p press (1 in the strip),
+// c cancel, s swap (src, touch ms, touch px), u release from the strip that fired (touch ms, px), r re-deal); tAt: when the visible time last counted (null: hidden).
+const PLAYS_KEY = 'splice-plays'; let plays, pend = { sw: [], x: 0, ev: [] }, pressAt = 0, below = false, tAt = null;
 try { plays = P.logFrom(JSON.parse(localStorage.getItem(PLAYS_KEY))); } catch (e) { plays = P.logFrom(null); }
 plays.id ??= [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 function savePlays() { if (!plays.on) return; try { let s = JSON.stringify(plays); if (s.length > P.PLAYS_MAX) { P.trim(plays); s = JSON.stringify(plays); } localStorage.setItem(PLAYS_KEY, s); } catch (e) {} }
@@ -255,7 +256,8 @@ const FX = {
   scrambler: { hide: slot => hid[slot === 'cur' ? 0 : 1], swapped: () => { hid = [hid[1], hid[0]]; } },
   lock: { locked: true },
 };
-function trySwap(src) { const f = fxOf(); if (S.load) return; if (plays.on) pend.sw.push([f.locked ? 'lock' : src, performance.now()]); if (f.locked) return; swap(S); f.swapped?.(); swapAt = performance.now(); save(); }
+function trySwap(src, tms, tpx) { const f = fxOf(); if (S.load) return;
+  if (plays.on) { const n = performance.now(), w = f.locked ? 'lock' : src; pend.sw.push([w, n]); pend.ev.push(['s', n, w, tms ?? null, tpx ?? null]); } if (f.locked) return; swap(S); f.swapped?.(); swapAt = performance.now(); save(); }
 function packet(x, y, col, slot, a = 1, rr = sc) {   // a queue packet, through the ICE hooks
   const f = fxOf();
   if (f.hide?.(slot)) {   // no colour, no symbol: a grey ring and a "?" that glitches sideways (static with reduced motion)
@@ -303,7 +305,7 @@ function glitchBlocks(now, bottom) {
 function start(s, fresh) {   // fresh: from begin(), a new attempt; else a saved board resumes its attempt
   S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); restore = clearHid = 0; prev = null; hid = [false, iceOn() === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   rec(() => { tick(); if (fresh) P.startAttempt(plays, P.attemptOf(S, { ice, deck, at: new Date().toISOString() })); else if (P.resume(plays, S) && lost(S)) P.close(plays, S.shots <= 0 ? 'lost-shots' : 'lost-line', S); savePlays(); });
-  pend = { sw: [], x: 0 }; tAt = document.hidden ? null : performance.now();
+  pend = { sw: [], x: 0, ev: [] }; tAt = document.hidden ? null : performance.now();
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   paid = null; win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
   setTheme(S.level);
@@ -497,17 +499,17 @@ function shoot() {
   if (!ready() || aim === null) return;
   const pre = new Map(S.grid), col = S.cur, it = S.load, nx = S.next, snap = toSave(S), rs = restore, ang = shotAngle(), m = fire(S, ang); aim = null; drawn = null;
   if (!m) return;
-  if (S.grid.size && S.cur !== (it ? col : nx)) redealAt = performance.now();   // its colour left the board: show the new one
+  const rd = S.grid.size && S.cur !== (it ? col : nx); if (rd) redealAt = performance.now();   // its colour left the board: show the new one
   if (won(S)) {   // pay at the winning shot, before the save: a reload during the flight keeps it, run.paid keeps it single
     const p = payout(deck, S, run.best, run.paid); paid = { frags: p.frags, loot: p.loot, replay: !pays() };
     deck = p.deck; if (S.level === run.best) run.paid = S.level; saveDeck(); saveRun();
   }
   prev = { s: snap, id: it, restore: rs };
   rec(() => { const n = performance.now(), ms = v => Math.round(n - v);
-    tick(); P.shot(plays, { n: P.open(plays)?.shots.filter(e => !e.u).length + 1, s: snap.shots, c: it || col, sw: pend.sw.map(([w, v]) => [w, ms(v)]), st: +!!tapAt, x: pend.x,
+    tick(); P.shot(plays, { n: P.open(plays)?.shots.filter(e => !e.u).length + 1, s: snap.shots, c: it || col, sw: pend.sw.map(([w, v]) => [w, ms(v)]), st: +!!tapAt, x: pend.x, ev: pend.ev.map(([w, v, ...o]) => [w, ms(v), ...o]),
       am: ms(pressAt), a: Math.round(ang * 1000) / 1000, l: m.cell ?? null, p: m.popped.length, d: m.dropped.length, f: m.fired.length, b: S.grid.size, pc: pct() });
     if (won(S)) P.close(plays, 'won', S, paid); savePlays(); });
-  pend = { sw: [], x: 0 };
+  pend = { sw: [], x: 0, ev: [] }; if (plays.on && rd) pend.ev.push(['r', redealAt]);   // a re-deal belongs to the next shot's events
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
   if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
   if (S.breaker > 0 && --S.breaker === 0 && ice) { log(t('logIceBack', { ice: iceName(ice) })); flash('ice'); }
@@ -551,14 +553,15 @@ cv.addEventListener('pointerdown', e => {
   // a quick tap in the strip at the shooter's height swaps (or unloads a loaded item); a drag that starts there aims as
   // usual (players start low), so a swap never happens by accident
   tapAt = p.y > SY() * sc - Math.max(1.6 * sc, 22) ? { ...p, t: e.timeStamp } : null;
-  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); lagA = null; setAim(p); pressAt = performance.now(); below = false;
+  aimId = e.pointerId; cv.setPointerCapture(e.pointerId); lagA = null; setAim(p); pressAt = performance.now(); below = false; if (plays.on) pend.ev.push(['p', pressAt, +!!tapAt]);
 });
 cv.addEventListener('pointermove', e => { if (e.pointerId !== aimId) return; const was = aim; setAim(pos(e));
-  if (plays.on && was !== null && aim === null && !below) { below = true; pend.x++; } });   // a cancelled aim, once per press
+  if (plays.on && was !== null && aim === null && !below) { below = true; pend.x++; pend.ev.push(['c', performance.now()]); } });   // a cancelled aim, once per press
 cv.addEventListener('pointerup', e => {
   if (e.pointerId !== aimId) return; aimId = null; const q = pos(e);
-  if (tapAt && e.timeStamp - tapAt.t < TAP_MS && Math.hypot(q.x - tapAt.x, q.y - tapAt.y) < TAP_PX) { aim = null; if (S.load) unloadItem(); else if (S.cur !== null) trySwap('tap'); }
-  else shoot();
+  const tms = tapAt && Math.round(e.timeStamp - tapAt.t), tpx = tapAt && Math.round(Math.hypot(q.x - tapAt.x, q.y - tapAt.y));
+  if (tapAt && tms < TAP_MS && tpx < TAP_PX) { aim = null; if (S.load) unloadItem(); else if (S.cur !== null) trySwap('tap', tms, tpx); }
+  else { if (plays.on && tapAt) pend.ev.push(['u', performance.now(), tms, tpx]); shoot(); }
   tapAt = null;
 });
 cv.addEventListener('pointercancel', e => { if (e.pointerId === aimId) aim = aimId = tapAt = null; });

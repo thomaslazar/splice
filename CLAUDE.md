@@ -326,8 +326,10 @@ other). It is not saved: it is recomputed from the level.
   (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
 - Play log (`splice-plays`, opt-in, off by default): a Play log block on the Run tab, above Reset progress, with a
   Track plays switch, a count, Share log and Clear log. While on, each attempt is recorded (level, ICE, limit, bot need,
-  deck at the start, every shot with swaps, aim time, result and progress, item uses, how it ended, time) from the next
-  level start; turning it on mid-level records nothing until then. Share log hands the file to `navigator.share`; when the
+  deck at the start, every shot with swaps, aim time, result and progress, item uses, how it ended, time; each shot also has `ev`, its
+  touch events in order: presses, cancels, swaps with their touch time and distance, releases from the strip that fired, and
+  re-deals, to tell surprise swaps from re-deals and near-miss taps) from the next
+  level start; turning it on mid-level records nothing until then. Share log hands the file to `navigator.share` (files only: with a title, Signal sent just the text); when the
   share resolves the sheet asks "Clear the play log?", and a cancelled share asks nothing. Without file sharing the file
   downloads and the same question follows. Clear log asks first; Clear (after a share or by hand) also drops the open attempt, so the rest of that level is not recorded. The count shows attempts. The log is trimmed to 1 MB (oldest attempts go first).
   Reset progress empties the log and keeps the switch. Read files with `tools/plays.mjs`.

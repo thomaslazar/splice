@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { hband } from './sim.mjs';
 
+const TAP_MS = 300, TAP_PX = 10;   // as in src/ui.js
+
 const med = a => a.length ? [...a].sort((x, y) => x - y)[a.length >> 1] : NaN;
 const stat = a => a.length ? `n=${a.length} median ${med(a).toFixed(0)}% min ${Math.min(...a).toFixed(0)}% max ${Math.max(...a).toFixed(0)}%` : 'n=0';
 const isUse = e => 'u' in e, held = a => Object.values(a.deck || {}).some(n => n > 0);
@@ -43,6 +45,13 @@ export function report(files) {
   out.push('', 'swaps', `  swaps under 500 ms before a release: ${quick}`, `  two swaps within 400 ms: ${dbl}`,
     `  aims started in the strip: ${sw.reduce((n, e) => n + (e.st || 0), 0)}`, `  cancelled aims: ${sw.reduce((n, e) => n + (e.x || 0), 0)}`,
     `  lock swaps: ${sw.reduce((n, e) => n + e.sw.filter(([w]) => w === 'lock').length, 0)}`);
+  // ordered events (ev, newer logs): swaps undone before the shot, taps near the limits, re-deals
+  const ev = sw.filter(e => e.ev), taps = ev.flatMap(e => e.ev.filter(([w, , src]) => w === 's' && src === 'tap'));
+  const near = ev.flatMap(e => e.ev.filter(([w, , ms, px]) => w === 'u' && ms < 2 * TAP_MS && px < 2 * TAP_PX));
+  if (ev.length) out.push(`  swaps undone before the shot (an even count of 2 or more): ${ev.filter(e => { const k = e.ev.filter(([w]) => w === 's').length; return k >= 2 && k % 2 === 0; }).length}`,
+    `  swap taps: ${taps.length}, touch ms median ${taps.length ? med(taps.map(x => x[3])) : 'n/a'}, px median ${taps.length ? med(taps.map(x => x[4])) : 'n/a'}`,
+    `  shots from the strip just past the tap limits (under ${2 * TAP_MS} ms and ${2 * TAP_PX} px): ${near.length}`,
+    `  re-deals: ${ev.reduce((n, e) => n + e.ev.filter(([w]) => w === 'r').length, 0)}`);
 
   const t = done.filter(a => a.end !== 'left').map(a => a.t);
   out.push('', `time per finished attempt (median): ${t.length ? med(t).toFixed(0) + ' s' : 'n/a'}`);

@@ -38,6 +38,7 @@ jobs:
         run: |
           mkdir _site
           cp -r index.html style.css manifest.webmanifest sw.js src icons lang fonts _site/
+          sed -i "s/'dev'/'${GITHUB_SHA::7}'/" _site/src/build.js
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

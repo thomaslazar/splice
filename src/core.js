@@ -87,7 +87,7 @@ export function startState(level, fails) {
   if (!need.has(id)) { need.set(id, needFor(S));
     if (need.size > 8) need.delete(need.keys().next().value); }
   S.shots = shotsFor(limitFor(need.get(id), iceFor(level)), fails);
-  S.maxShots = S.shots; S.startLow = lowRow(S.grid); return S;
+  S.need = need.get(id); S.maxShots = S.shots; S.startLow = lowRow(S.grid); return S;
 }
 // Bubbles the shooter can reach: on screen and touching the open space that connects to the
 // row above the loss line (flood fill through empty cells).
@@ -164,8 +164,8 @@ export function flood(S, start, col) {
 /* ---------- saves ---------- */
 export const toSave = S => ({ v: 2, level: S.level, fails: S.fails, cols: S.cols, kind: S.kind, grid: [...S.grid],
   shots: S.shots, score: S.score, cur: S.cur, next: S.next, hist: [...S.hist], draws: S.draws, top: S.top,
-  maxShots: S.maxShots, startLow: S.startLow, frags: S.frags, load: S.load, breaker: S.breaker });
-export const fromSave = o => ({ maxShots: Math.max(o.shots, 1), startLow: lowRow(new Map(o.grid)), frags: 0, load: null, breaker: 0, ...o, grid: new Map(o.grid), hist: [...o.hist] });
+  maxShots: S.maxShots, startLow: S.startLow, frags: S.frags, load: S.load, breaker: S.breaker, need: S.need });
+export const fromSave = o => ({ maxShots: Math.max(o.shots, 1), startLow: lowRow(new Map(o.grid)), frags: 0, load: null, breaker: 0, need: null, ...o, grid: new Map(o.grid), hist: [...o.hist] });
 export function validSave(o) {
   const col = c => Number.isInteger(c) && c >= 0 && c < ITEM_BASE, nul = c => c === null || col(c);
   return !!o && o.v === 2 && Number.isInteger(o.level) && o.level >= 1 && Number.isInteger(o.fails) && o.fails >= 0 &&
@@ -174,6 +174,7 @@ export function validSave(o) {
     nul(o.cur) && nul(o.next) && ['designed', 'noise'].includes(o.kind) &&
     Array.isArray(o.hist) && o.hist.length <= 2 && o.hist.every(col) && [o.shots, o.score, o.draws, o.top].every(n => Number.isInteger(n) && n >= 0) &&
     (o.maxShots === undefined || Number.isInteger(o.maxShots) && o.maxShots >= 1) && (o.startLow === undefined || Number.isInteger(o.startLow) && o.startLow >= 0) &&
+    (o.need == null || typeof o.need === 'number' && o.need > 0) &&
     [o.frags, o.breaker].every(n => n === undefined || Number.isInteger(n) && n >= 0) &&
     (o.load === undefined || o.load === null || ITEMS.some(i => i.id === o.load && i.kind === 'shot'));
 }

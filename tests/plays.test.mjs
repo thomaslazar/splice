@@ -68,3 +68,14 @@ test('need in state and save', () => {
   assert.ok(S.need > 0); assert.equal(fromSave(toSave(S)).need, S.need);
   const o = toSave(S); delete o.need; assert.equal(validSave(o), true);
 });
+
+test('report', async () => {
+  const { report } = await import('../tools/plays.mjs');
+  const sh = (n, s, pc) => ({ n, s, c: 0, sw: [], st: 0, x: 0, am: 0, a: 0, l: 0, p: 0, d: 0, f: 0, b: 9, pc });
+  const A = (level, end, left, extra = {}) => ({ level, fails: 0, hardness: 0.1, ice: null, limit: 40, need: 20, deck: {}, t: 30, shots: [], end, left, ...extra });
+  const file = { v: 1, attempts: [A(3, 'won', 10, { shots: [sh(1, 40, 0)] }),
+    A(4, 'lost-shots', 0, { deck: { bomb: 1 } }), A(4, 'won', 5, { deck: { bomb: 1 } }), A(5, null, null)] };
+  const r = report([file]);
+  assert.match(r, /0-0\.25.*25%/); assert.match(r, /1 level took 2 tries/);
+  assert.match(r, /lost with items held, none used: 1/); assert.match(r, /open: 1/);
+});

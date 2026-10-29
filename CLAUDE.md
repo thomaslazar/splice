@@ -20,8 +20,10 @@ Read before changing behaviour:
   `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
   phone: Kiln's service worker controls that origin and mixes its files in.
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
-  fallback). `CACHE` is `splice-5`. Rename it when `sw.js` changes how it caches or the `SHELL`
+  fallback). `CACHE` is `splice-6`. Rename it when `sw.js` changes how it caches or the `SHELL`
   list changes, so `activate` drops the old cache. The fonts are in `SHELL`.
+- Play log report: `node tools/plays.mjs <file> [file ...]` reads shared play log files and prints, per file and
+  combined, shots left on wins per hardness band and ICE, tries per level, item use, swap signs and time.
 - Test: `node --test` (not `node --test tests/`, which fails on newer Node).
 - Balance: `node tools/sim.mjs [levels] [runs]`, e.g. `node tools/sim.mjs 3,25,50 3` or
   `node tools/sim.mjs 1-60 4`. Without arguments it plays levels 1, 3, 5, 10 ... 60 once.
@@ -55,6 +57,8 @@ Read before changing behaviour:
   `owned`), item bubbles (`ITEM_BASE`, `itemPlan`, `placeItems`), `resolve`, `hits`, `useItem`, `unload`, `payout`; pure. `src/icons.js`: `ICONS`, one drawing per item.
 - `src/bot.js`: greedy bot over the core API, pure; sets each attempt's shot limit. Tested in
   `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
+- `src/plays.js`: the opt-in play log, pure (`logFrom`, `attemptOf`, `shot`, `use`, `close`, `trim`, `fileOf`). Tested in
+  `tests/plays.test.mjs`. `src/build.js`: the build stamp shown in the log file. `tools/plays.mjs`: the report over log files.
 - `fonts/`: Chakra Petch (latin 400 and 600, woff2), self-hosted, with `OFL.txt`. `style.css`
   declares it; `index.html` preloads the 600 weight.
 - `manifest.webmanifest`, `sw.js`, `icons/`: PWA. `icons/icon.svg` is the source; the PNGs
@@ -319,6 +323,13 @@ other). It is not saved: it is recomputed from the level.
   Play, then Reset progress (red, asks first, `asking` = `'reset'`: deletes `splice-v1`, `splice-run` and `splice-deck`, keeps `splice-lang`, restarts at level 1 with an empty deck; Start over keeps the deck). Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
   in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit and a language `<select>` from `LANGS`
   (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
+- Play log (`splice-plays`, opt-in, off by default): a Play log block on the Run tab, above Reset progress, with a
+  Track plays switch, a count, Share log and Clear log. While on, each attempt is recorded (level, ICE, limit, bot need,
+  deck at the start, every shot with swaps, aim time, result and progress, item uses, how it ended, time) from the next
+  level start; turning it on mid-level records nothing until then. Share log hands the file to `navigator.share`; when the
+  share resolves the sheet asks "Clear the play log?", and a cancelled share asks nothing. Without file sharing the file
+  downloads and the same question follows. Clear log asks first. The log is trimmed to 1 MB (oldest attempts go first).
+  Reset progress empties the log and keeps the switch. Read files with `tools/plays.mjs`.
 - Sheets: one sheet for win ("Root access"), loss ("Flatline", with a rescue button when out of shots and an Overclock is held) and the three questions (restart, start over, reset).
   Next level and Try again start a new state. Keep playing, a tap outside the card or Escape closes it.
 - Saving: `S` is saved whole to `localStorage['splice-v1']` after every shot and swap;
@@ -400,7 +411,7 @@ the GitHub issues. Keep it current when work lands or a new idea is parked.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-5`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-6`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

@@ -9,10 +9,7 @@ What comes next for Splice, roughly in order. Issues live on
 - **Item effects** ([#7](https://github.com/thomaslazar/splice/issues/7)). Each item gets its own
   visual when it goes off: the bomb explodes, lightning arcs up its path, the sweep cuts across its
   row. Today every item shows the same white flash before its bubbles pop.
-- **Play tracking.** The game records how each level went (level, ICE, shots used against the limit,
-  win or loss, retries, items used, time) and the player can send it off from the menu, as a
-  pre-filled GitHub issue or through the share sheet. It is for balancing: data to tune shot limits,
-  ICE and item levels from. Nothing is sent without a tap. Needs a brainstorm.
+- **Level progress indicator.** Show how far into a level the player is, so it is clear whether Overclock is worth using (owner).
 - **Tutorial and first steps** ([#5](https://github.com/thomaslazar/splice/issues/5)). A short
   introduction that opens from the menu and on a fresh start or after Reset progress, possibly with
   a little story about the setting. Needs a brainstorm.
@@ -61,3 +58,6 @@ What comes next for Splice, roughly in order. Issues live on
 - Items and shop: 13 items, frags, deck, loot, item bubbles in levels, Flatline rescue, Reset
   progress.
 - Jitter ICE rarer, popup warnings shown longer, aim cancels below the dashed line.
+- Strands between big parts vary in length, width and colours.
+- Items in half the levels, and 50 frags per dropped item bubble.
+- Play log: an opt-in record of each attempt, shared from the menu and read with `tools/plays.mjs`.

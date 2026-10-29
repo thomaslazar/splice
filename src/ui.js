@@ -7,6 +7,7 @@ import { drawHost } from './hostdraw.js';
 import { ICONS } from './icons.js';
 import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, resolve, isItem, itemOf, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
 import * as P from './plays.js';
+import { BUILD } from './build.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -100,6 +101,7 @@ const PLAYS_KEY = 'splice-plays'; let plays, pend = { sw: [], x: 0 }, pressAt = 
 try { plays = P.logFrom(JSON.parse(localStorage.getItem(PLAYS_KEY))); } catch (e) { plays = P.logFrom(null); }
 plays.id ??= [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
 function savePlays() { if (!plays.on) return; try { P.trim(plays); localStorage.setItem(PLAYS_KEY, JSON.stringify(plays)); } catch (e) {} }
+const writePlays = () => { try { localStorage.setItem(PLAYS_KEY, JSON.stringify(plays)); } catch (e) {} };
 const rec = f => { if (plays.on) try { f(); } catch (e) {} };
 const tick = () => { const a = P.open(plays), n = performance.now(); if (a && tAt !== null) a.t = Math.round((a.t + (n - tAt) / 1000) * 10) / 10; tAt = document.hidden ? null : n; };
 const used = id => rec(() => { P.use(plays, id); savePlays(); });
@@ -301,11 +303,12 @@ const calm = () => { calmAt = performance.now() + GRACE; };
 const keep = () => { asking = false; $('#sheetC').hidden = true; $('#sheet').hidden = true; calm(); };
 function ask(kind) {   // the restart and start-over questions share the sheet
   asking = kind; aim = aimId = null; $('#sheetO').hidden = true; $('#sheet').hidden = $('#sheetC').hidden = false;
-  const o = kind === 'over', r = kind === 'reset'; $('#sheetP').hidden = !o && !r;
-  $('#sheetT').textContent = r ? t('resetAsk') : o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = r ? t('resetText') : o ? t('overText') : '';
-  $('#sheetB').textContent = r ? t('resetYes') : o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = o || r ? t('cancel') : t('keepPlaying');
+  const o = kind === 'over', r = kind === 'reset', g = kind === 'clear' || kind === 'clearLog'; $('#sheetP').hidden = !o && !r && !g;
+  $('#sheetT').textContent = g ? t('playClearAsk') : r ? t('resetAsk') : o ? t('overAsk') : t('restartAsk'); $('#sheetP').textContent = g ? t('playClearText') : r ? t('resetText') : o ? t('overText') : '';
+  $('#sheetB').textContent = g ? t('playClearYes') : r ? t('resetYes') : o ? t('overYes') : t('restartYes'); $('#sheetC').textContent = kind === 'clearLog' ? t('playKeep') : o || r || g ? t('cancel') : t('keepPlaying');
 }
-$('#sheetB').onclick = () => asking === 'reset' ? resetAll() : asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
+const wipeLog = () => { plays.attempts = []; writePlays(); };
+$('#sheetB').onclick = () => asking === 'clear' || asking === 'clearLog' ? (wipeLog(), keep(), menuText()) : asking === 'reset' ? resetAll() : asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
 $('#sheetO').onclick = () => {
   const d = take(deck, 'overclock'); if (!d || !useItem(S, 'overclock')) return;
   deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm();
@@ -326,6 +329,8 @@ function menuText() {   // every panel text; Info adds its own here
   $('#lvlDn').ariaLabel = t('levelDown'); $('#lvlUp').ariaLabel = t('levelUp'); $('#mKeep').textContent = t('keepPlaying'); pick();
   $('#iName').textContent = t('appName'); $('#iText').textContent = t('infoText'); $('#iHow').textContent = t('howTo'); $('#iShare').textContent = t('share');
   $('#balL').textContent = t('balance'); $('#demoX').textContent = t('close'); shop();
+  $('#pHead').textContent = t('playLog'); $('#pTrack').textContent = t('playTrack'); $('#pOn').checked = plays.on; $('#pShare').textContent = t('playShare'); $('#pClear').textContent = t('playClear');
+  const n = plays.attempts.length; $('#pCount').textContent = plays.on ? t('playCount', { n }) : t('playOffText'); $('#pShare').disabled = $('#pClear').disabled = !n;
   $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
@@ -399,8 +404,19 @@ $('#menuBtn').onclick = () => { closeDrawer(); if (!shut() || loading || busy() 
 $('#mKeep').onclick = closeMenu;
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
 $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
-function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY]) try { localStorage.removeItem(k); } catch (e) {} deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
+function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY]) try { localStorage.removeItem(k); } catch (e) {} wipeLog(); deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
 $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
+$('#pOn').onchange = () => { P.setOn(plays, $('#pOn').checked); writePlays(); menuText(); };
+$('#pClear').onclick = () => { closeMenu(); ask('clear'); };
+$('#pShare').onclick = async () => {
+  const d = { w: innerWidth, h: innerHeight, dpr: devicePixelRatio, touch: matchMedia('(pointer: coarse)').matches, reduced, lang: document.documentElement.lang };
+  const { name, text } = P.fileOf(plays, d, BUILD, new Date()), f = new File([text], name, { type: 'application/json' });
+  if (navigator.canShare?.({ files: [f] })) {
+    try { await navigator.share({ files: [f], title: name }); closeMenu(); ask('clearLog'); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  closeMenu(); ask('clearLog');
+};
 $('#mOver').onclick = () => { closeMenu(); ask('over'); };
 $('#mPlay').onclick = () => { const n = picked(); closeMenu(); begin(n, 0); };
 for (const b of document.querySelectorAll('#tabs button')) b.onclick = () => tab(b.dataset.tab);

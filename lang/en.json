@@ -112,5 +112,15 @@
   "desc_virus": "Turns everything within 4 cells into one colour.",
   "desc_purge": "Clears one colour from the screen.",
   "desc_rainbow": "Pops every group it touches.",
-  "desc_rollback": "Undoes your last shot."
+  "desc_rollback": "Undoes your last shot.",
+  "playLog": "Play log",
+  "playTrack": "Track plays",
+  "playCount": "{n} levels logged",
+  "playShare": "Share log",
+  "playClear": "Clear log",
+  "playClearAsk": "Clear the play log?",
+  "playClearText": "The levels logged so far are deleted.",
+  "playClearYes": "Clear",
+  "playKeep": "Keep",
+  "playOffText": "Off. Nothing is recorded."
 }

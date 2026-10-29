@@ -144,4 +144,10 @@ canvas { display: block; touch-action: none; }
 #demo canvas { max-width: 100%; border: 1px solid #ffffff22; }
 #demo canvas[hidden] { display: none; }
 #demoD { margin: 0; text-align: center; }
+#plog { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; }
+#plog h3 { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
+#plog p { margin: 0; font-size: 12px; opacity: .75; }
+#pSw { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+#pOn { width: 20px; height: 20px; accent-color: currentColor; margin: 0; }
+#menu #plog button:disabled { opacity: .35; cursor: default; }
 #menu #mReset { margin-top: 28px; border-color: #ff2a4a; color: #ff2a4a; }

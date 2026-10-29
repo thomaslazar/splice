@@ -280,6 +280,7 @@ const fxOf = () => FX[iceOn()] || {};
 // top), the part already cleared brighter, a marker where the view is, the percent above it. It follows
 // the eased view, so it moves with the scroll; a level that starts at the ceiling uses pct() instead.
 function track(ly) {
+  g.fillStyle = theme.bg; g.fillRect(W - GUT, -PAD, GUT, H + PAD);   // keep bubble glow out of the track's gutter
   const top0 = Math.max(0, S.startLow - (winRows(S.cols) - 5)), p = Math.round(top0 ? Math.min(100, Math.max(0, 100 * (1 - view / top0))) : pct()), x = W - GUT / 2, top = 24, bot = ly - 12, y = bot - (bot - top) * p / 100;
   g.strokeStyle = g.fillStyle = theme.a; g.lineWidth = 1; g.globalAlpha = .25;
   g.beginPath(); g.moveTo(x, top); g.lineTo(x, bot); g.moveTo(x - 4, top); g.lineTo(x + 4, top); g.moveTo(x - 4, bot); g.lineTo(x + 4, bot); g.stroke();

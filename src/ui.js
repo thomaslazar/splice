@@ -1,5 +1,5 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
-import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk, flood, ITEM_DROP } from './core.js';
+import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk, flood, HIT, ITEM_DROP } from './core.js';
 import { winRows } from './levels.js';
 import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
@@ -511,16 +511,16 @@ function shoot() {
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
   if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
   if (S.breaker > 0 && --S.breaker === 0 && ice) { log(t('logIceBack', { ice: iceName(ice) })); flash('ice'); }
-  save(); fly = { m, pre, col, it, i: 0, p: { ...m.pts[0] } }; hud();
+  save(); fly = { m, pre, col, it, i: 0, p: { ...m.pts[0] }, gone: new Set() }; hud();
   if (reduced) land();
 }
 function land() {
-  const { m, pre, col } = fly; fly = null;
+  const { m, pre, col, gone } = fly; fly = null;
   if (!reduced) {
     const at = k => { const p = centre(...rc(k)); return { x: p.x, y: p.y - view * RH }; };   // screen units
     const lag = m.fired.length ? -6 : 0;   // fired item bubbles flash white first, then the clears pop
     for (const k of m.fired) fx.push({ t: 'flash', ...at(k), k: 0 });
-    for (const k of m.popped) if (!m.fired.includes(k)) fx.push({ t: 'pop', ...at(k), col: pre.get(k) ?? col, k: lag });
+    for (const k of m.popped) if (!m.fired.includes(k) && !gone.has(k)) fx.push({ t: 'pop', ...at(k), col: pre.get(k) ?? col, k: lag });
     for (const k of m.dropped) fx.push({ t: 'fall', ...at(k), col: pre.get(k), key: k, vx: (hash(k, 1) % 1000 / 1000 - .5) * .1, vy: -hash(k, 2) % 1000 / 1000 * .1, k: 0 });
     if (m.dropped.length >= 6) fx.push({ t: 'txt', s: `-${m.dropped.length}`, ...at(m.cell ? key(...m.cell) : m.dropped[0]), k: 0 });
   }
@@ -597,7 +597,7 @@ function draw() {
   drawStrip(now);
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
-  for (const [k, col] of fly ? fly.pre : S.grid) { const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
+  for (const [k, col] of fly ? fly.pre : S.grid) { if (fly?.gone.has(k)) continue; const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
   g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is
   // loss line: between the loss row and the row above it; tied to the screen, not S.top, so it
   // stays put while the view eases after a scroll (lossRow(S) - S.top is constant)
@@ -647,6 +647,8 @@ function draw() {
       const n = pts[f.i + 1], d = Math.hypot(n.x - f.p.x, n.y - f.p.y);
       if (d <= move) { f.p = { ...n }; f.i++; move -= d; } else { f.p.x += (n.x - f.p.x) / d * move; f.p.y += (n.y - f.p.y) / d * move; move = 0; }
     }
+    if (f.it === 'pierce' && !reduced) for (const k of f.m.popped) if (!f.gone.has(k) && !f.m.fired.includes(k)) {   // a Pierce pops what it runs through, as it goes
+      const c = centre(...rc(k)); if ((c.x - f.p.x) ** 2 + (c.y - f.p.y) ** 2 < HIT * HIT) { f.gone.add(k); fx.push({ t: 'pop', x: c.x, y: c.y - view * RH, col: f.pre.get(k), k: 0 }); } }
     if (f.it) itemBubble(X(f.p.x), Y(f.p.y), f.it); else bubble(X(f.p.x), Y(f.p.y), f.col);
     if (f.i >= pts.length - 1) land();
   }

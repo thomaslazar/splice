@@ -425,7 +425,7 @@ $('#pShare').onclick = async () => {
   const d = { w: innerWidth, h: innerHeight, dpr: devicePixelRatio, touch: matchMedia('(pointer: coarse)').matches, reduced, lang: document.documentElement.lang };
   const { name, text } = P.fileOf(plays, d, BUILD, new Date()), f = new File([text], name, { type: 'application/json' });
   if (navigator.canShare?.({ files: [f] })) {
-    try { await navigator.share({ files: [f], title: name }); closeMenu(); ask('clearLog'); return; } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.share({ files: [f] }); closeMenu(); ask('clearLog'); return; } catch (e) { if (e.name === 'AbortError') return; }   // files only: with a title, Signal and others send just the text
   }
   const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
   closeMenu(); ask('clearLog');

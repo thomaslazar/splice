@@ -16,17 +16,20 @@ What comes next for Splice, roughly in order. Issues live on
   in a cyberpunk, Tron-like style, plus sound effects for shots, pops, drops, items and ICE. Open:
   whether it respects the phone's silent switch, and a mute control. Needs a brainstorm.
 
+- **Boss levels at chapter ends.** Super hard levels that can hardly be won without items (or
+  without failing until the retry easing adds shots). Needs a brainstorm: how hard, how often, how
+  they are announced.
+
 ## Tuning (by playtest)
 
-- **Scrambler ICE.** Scrambler levels feel hard; consider moving them to higher difficulty or
-  giving them more shots.
+- **ICE schedule.** ICE now starts at run position 6, about two levels in three, with overlapping
+  severities (harsh from 21); black and monochrome get the full board. Check whether the climb feels
+  right and whether black still needs 1.5x shots.
 - **Shot limits on item levels.** The bot uses item bubbles, so levels with them get fewer shots. Since
   items are placed where they do the most, limits dropped further (level 25 from 71 to 59, 33 from 51
   to 36, 55 from 121 to 87). If they feel tight, give item levels their own factor so the limit
   assumes only some items are used.
 - **Human factor.** Lower `HUMAN_K` (now 1.4) once items are in regular use.
-- **Mobile misfires near the swap strip.** Dragging below the dashed line cancels a shot, and only a
-  quick tap swaps now (a drag from the strip aims). Check whether misfires and surprise swaps are gone.
 
 ## Later
 
@@ -45,6 +48,9 @@ What comes next for Splice, roughly in order. Issues live on
 - Rollback remembers only the last shot, in memory, and any other item use clears it.
 
 ## Done
+
+- Scrambler gets the medium shot factor 1.25 (a play log showed about 1.5x the bot's shots on it).
+- Swap misfires: a play log with touch events showed every swap was a clean tap; no surprise swaps.
 
 - Core loop, endless generated levels, PWA with offline play.
 - Visual pass: HUD, hosts, run log, win sequence, font.

@@ -1,7 +1,7 @@
 // Canvas board, DOM HUD and sheets, input, animation, saving. All rules live in core.js.
 import { hash, RH, key, rc, centre, lossRow, clampAim, trace, startState, swap, won, lost, fire, toSave, fromSave, validSave, isColour, nk, flood, HIT, ITEM_DROP } from './core.js';
 import { winRows } from './levels.js';
-import { themeFor, hostFor, iceFor, ICE } from './hosts.js';
+import { themeFor, hostFor, iceFor, ICE, secFor } from './hosts.js';
 import { runFrom, enter, clampLevel } from './run.js';
 import { drawHost } from './hostdraw.js';
 import { ICONS } from './icons.js';
@@ -135,6 +135,7 @@ const WARN = { low: '#ffb020', crit: '#ff2a4a' };
 // counts one frag up in the header, with a short pulse
 function fragUp(n = 1) { shown = Math.min(S.frags, shown + n); const e = $('#score'); if (e.classList.contains('dim')) return; e.textContent = t('frags', { n: shown }); e.classList.remove('up'); void e.offsetWidth; e.classList.add('up'); }
 function hud() {
+  const sec = secFor(S.level); $('#sec').textContent = secName(sec); $('#sec').dataset.sec = sec;
   $('#jack').textContent = t('jackedIn'); $('#ice').textContent = ice ? iceName(ice) : ''; $('#host').textContent = hostFor(S.level).label;
   $('#lvl').textContent = t('lvl', { n: S.level }); const best = pays() || paid && !paid.replay; if (!fly && !fx.some(a => a.t === 'fall')) shown = S.frags;   // nothing falling: catch up (new level, reload, rollback)
   $('#score').textContent = best ? t('frags', { n: shown }) : t('fragsReplay'); $('#score').classList.toggle('dim', !best);
@@ -231,6 +232,7 @@ const scrambled = () => hash(S.level, S.fails, S.draws, 77) % 100 < SCRAMBLE * 1
 const ITEM_NAMES = { bomb: () => t('item_bomb'), sweep: () => t('item_sweep'), pierce: () => t('item_pierce'), wildcard: () => t('item_wildcard'),
   overclock: () => t('item_overclock'), decrypt: () => t('item_decrypt'), icebreaker: () => t('item_icebreaker'), star: () => t('item_star'),
   lightning: () => t('item_lightning'), virus: () => t('item_virus'), purge: () => t('item_purge'), rainbow: () => t('item_rainbow'), rollback: () => t('item_rollback') };
+const secName = s => [t('secOpen'), t('secGuarded'), t('secHardened'), t('secFortified')][s];
 const iceName = i => ({ static: t('iceStatic'), lag: t('iceLag'), blink: t('iceBlink'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
   jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
 const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none

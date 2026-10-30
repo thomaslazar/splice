@@ -57,8 +57,9 @@ import { hardness, boardHardness, runPos } from '../src/levels.js';
 import { key, nbrs, cellsIn } from '../src/core.js';
 import { iceFor } from '../src/hosts.js';
 
-test('levels with ice get a lighter board', () => {
-  for (let lv = 1; lv <= 400; lv++) assert.equal(boardHardness(lv), (iceFor(lv) ? .75 : 1) * hardness(lv));
+test('levels with ice get a lighter board, except black and monochrome', () => {
+  for (let lv = 1; lv <= 400; lv++) { const ice = iceFor(lv);
+    assert.equal(boardHardness(lv), (ice && ice !== 'black' && ice !== 'monochrome' ? .75 : 1) * hardness(lv)); }
 });
 test('hardness ramps over 30 levels and starts again', () => {
   assert.equal(hardness(1), 0); assert.equal(hardness(30), 1); assert.equal(hardness(31), 0);

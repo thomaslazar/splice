@@ -23,7 +23,7 @@ test('loot: always on high stakes and harsh ice, from unlocked items, seeded', (
 test('loot chances: about 35% on lighter ice, about 5% elsewhere', () => {
   let li = 0, ln = 0, pi = 0, pn = 0;
   for (let lv = 1; lv <= 3000; lv++) {
-    const ice = iceFor(lv); if (tierFor(lv) === 'high' || ICE[ice] === 'harsh') continue;
+    const ice = iceFor(lv); if (tierFor(lv) === 'high' || isLong(lv) || ICE[ice] === 'harsh') continue;
     if (ice) { li++; if (lootFor(lv)) ln++; } else { pi++; if (lootFor(lv)) pn++; }
   }
   assert.ok(ln / li > .28 && ln / li < .42, `lighter ice ${ln / li}`);

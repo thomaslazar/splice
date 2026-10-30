@@ -17,10 +17,12 @@ test('the host hue is never the accent hue', () => {
   hosts.forEach((h, i) => assert.notEqual(h.hue, themeFor(i + 1).hue));
   assert.equal(THEMES.length, 6);
 });
-test('long levels are high stakes and tiers follow difficulty', () => {
-  for (let lv = 1; lv <= 200; lv++) if (isLong(lv)) assert.equal(tierFor(lv), 'high');
+test('the host follows the ice; without ice long levels are high stakes and tiers follow difficulty', () => {
+  for (let lv = 1; lv <= 400; lv++) { const sev = severityFor(lv);
+    if (sev) assert.equal(tierFor(lv), ['small', 'corporate', 'high'][sev - 1]);
+    else if (isLong(lv)) assert.equal(tierFor(lv), 'high'); }
   assert.equal(tierFor(1), 'small');
-  const mix = new Set(); for (let lv = 40; lv <= 400; lv++) if (!isLong(lv)) mix.add(tierFor(lv));
+  const mix = new Set(); for (let lv = 40; lv <= 400; lv++) if (!isLong(lv) && !severityFor(lv)) mix.add(tierFor(lv));
   assert.deepEqual([...mix].sort(), ['corporate', 'high', 'small']);
   assert.equal(hostFor(5).tier, 'high');
 });
@@ -78,31 +80,40 @@ test('label limits hold everywhere: none over 52, a government jurisdiction only
   }
 });
 
-import { iceFor, ICE } from '../src/hosts.js';
+import { iceFor, ICE, severityFor } from '../src/hosts.js';
 import { runPos } from '../src/levels.js';
 
-const SEV = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
-// ICE follows the run of 30: none at 1-11, every other level 12-20 (mild), every level 21-26
-// (up to medium) and 27-30 (up to harsh), capped by the host's tier; black only at 27-30 on high stakes
-test('ice follows the 30-level run, the tier caps and the black ice rule', () => {
+const SEV = { mild: 1, medium: 2, harsh: 3 };
+// ICE follows the run of 30: none at 1-5; mild 6-10, mild or medium 11-15, medium 16-20, medium or harsh 21-25,
+// harsh 26-30; one level in each block of three from 6 has none, 30 always has ICE
+test('ice follows the 30-level run', () => {
   const seen = new Set();
-  for (let lv = 1; lv <= 4000; lv++) { const ice = iceFor(lv), p = runPos(lv), host = hostFor(lv);
-    assert.equal(iceFor(lv), ice);
-    const due = p >= 21 || p >= 12 && p % 2 === 0;
-    assert.equal(!!ice, due, `level ${lv} (run position ${p})`);
+  for (let lv = 1; lv <= 4000; lv++) { const ice = iceFor(lv), p = runPos(lv);
+    assert.equal(iceFor(lv), ice); assert.equal(severityFor(lv), ice ? SEV[ICE[ice]] : 0);
+    if (p <= 5) assert.equal(ice, null);
+    if (p === 30) assert.ok(ice);
     if (!ice) continue; seen.add(ice);
-    assert.ok(SEV[ICE[ice]] <= CAP[host.tier], `${ice} on ${host.tier}`);
-    if (p <= 20) assert.equal(ICE[ice], 'mild', `level ${lv}: ${ice} too early in the run`);
-    if (p <= 26) assert.ok(ICE[ice] !== 'harsh', `level ${lv}: ${ice} too early in the run`);
-    if (ice === 'black') assert.ok(p >= 27 && host.tier === 'high');
+    const s = SEV[ICE[ice]], ok = p <= 10 ? [1] : p <= 15 ? [1, 2] : p <= 20 ? [2] : p <= 25 ? [2, 3] : [3];
+    assert.ok(ok.includes(s), `level ${lv} (run position ${p}): ${ice}`);
   }
   assert.deepEqual([...seen].sort(), Object.keys(ICE).sort());
 });
-test('half of every run has ice', () => {
-  for (let run = 0; run < 50; run++) assert.equal(Array.from({ length: 30 }, (_, i) => 30 * run + i + 1).filter(l => iceFor(l)).length, 15);
+test('two of three levels from 6 have ice: one gap in each block of three', () => {
+  for (let run = 0; run < 50; run++) for (let b = 0; b < 8; b++)
+    assert.equal([6, 7, 8].map(p => 30 * run + 3 * b + p).filter(l => !iceFor(l)).length, 1, `run ${run} block ${b}`);
 });
-test('ice types are spread: each is 3% to 45% of the levels with ice (1-2000)', () => {
-  const n = {}; let all = 0;
-  for (let lv = 1; lv <= 2000; lv++) { const ice = iceFor(lv); if (ice) { n[ice] = (n[ice] || 0) + 1; all++; } }
-  for (const t of Object.keys(ICE)) { const s = (n[t] || 0) / all; assert.ok(s >= 0.03 && s <= 0.45, `${t} ${(100 * s).toFixed(1)}%`); }
+test('ice types within a severity are spread: each 25% to 45% (1-3000)', () => {
+  const n = {}, sev = {};
+  for (let lv = 1; lv <= 3000; lv++) { const ice = iceFor(lv); if (ice) { n[ice] = (n[ice] || 0) + 1; sev[ICE[ice]] = (sev[ICE[ice]] || 0) + 1; } }
+  for (const t of Object.keys(ICE)) { const s = n[t] / sev[ICE[t]]; assert.ok(s >= 0.25 && s <= 0.45, `${t} ${(100 * s).toFixed(1)}%`); }
+});
+
+import { secFor } from '../src/hosts.js';
+import { hardness } from '../src/levels.js';
+test('the security tier is the higher of hardness and ice severity', () => {
+  assert.equal(secFor(1), 0); assert.equal(secFor(30), 3);
+  for (let lv = 1; lv <= 300; lv++) { const ice = iceFor(lv), h = hardness(lv), s = secFor(lv);
+    assert.ok(s >= (h >= .7 ? 2 : h >= .35 ? 1 : 0) && s <= 3);
+    if (ice) assert.ok(s >= SEV[ICE[ice]]);
+    if (ice && ICE[ice] === 'harsh') assert.equal(s, 3); }
 });

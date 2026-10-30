@@ -25,7 +25,7 @@ import { iceFor } from '../src/hosts.js';
 test('levels with ice get the ice factor in their limit', () => {
   assert.equal(limitFor(10, 'black'), Math.ceil(10 * HUMAN_K * 1.5 + HUMAN_C));
   assert.equal(limitFor(10, 'static'), Math.ceil(10 * HUMAN_K * 1.1 + HUMAN_C));
-  assert.equal(limitFor(10, 'scrambler'), Math.ceil(10 * HUMAN_K * 1.1 + HUMAN_C), 'scrambler has its own, smaller factor');
+  assert.equal(limitFor(10, 'scrambler'), Math.ceil(10 * HUMAN_K * 1.25 + HUMAN_C));
   const lv = [...Array(200).keys()].map(i => i + 1).find(l => iceFor(l));
   const S = startState(lv, 0), probe = startState(lv, 0);
   assert.equal(S.shots, shotsFor(limitFor(needFor(probe), iceFor(lv)), 0));

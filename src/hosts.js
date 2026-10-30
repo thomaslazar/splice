@@ -96,6 +96,7 @@ const SHAPE_OF = {
 const shapeOf = s => SHAPES.find(k => SHAPE_OF[k].includes(s));
 
 export function tierFor(level) {
+  const sev = severityFor(level); if (sev) return ['small', 'corporate', 'high'][sev - 1];   // the host follows the ICE (owner)
   if (isLong(level)) return 'high';
   const d = difficulty(level), x = mulberry32(hash(level, 12))();   // small-time at every difficulty, high grows with it
   return x < 0.15 + 0.85 * (1 - d) ? 'small' : x < 1 - 0.3 * d ? 'corporate' : 'high';
@@ -157,29 +158,29 @@ function settle(level, recent) {
 /* ---------- ICE ---------- */
 export const ICE = { static: 'mild', lag: 'mild', blink: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh', jitter: 'harsh' };
 export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
-// per-type overrides: scrambler is cheap to play around (shoot a wrong colour away), so less room
-export const ICE_TYPE_K = { scrambler: 1.1 };
-const SEVERITY = { mild: 1, medium: 2, harsh: 3 }, CAP = { small: 1, corporate: 2, high: 3 };
+const SEVERITY = { mild: 1, medium: 2, harsh: 3 };
 const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'blink'], telecom: ['static', 'lag'],
   finance: ['scrambler', 'lag'], insurance: ['scrambler', 'blink'], ai: ['jitter', 'monochrome', 'lag'],
   defense: ['black', 'monochrome', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
   pharma: ['static', 'scrambler', 'jam'], energy: ['jam', 'scrambler', 'static'], logistics: ['jam', 'scrambler', 'static'] };
 const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high: ['monochrome', 'black', 'lock'] };
-// ICE follows the run (runPos 1..30): none at 1-11, every other level 12-20 (mild), every level
-// 21-26 (up to medium) and 27-30 (up to harsh), always capped by the host's tier.
-export function iceFor(level) {
-  const p = runPos(level), pickR = mulberry32(hash(level, 13))();
-  if (p < 12 || p <= 20 && p % 2) return null;
-  const { gov, industry, tier } = hostFor(level), cap = Math.min(CAP[tier], p <= 20 ? 1 : p <= 26 ? 2 : 3);
-  const ok = t => SEVERITY[ICE[t]] <= cap && (t !== 'black' || p >= 27 && tier === 'high');
-  const likes = (gov ? GOV_LIKES[tier] : LIKES[industry]).filter(ok);
-  let list = likes.length ? likes : Object.keys(ICE).filter(ok);   // any type within the cap
-  // the end of a run on high stakes is always harsh; the mild stretch spreads evenly over both mild types
-  if (cap === 3) list = Object.keys(ICE).filter(t => ok(t) && ICE[t] === 'harsh');
-  if (cap === 1) list = Object.keys(ICE).filter(ok);
-  // ponytail: preferred types weighted 2:1:1 by order; tune by playing
-  // types at the current severity cap count double, so the end of a run brings the harsher ICE
-  const even = cap === 1 || cap === 3, w = list.map((t, i) => (even ? 1 : (i ? 1 : 2) * (SEVERITY[ICE[t]] === cap ? 2 : 1)));
-  let x = pickR * w.reduce((a, b) => a + b);
-  return list.find((_, i) => (x -= w[i]) < 0);
+// ICE severity by run position (owner): none at 1-5; from 6 one level in each block of three (6-8 ... 27-29) has none,
+// at a seeded spot, and 30 always has ICE; mild 6-10, mild or medium 11-15, medium 16-20, medium or harsh 21-25,
+// harsh 26-30. Across an overlap the higher severity grows from 1/6 to 5/6. 0 is no ICE.
+export function severityFor(level) {
+  const p = runPos(level), run = Math.floor((level - 1) / 30);
+  if (p < 6 || p < 30 && Math.floor(mulberry32(hash(run, Math.floor((p - 6) / 3), 15))() * 3) === (p - 6) % 3) return 0;
+  if (p <= 10) return 1; if (p >= 26) return 3; if (p >= 16 && p <= 20) return 2;
+  return (p <= 15 ? 1 : 2) + (mulberry32(hash(level, 14))() < ((p - 1) % 5 + 1) / 6);
 }
+// The type within the severity: the host's liked types weigh 1.5, the others 1.
+export function iceFor(level) {
+  const sev = severityFor(level); if (!sev) return null;
+  const { gov, industry, tier } = hostFor(level), likes = gov ? GOV_LIKES[tier] : LIKES[industry];
+  const list = Object.keys(ICE).filter(t => SEVERITY[ICE[t]] === sev), w = list.map(t => likes.includes(t) ? 1.5 : 1);
+  let x = mulberry32(hash(level, 13))() * w.reduce((a, b) => a + b);
+  return list.find((_, i) => (x -= w[i]) < 0) ?? list.at(-1);
+}
+
+// Security tier shown in the header, 0 open .. 3 fortified: the level's hardness or its ICE severity, whichever is higher
+export const secFor = level => { const h = hardness(level); return Math.max(severityFor(level), h >= .7 ? 2 : h >= .35 ? 1 : 0); };

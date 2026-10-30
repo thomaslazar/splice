@@ -133,6 +133,15 @@ effects in `src/ui.js`.
   (mild), every level 21-26 (up to medium) and 27-30 (up to harsh), so 15 of every 30 levels;
   black only at 27-30 on high stakes; a level with ICE gets its board at three quarters of its
   hardness. The text below is the earlier version.
+- Revised after a play log (2026-10-30): black and monochrome barely bite (most shots still go
+  where you tap), so they get the full board, and the harsh stretch starts at 24 (medium 21-23,
+  black at 24-30 on high stakes), so harsh ICE comes about twice as often. Scrambler gets the
+  medium shot factor 1.25; its own 1.1 was a guess, and the log showed about 1.5x the bot's shots.
+- Revised the same day (owner: ICE should start sooner and the severities overlap): none at 1-5;
+  from 6 one level in each block of three has none (about two ICE levels to one without), 30
+  always has ICE; mild 6-10, mild or medium 11-15, medium 16-20, medium or harsh 21-25, harsh
+  26-30. The host's tier follows the severity (mild small, medium corporate, harsh high), so no
+  cap and no separate black rule; liked types weigh 1.5 within the severity.
 - Chance of ICE at all: 0 for `h < 0.35`, then `(h - 0.35) / 0.65 * 0.7` (about 70% at `h = 1`).
   Revised after playtesting ("too hard at times"): ICE is introduced on lighter boards. Mild
   only below `h = 0.55`, medium up to 0.8, then the tier's cap (types at the current cap count

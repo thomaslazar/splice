@@ -45,7 +45,7 @@ Read before changing behaviour:
 - `src/levels.js`: level generation, colouring, fail easing, pure. Tested in `tests/levels.test.mjs`.
 - `src/ui.js`: language, rendering, input, animation, sheets, saving.
 - `src/hosts.js`: `hostFor(level)` (the host system for a level), `themeFor(level)` (accent and
-  background), `tierFor(level)`, `iceFor(level)` (the level's ICE, or null), pure. Tested in `tests/hosts.test.mjs`.
+  background), `tierFor(level)`, `iceFor(level)` (the level's ICE, or null), `secFor(level)` (the security tier, 0..3), pure. Tested in `tests/hosts.test.mjs`.
 - `src/hostdraw.js`: `drawHost(g, host, x, y, size, colour, glitch, t, apart)`, the six host shapes on a 2D
   context, DOM-free. Tested in `tests/hostdraw.test.mjs` (a stub context).
 - `lang/`: all visible text. `languages.json` maps codes to own-language names (only `en`
@@ -137,7 +137,7 @@ function bodies, so keep it that way.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
   downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group.
   Hardness breaks groups up, using the board's share `h = boardHardness(level)` (hardness,
-  three quarters on levels with ICE so ICE does not stack on the hardest boards; all draws seeded): per shape, with
+  three quarters on levels with ICE except black and monochrome, so ICE does not stack on the hardest boards; all draws seeded): per shape, with
   probability `0.7 h` (`SPLIT`) the right half of a mirrored shape becomes its own group (axis cells stay
   left), and each shape is cut at x positions into 2 segments (3 with probability `0.7 h`); a
   group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
@@ -160,7 +160,7 @@ function bodies, so keep it that way.
   (`solve(S, salt)`; `deal()` mixes `S.salt` into its seed), and `needFor(S)` takes the middle
   result, so one lucky or unlucky run does not set the limit (owner, issue #2). The limit is
   `limitFor(need, ice)` = `ceil(need * HUMAN_K * k + HUMAN_C)` (1.4 and 3; `k` is
-  `ICE_TYPE_K[ice] ?? ICE_K[ICE[ice]]` for a level with
+  `ICE_K[ICE[ice]]` for a level with
   ICE, else 1; the constant 3 is not scaled), then `shotsFor(base, fails)` adds 10% per fail
   from the 4th, capped at +40%. The bot tries 120 angles with and without a swap and scores
   `popped + 2 * dropped`, minus a penalty near the loss line; it aims perfectly and sees
@@ -176,10 +176,11 @@ Each level breaks into a fictional host, `hostFor(level)`: `{owner, gov, industr
 label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and deterministic
 (seeded from the level), settled in level order and cached.
 
-- Tier (`tierFor`): `small` (small-time), `corporate` or `high` (high stakes), a seeded roll
+- Tier (`tierFor`): `small` (small-time), `corporate` or `high` (high stakes). On a level with ICE it follows the
+  severity (owner): mild small, medium corporate, harsh high. Without ICE it is a seeded roll
   weighted by `d = difficulty`: small `0.15 + 0.85 * (1 - d)`, high `0.3 * d`, corporate the
   rest, so small-time stays possible at every difficulty. Long levels (`isLong`)
-  are always high. A tier has its own industries and the systems it may hit.
+  without ICE are always high. A tier has its own industries and the systems it may hit.
 - Corporations recur: each tier has a pool of 24 per 30-level stretch (`pool`), so a name comes
   back within a stretch. Name patterns differ per tier (pair of surnames, coined, surname,
   initials). The drawn pattern gets 8 tries to fit a label within 40 before any pattern may
@@ -196,36 +197,32 @@ label, shape, hue, params}`. `label` is `OWNER // SYSTEM` in capitals. Pure and 
 
 ## ICE (`src/hosts.js`, `src/bot.js`, `src/ui.js`)
 
-A level from hardness 0.5 up may carry one ICE (intrusion countermeasure) that makes aiming
+A level from run position 6 may carry one ICE (intrusion countermeasure) that makes aiming
 or reading the board harder. Every ICE check in the UI goes through `iceOn()` (none while the ICE breaker
-runs), never `ice` directly, except the breaker's own end message and drawer button. `iceFor(level)` returns its type or null; pure, seeded
-(`hash(level, 13)`, two draws always taken so the chance and the pick never shift each
-other). It is not saved: it is recomputed from the level.
+runs), never `ice` directly, except the breaker's own end message and drawer button. `severityFor(level)` gives its severity (0 none, 1 mild, 2 medium,
+3 harsh), `iceFor(level)` its type or null; pure, seeded. It is not saved: it is recomputed from the level.
 
-- Schedule (owner: ICE is part of the run's climb, not a dice roll): by run position, none at
-  1-11, every other level 12-20 (even positions, mild only), every level 21-26 (up to medium) and
-  27-30 (up to harsh), always capped by the host's tier: 15 of every 30 levels. Black only at
-  27-30 on high stakes. In the mild and harsh stretches all allowed types are equally likely (at
-  27-30 a high-stakes host always gets a harsh type); the industry flavour picks in between. A
-  level with ICE gets a board at three quarters of its hardness (`boardHardness`). Shares over
-  1-2000: static 22%, lag 20%, scrambler 13%, lock 13%, blink 13%, jam 6%, jitter 4%, black 4%, monochrome 4%.
+- Schedule (owner: ICE starts early and the severities overlap): by run position, none at 1-5; from 6 one level in each
+  block of three (6-8, 9-11 ... 27-29) has none at a seeded spot, and 30 always has ICE, so 17 of every 30 levels have
+  ICE, about two in three from 6 on. Mild 6-10, mild or medium 11-15, medium 16-20, medium or harsh 21-25, harsh 26-30;
+  across an overlap the higher severity's chance grows from 1/6 to 5/6. A
+  level with ICE gets a board at three quarters of its hardness (`boardHardness`), except black and
+  monochrome, which get the full board (owner: with them most shots still go where you tap, so they
+  barely bite).
 - Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
   level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`. Off GitHub Pages (`DEV`, any host not ending in `github.io`) the menu's level picker goes up to 9999, not just the best level. A local build also unregisters the service worker and deletes the `splice-` caches, so a reload always shows the files on disk.
 - Types and severity (`ICE`): mild `static`, `lag`, `blink`; medium `scrambler`, `lock`, `jam`;
   harsh `monochrome`, `black`, `jitter` (owner: jitter is one of the hardest, so harsh, not mild). Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
-  1.25, harsh 1.5, applied by `limitFor` in `src/bot.js`; scrambler overrides it with 1.1 (`ICE_TYPE_K`: shooting a
-  wrong colour away is cheap, so it gets less room) (the bot itself plays without ICE:
+  1.25, harsh 1.5, applied by `limitFor` in `src/bot.js`; scrambler gets the medium 1.25 like the others
+  (it had 1.1, but a play log showed people need about 1.5x the bot's shots on it) (the bot itself plays without ICE:
   it aims perfectly and ignores every effect, so the factor only pays the human for it).
-- Who runs what: the host's tier caps severity (`CAP`: small mild, corporate up to medium,
-  high up to harsh). `black` also needs hardness 0.8 or more and a `high` host. A host picks
-  from its industry's liked types (`LIKES`: security `scrambler`, `lock`, `static`; media
+- Which type: within the severity, the host's liked types weigh 1.5 and the others 1 (owner: flavour, but light)
+  (`LIKES`: security `scrambler`, `lock`, `static`; media
   `static`, `blink`; telecom `static`, `lag`; finance `scrambler`, `lag`; insurance `scrambler`, `blink`; ai `jitter`,
   `monochrome`, `lag`; defense `black`, `monochrome`, `lock`; aerospace `black`, `lock`; biotech and
   pharma `static`, `scrambler`, `jam`; energy and logistics `jam`, `scrambler`, `static`),
   government hosts from `GOV_LIKES` by tier (small none, corporate `scrambler`, `static`,
-  `lock`, high `monochrome`, `black`, `lock`), filtered by the cap and the `black` rule. If
-  nothing is left it takes any allowed type. The first liked type is weighted 2, the others 1
-  (tune by playing). Over levels 1-2000 each type is 5% to 45% of the levels with ICE
+  `lock`, high `monochrome`, `black`, `lock`). Over levels 1-3000 each type is 25% to 45% of its severity
   (`tests/hosts.test.mjs`).
 - UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
   swapping change, firing, landing and dealing are the same as without ICE):
@@ -272,6 +269,9 @@ other). It is not saved: it is recomputed from the level.
 - Look: `themeFor(level)` from `src/hosts.js` (accent and background), six `HUES` with a symbol each
   (`sym`), so colour is never the only cue. `bubble()` draws one packet. Text uses Chakra Petch
   with a monospace fallback (the log stays monospace).
+- Security tier (`secFor`, `#sec` in the header after "Jacked in"): the higher of the level's hardness (0.35 and 0.7 steps) and
+  its ICE severity (`severityFor`): Open (grey), Guarded (accent), Hardened (amber), Fortified (red). Owner: mild ICE is more a visual gimmick,
+  but it counts as Guarded for now. A fifth tier is kept for the boss levels on the roadmap.
 - HUD (DOM): header ("Jacked in" over `hostFor(level).label`, wrapping to two lines at most;
   level over pending frags `ƒ n` (dim `ƒ –` when the level will not pay), not the score; menu button), corner brackets (`#frame::after`), packets bar (up to 20 segments,
   each `ceil(maxShots / 20)` shots; lit ones are the shots left, `S.maxShots` is set by

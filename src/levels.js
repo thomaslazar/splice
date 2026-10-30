@@ -9,7 +9,8 @@ const SPLIT = .7;   // at full hardness, mirrors and bands split 70% of the time
 export const RUN = 30, runPos = level => (level - 1) % RUN + 1, hardness = level => (runPos(level) - 1) / (RUN - 1);
 // The board's share of the hardness: a level with ICE gets a lighter board (three quarters), so
 // ICE does not stack on the hardest layouts.
-export const boardHardness = level => (iceFor(level) ? .75 : 1) * hardness(level);
+// ICE eases the board to three quarters, except black and monochrome (owner: they barely bite)
+export const boardHardness = level => { const ice = iceFor(level); return (ice && ice !== 'black' && ice !== 'monochrome' ? .75 : 1) * hardness(level); };
 export const winRows = cols => Math.round(1.7 * cols);
 const xOf = k => (k & 15) + (k >> 4) % 2 / 2;   // a cell key's x in unit coords (odd rows +0.5)
 

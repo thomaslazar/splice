@@ -156,14 +156,14 @@ function settle(level, recent) {
 }
 
 /* ---------- ICE ---------- */
-export const ICE = { static: 'mild', lag: 'mild', blink: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh', jitter: 'harsh' };
+export const ICE = { static: 'mild', lag: 'mild', blink: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh', jitter: 'harsh', seal: 'harsh' };
 export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
 const SEVERITY = { mild: 1, medium: 2, harsh: 3 };
-const LIKES = { security: ['scrambler', 'lock', 'static'], media: ['static', 'blink'], telecom: ['static', 'lag'],
+const LIKES = { security: ['scrambler', 'lock', 'static', 'seal'], media: ['static', 'blink'], telecom: ['static', 'lag'],
   finance: ['scrambler', 'lag'], insurance: ['scrambler', 'blink'], ai: ['jitter', 'monochrome', 'lag'],
-  defense: ['black', 'monochrome', 'lock'], aerospace: ['black', 'lock'], biotech: ['static', 'scrambler', 'jam'],
+  defense: ['black', 'monochrome', 'lock', 'seal'], aerospace: ['black', 'lock', 'seal'], biotech: ['static', 'scrambler', 'jam'],
   pharma: ['static', 'scrambler', 'jam'], energy: ['jam', 'scrambler', 'static'], logistics: ['jam', 'scrambler', 'static'] };
-const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high: ['monochrome', 'black', 'lock'] };
+const GOV_LIKES = { small: [], corporate: ['scrambler', 'static', 'lock'], high: ['monochrome', 'black', 'lock', 'seal'] };
 // ICE severity by run position (owner): none at 1-5; from 6 one level in each block of three (6-8 ... 27-29) has none,
 // at a seeded spot, and 30 always has ICE; mild 6-10, mild or medium 11-15, medium 16-20, medium or harsh 21-25,
 // harsh 26-30. Across an overlap the higher severity grows from 1/6 to 5/6. 0 is no ICE.

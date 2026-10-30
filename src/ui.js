@@ -148,11 +148,12 @@ function hud() {
 function fit() {
   // everything but the canvases: header, frame padding, packets bar, log, wip line. The host label
   // wraps with the width, so set the width first, then measure (twice: the width shrinks once more).
-  const hu = SY() + 2, dpr = devicePixelRatio || 1; let w = Math.min(520, innerWidth);
+  const hu = SY() + 2, dpr = devicePixelRatio || 1, bs = getComputedStyle(document.body), ih = innerHeight - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom);
+  let w = Math.min(520, innerWidth);
   for (let i = 0; i < 2; i++) {
     $('#deck').style.width = w + 'px';
     const rest = $('#deck').offsetHeight - cv.offsetHeight - sv.offsetHeight + $('#wip').offsetHeight;
-    w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / (hu + strip * STRIP) + 2 * GUT);
+    w = Math.min(520, innerWidth, (ih - rest - PAD) * 2 * S.cols / (hu + strip * STRIP) + 2 * GUT);
   }
   sc = (w - 2 * GUT) / (2 * S.cols); W = w; H = hu * sc; $('#deck').style.width = W + 'px';
   cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px';
@@ -234,7 +235,7 @@ const ITEM_NAMES = { bomb: () => t('item_bomb'), sweep: () => t('item_sweep'), p
   lightning: () => t('item_lightning'), virus: () => t('item_virus'), purge: () => t('item_purge'), rainbow: () => t('item_rainbow'), rollback: () => t('item_rollback') };
 const secName = s => [t('secOpen'), t('secGuarded'), t('secHardened'), t('secFortified')][s];
 const iceName = i => ({ static: t('iceStatic'), lag: t('iceLag'), blink: t('iceBlink'), jitter: t('iceJitter'), scrambler: t('iceScrambler'), lock: t('iceLock'),
-  jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack') })[i];
+  jam: t('iceJam'), monochrome: t('iceMonochrome'), black: t('iceBlack'), seal: t('iceSeal') })[i];
 const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if none
 // jam: the first bounce or JAM_LEN radii (about four bubbles), whichever is shorter, so a jam also
 // bites on levels that need no bounces
@@ -257,6 +258,7 @@ const FX = {
   black: { aim: () => null },
   scrambler: { hide: slot => hid[slot === 'cur' ? 0 : 1], swapped: () => { hid = [hid[1], hid[0]]; } },
   lock: { locked: true },
+  seal: { locked: true, hide: slot => slot === 'next' },   // lock, and the next packet never shows (owner: no planning ahead)
 };
 function trySwap(src, tms, tpx) { const f = fxOf(); if (S.load) return;
   if (plays.on) { const n = performance.now(), w = f.locked ? 'lock' : src; pend.sw.push([w, n]); pend.ev.push(['s', n, w, tms ?? null, tpx ?? null]); } if (f.locked) return; swap(S); f.swapped?.(); swapAt = performance.now(); save(); }

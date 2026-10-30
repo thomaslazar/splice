@@ -11,7 +11,7 @@ export const RUN = 30, runPos = level => (level - 1) % RUN + 1, hardness = level
 // ICE does not stack on the hardest layouts.
 // ICE eases the board to three quarters, except black and monochrome (owner: they barely bite)
 export const boardHardness = level => { const ice = iceFor(level); return (ice && ice !== 'black' && ice !== 'monochrome' ? .75 : 1) * hardness(level); };
-export const winRows = cols => Math.round(1.7 * cols);
+export const winRows = cols => Math.round(2 * cols);
 const xOf = k => (k & 15) + (k >> 4) % 2 / 2;   // a cell key's x in unit coords (odd rows +0.5)
 
 // Shapes are predicates over unit coords: x in 0..cols-1 (odd rows +0.5), y in rows*0.866.

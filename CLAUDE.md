@@ -131,7 +131,7 @@ function bodies, so keep it that way.
   `hardness(level)` = `(runPos(level) - 1) / 29` over runs of `RUN` = 30 levels (`runPos` 1..30):
   a sawtooth, 0 at levels 1, 31, 61 ... and 1 at 30, 60, 90 ... Unlike `difficulty` it never
   saturates; it drives how fragmented a level is, and the run position decides ICE.
-  `winRows(cols)` is the visible height in rows.
+  `winRows(cols)` is the visible height in rows: 2 per column (owner: 1.7 left big gaps on tall phones).
 - `makeLayout(level)` (cached, last 4 levels) depends on the level only. Kind is `designed` or `noise`
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
@@ -212,17 +212,17 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
 - Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
   level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`. Off GitHub Pages (`DEV`, any host not ending in `github.io`) the menu's level picker goes up to 9999, not just the best level. A local build also unregisters the service worker and deletes the `splice-` caches, so a reload always shows the files on disk.
 - Types and severity (`ICE`): mild `static`, `lag`, `blink`; medium `scrambler`, `lock`, `jam`;
-  harsh `monochrome`, `black`, `jitter` (owner: jitter is one of the hardest, so harsh, not mild). Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
+  harsh `monochrome`, `black`, `jitter`, `seal` (owner: jitter is one of the hardest, so harsh, not mild). Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
   1.25, harsh 1.5, applied by `limitFor` in `src/bot.js`; scrambler gets the medium 1.25 like the others
   (it had 1.1, but a play log showed people need about 1.5x the bot's shots on it) (the bot itself plays without ICE:
   it aims perfectly and ignores every effect, so the factor only pays the human for it).
 - Which type: within the severity, the host's liked types weigh 1.5 and the others 1 (owner: flavour, but light)
-  (`LIKES`: security `scrambler`, `lock`, `static`; media
+  (`LIKES`: security `scrambler`, `lock`, `static`, `seal`; media
   `static`, `blink`; telecom `static`, `lag`; finance `scrambler`, `lag`; insurance `scrambler`, `blink`; ai `jitter`,
-  `monochrome`, `lag`; defense `black`, `monochrome`, `lock`; aerospace `black`, `lock`; biotech and
+  `monochrome`, `lag`; defense `black`, `monochrome`, `lock`, `seal`; aerospace `black`, `lock`, `seal`; biotech and
   pharma `static`, `scrambler`, `jam`; energy and logistics `jam`, `scrambler`, `static`),
   government hosts from `GOV_LIKES` by tier (small none, corporate `scrambler`, `static`,
-  `lock`, high `monochrome`, `black`, `lock`). Over levels 1-3000 each type is 25% to 45% of its severity
+  `lock`, high `monochrome`, `black`, `lock`, `seal`). Over levels 1-3000 each type is 25% to 45% of its severity
   (`tests/hosts.test.mjs`).
 - UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
   swapping change, firing, landing and dealing are the same as without ICE):
@@ -251,6 +251,8 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
     swaps them, the landing ring turns grey for a hidden one; a reload shows the shooter packet.
   - `lock`: swapping (strip touch and wheel) is ignored and a small padlock marks the next
     packet.
+  - `seal`: lock, and the next packet is always hidden (the grey "?" of scrambler, with the padlock), so
+    the shot after this one cannot be planned (owner). It shows once it moves up to the shooter.
   - `monochrome`: bubbles draw in one neutral tone with brighter, thicker symbols, and the
     target ring is neutral. The host strip keeps its colours.
   - `black`: no aim line and no landing ring at all.
@@ -278,7 +280,8 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
   `startState`), two reserved log lines, and a full-screen scanline overlay
   (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
 - Progress track (`track()`): `GUT` (16 px) is kept free on each side of the board so it stays centred; the right gutter holds a line for the level (start at the bottom, ceiling at the top), the cleared part brighter, a marker that follows the eased view (`view` against the starting top row, so it moves with the scroll; `pct()` on a level that starts at the ceiling) and the percent (`depth` in `lang/`) above it. It shows where the player is, never the level's bubbles (owner: a mini-map would make it too easy), so Overclock can be judged.
-- View and scrolling: `fit()` sizes the canvas to the screen; `S` is in bubble radii and
+- View and scrolling: `fit()` sizes the canvas to the screen, minus the safe areas (`viewport-fit=cover`, the body pads by
+  `env(safe-area-inset-*)`, so the status bar of the home-screen app never covers the header); `S` is in bubble radii and
   `sc` is px per radius. `view` is the top row shown and eases toward `S.top` (instantly
   with reduced motion). The ceiling line is drawn only when row 0 is on screen; a dashed loss line sits between `lossRow` and the row above.
 - Input: pointer drag aims (`setAim`), release fires (`shoot`). Only the pointer that started

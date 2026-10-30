@@ -102,10 +102,10 @@ test('two of three levels from 6 have ice: one gap in each block of three', () =
   for (let run = 0; run < 50; run++) for (let b = 0; b < 8; b++)
     assert.equal([6, 7, 8].map(p => 30 * run + 3 * b + p).filter(l => !iceFor(l)).length, 1, `run ${run} block ${b}`);
 });
-test('ice types within a severity are spread: each 25% to 45% (1-3000)', () => {
+test('ice types within a severity are spread: each 20% to 45% (1-3000)', () => {
   const n = {}, sev = {};
   for (let lv = 1; lv <= 3000; lv++) { const ice = iceFor(lv); if (ice) { n[ice] = (n[ice] || 0) + 1; sev[ICE[ice]] = (sev[ICE[ice]] || 0) + 1; } }
-  for (const t of Object.keys(ICE)) { const s = n[t] / sev[ICE[t]]; assert.ok(s >= 0.25 && s <= 0.45, `${t} ${(100 * s).toFixed(1)}%`); }
+  for (const t of Object.keys(ICE)) { const s = n[t] / sev[ICE[t]]; assert.ok(s >= 0.2 && s <= 0.45, `${t} ${(100 * s).toFixed(1)}%`); }
 });
 
 import { secFor } from '../src/hosts.js';

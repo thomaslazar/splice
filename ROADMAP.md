@@ -24,7 +24,9 @@ What comes next for Splice, roughly in order. Issues live on
 
 - **ICE schedule.** ICE now starts at run position 6, about two levels in three, with overlapping
   severities (harsh from 21); black and monochrome get the full board. Check whether the climb feels
-  right and whether black still needs 1.5x shots.
+  right and whether black still needs 1.5x shots. Seal ICE (lock with a hidden next packet) is new
+  and harsh; if monochrome and seal feel apart from the other harsh types, consider a fourth
+  severity for them.
 - **Shot limits on item levels.** The bot uses item bubbles, so levels with them get fewer shots. Since
   items are placed where they do the most, limits dropped further (level 25 from 71 to 59, 33 from 51
   to 36, 55 from 121 to 87). If they feel tight, give item levels their own factor so the limit

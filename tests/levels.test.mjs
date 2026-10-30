@@ -21,7 +21,7 @@ test('kinds, columns, screens and colours follow the rules', () => {
     assert.ok(L.nColours >= 3 && L.nColours <= 6); }
   assert.ok(kinds.noise > 60 && kinds.noise < 140, `noise share off: ${kinds.noise}`);
   for (const c in cols) assert.ok(cols[c] > 30, `${c} columns too rare`);
-  assert.equal(winRows(10), 17);
+  assert.equal(winRows(10), 20);
 });
 test('noise levels are full rows', () => {
   const lv = levels.find(l => makeLayout(l).kind === 'noise'), L = makeLayout(lv);

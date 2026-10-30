@@ -15,7 +15,6 @@ What comes next for Splice, roughly in order. Issues live on
 - **Sound and music** ([#6](https://github.com/thomaslazar/splice/issues/6)). Generated synth music
   in a cyberpunk, Tron-like style, plus sound effects for shots, pops, drops, items and ICE. Open:
   whether it respects the phone's silent switch, and a mute control. Needs a brainstorm.
-
 - **Boss levels at chapter ends.** Super hard levels that can hardly be won without items (or
   without failing until the retry easing adds shots). Needs a brainstorm: how hard, how often, how
   they are announced.
@@ -44,13 +43,12 @@ What comes next for Splice, roughly in order. Issues live on
 
 ## Known small issues
 
-- `?level=N` (a test path) can drop a saved loaded item.
 - A Virus with nothing to recolour cannot fire.
-- Cleared bubbles blink out about 100 ms before their pop shows.
-- Rollback remembers only the last shot, in memory, and any other item use clears it.
 
 ## Done
 
+- Small fixes: `?level=N` returns a loaded item to the deck; bubbles cleared by an item bubble stay
+  visible until their pop; the Rollback point survives a reload.
 - Scrambler gets the medium shot factor 1.25 (a play log showed about 1.5x the bot's shots on it).
 - Swap misfires: a play log with touch events showed every swap was a clean tap; no surprise swaps.
 

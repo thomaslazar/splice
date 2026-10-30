@@ -89,7 +89,10 @@ const X = u => GUT + u * sc, Y = u => (u - view * RH) * sc;
 const target = () => S.top;
 const shut = () => $('#sheet').hidden && $('#menu').hidden && $('#drawer').hidden;
 const ready = () => !fly && view === target() && (stripAt === null || strip === 1) && !busy() && shut() && S.cur !== null && S.grid.size > 0;
-function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); } catch (e) {} }
+// the Rollback point is saved with the board, so a reload can still roll back the last shot
+const UNDO_KEY = 'splice-undo';
+function save() { try { localStorage.setItem(KEY, JSON.stringify(toSave(S))); localStorage.setItem(UNDO_KEY, JSON.stringify(prev)); } catch (e) {} }
+const readUndo = () => { try { const u = JSON.parse(localStorage.getItem(UNDO_KEY)); return u && validSave(u.s) ? u : null; } catch (e) { return null; } };
 const RUN_KEY = 'splice-run'; let run;   // run: { best, fails }, the best level reached
 const pays = () => S.level === run.best && run.paid !== S.level;   // this level still pays frags and loot
 function saveRun() { try { localStorage.setItem(RUN_KEY, JSON.stringify(run)); } catch (e) {} }
@@ -148,12 +151,11 @@ function hud() {
 function fit() {
   // everything but the canvases: header, frame padding, packets bar, log, wip line. The host label
   // wraps with the width, so set the width first, then measure (twice: the width shrinks once more).
-  const hu = SY() + 2, dpr = devicePixelRatio || 1, bs = getComputedStyle(document.body), ih = innerHeight - parseFloat(bs.paddingTop) - parseFloat(bs.paddingBottom);
-  let w = Math.min(520, innerWidth);
+  const hu = SY() + 2, dpr = devicePixelRatio || 1; let w = Math.min(520, innerWidth);
   for (let i = 0; i < 2; i++) {
     $('#deck').style.width = w + 'px';
     const rest = $('#deck').offsetHeight - cv.offsetHeight - sv.offsetHeight + $('#wip').offsetHeight;
-    w = Math.min(520, innerWidth, (ih - rest - PAD) * 2 * S.cols / (hu + strip * STRIP) + 2 * GUT);
+    w = Math.min(520, innerWidth, (innerHeight - rest - PAD) * 2 * S.cols / (hu + strip * STRIP) + 2 * GUT);
   }
   sc = (w - 2 * GUT) / (2 * S.cols); W = w; H = hu * sc; $('#deck').style.width = W + 'px';
   cv.style.width = W + 'px'; cv.style.height = H + PAD + 'px';
@@ -423,7 +425,7 @@ $('#menuBtn').onclick = () => { closeDrawer(); if (!shut() || loading || busy() 
 $('#mKeep').onclick = closeMenu;
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
 $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
-function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY]) try { localStorage.removeItem(k); } catch (e) {} wipeLog(); deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
+function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY, UNDO_KEY]) try { localStorage.removeItem(k); } catch (e) {} wipeLog(); deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
 $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
 $('#pOn').onchange = () => { P.setOn(plays, $('#pOn').checked); writePlays(); menuText(); };
 $('#pClear').onclick = () => { closeMenu(); ask('clear'); };
@@ -677,7 +679,7 @@ function draw() {
     a.k++;
     const on = a.y * sc > -2 * sc && a.y * sc < H + 2 * sc;   // skip off-canvas effects (shadowBlur is costly)
     if (a.t === 'flash') { if (on) { g.globalAlpha = Math.max(0, 1 - a.k / 8); g.fillStyle = '#fff'; g.shadowColor = '#fff'; g.shadowBlur = sc * .8; g.beginPath(); g.arc(X(a.x), a.y * sc, sc * 1.3, 0, 7); g.fill(); g.shadowBlur = 0; g.globalAlpha = 1; } return a.k < 8; }
-    if (a.k < 0) return true;   // delayed
+    if (a.k < 0) { if (on && a.t === 'pop') bubble(X(a.x), a.y * sc, a.col); return true; }   // delayed: a pop waiting for the flash still shows its bubble
     if (a.t === 'pop') { if (on) bubble(X(a.x), a.y * sc, a.col, 1 - a.k / 12, sc * (1 + a.k / 12)); return a.k < 12; }
     if (a.t === 'fall') {   // glitch jitter seeded from the bubble key
       a.vy += .025; a.y += a.vy; a.x += a.vx + (a.k % 6 < 1 ? (hash(a.key, a.k) % 1000 / 1000 - .5) : 0);
@@ -700,6 +702,7 @@ document.addEventListener('touchend', e => { if (e.timeStamp - lastTap < 350 && 
 if (DEV) { navigator.serviceWorker?.getRegistrations().then(rs => rs.forEach(r => r.unregister())).catch(() => {});
   globalThis.caches?.keys().then(ks => ks.filter(k => k.startsWith('splice-')).forEach(k => caches.delete(k))).catch(() => {}); }
 else if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-{ const n = +PLAY.level, l = Number.isInteger(n) && n >= 1 ? [n, 0] : load(), [lv, fl] = Array.isArray(l) ? l : [l.level, l.fails];
+{ const n = +PLAY.level, sv = load(), l = Number.isInteger(n) && n >= 1 ? [n, 0] : sv, [lv, fl] = Array.isArray(l) ? l : [l.level, l.fails];
+  if (l !== sv && sv.load) { deck = give(deck, sv.load); saveDeck(); }   // ?level=N skips the save: an item loaded in it goes back to the deck
   let o; try { o = JSON.parse(localStorage.getItem(RUN_KEY)); } catch (e) {}
-  run = runFrom(o, lv, fl); saveRun(); Array.isArray(l) ? begin(...l) : start(l); } draw();
+  run = runFrom(o, lv, fl); saveRun(); if (Array.isArray(l)) begin(...l); else { const u = readUndo(); start(l); if (u?.s.level === S.level && u.s.fails === S.fails) { prev = u; save(); } } } draw();

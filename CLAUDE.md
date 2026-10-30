@@ -280,8 +280,8 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
   `startState`), two reserved log lines, and a full-screen scanline overlay
   (`#scan`, `pointer-events: none`). `fit()` subtracts all of it from the height.
 - Progress track (`track()`): `GUT` (16 px) is kept free on each side of the board so it stays centred; the right gutter holds a line for the level (start at the bottom, ceiling at the top), the cleared part brighter, a marker that follows the eased view (`view` against the starting top row, so it moves with the scroll; `pct()` on a level that starts at the ceiling) and the percent (`depth` in `lang/`) above it. It shows where the player is, never the level's bubbles (owner: a mini-map would make it too easy), so Overclock can be judged.
-- View and scrolling: `fit()` sizes the canvas to the screen, minus the safe areas (`viewport-fit=cover`, the body pads by
-  `env(safe-area-inset-*)`, so the status bar of the home-screen app never covers the header); `S` is in bubble radii and
+- View and scrolling: `fit()` sizes the canvas to the screen (the home-screen app's status bar is opaque `black`, not
+  translucent: with `viewport-fit=cover` iOS blurred and dimmed the header and the menu tabs under it); `S` is in bubble radii and
   `sc` is px per radius. `view` is the top row shown and eases toward `S.top` (instantly
   with reduced motion). The ceiling line is drawn only when row 0 is on screen; a dashed loss line sits between `lossRow` and the row above.
 - Input: pointer drag aims (`setAim`), release fires (`shoot`). Only the pointer that started
@@ -324,7 +324,7 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
   panel with tabs Run, Shop (buying, with demo popups) and Info; `menuText()` fills every text. Run: current and best level,
   Restart level and Start over (each asks first on the sheet, `asking` = `'restart'` or `'over'`; only the confirm button acts,
   restart is not a fail), Back to best level (when below it), a level stepper (`clampLevel`, 1..best) with the host's label and
-  Play, then Reset progress (red, asks first, `asking` = `'reset'`: deletes `splice-v1`, `splice-run` and `splice-deck`, keeps `splice-lang`, restarts at level 1 with an empty deck; Start over keeps the deck). Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
+  Play, then Reset progress (red, asks first, `asking` = `'reset'`: deletes `splice-v1`, `splice-run`, `splice-deck` and `splice-undo`, keeps `splice-lang`, restarts at level 1 with an empty deck; Start over keeps the deck). Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
   in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit and a language `<select>` from `LANGS`
   (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
 - Play log (`splice-plays`, opt-in, off by default): a Play log block on the Run tab, above Reset progress, with a
@@ -354,7 +354,8 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
   (`#deckBtn`, `#drawer`) loads an item as the packet, unloads it, fires instants, or does Rollback; it always opens, and its last button opens the Shop tab. A dropped colour bubble pays 1 frag, a dropped item bubble `ITEM_DROP` (50, owner; also those that fall on the winning shot). The header frags (`shown`) count up as dropped bubbles leave the screen (1 per colour bubble, 50 at once per item bubble).
 - Item shots use no shot (builder's call, the spec is silent; easy to change in `fire`); Overclock adds 5. `S.frags`, `S.load` and `S.breaker` are in the save.
 - A loaded item goes back to the deck when the level is left (`begin()`, and `load()` for a save that fails validation), except on Reset progress. An item with no effect at the aim cannot be fired (`hits` null, no preview). ICE breaker is only usable on a level with active ICE and not while it already runs (`useItem` refuses). Decrypt only offers and accepts colours (`isColour`). A tap outside the drawer, or the menu button, closes it.
-- Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
+- Rollback's point (the board before the last shot, `prev`) is saved with every save in `splice-undo`, so a reload keeps it.
+  Rollback is disabled once a level is won or lost (builder's call: it is not a Flatline rescue, and it stops a double payout). Flatline rescue: a loss by shots offers Overclock (+5) on the sheet (`#sheetO`).
 - Item bubbles on the board (grid values from `ITEM_BASE`, never dealt, never a colour). `itemPlan(level)`: none below level 3,
   else half the levels have them (owner; was 25%), a fifth of those `full` (3 per screen; code caps at 3, not 4), the rest `normal` (0 to 2 per screen). `placeItems`
   runs after colouring from the level only (same on every try; it scores on the fails 0 colours). Each item bubble goes to one
@@ -417,7 +418,7 @@ the GitHub issues. Keep it current when work lands or a new idea is parked.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-6`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-6`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

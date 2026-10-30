@@ -63,7 +63,9 @@ Read before changing behaviour:
   declares it; `index.html` preloads the 600 weight.
 - `manifest.webmanifest`, `sw.js`, `icons/`: PWA. `icons/icon.svg` is the source; the PNGs
   are renders of it (192, 512, maskable 512 at 80% scale, 180 for Apple), made with
-  `qlmanage -t -s 512` and `sips -z`.
+  `qlmanage -t -s 512` and `sips -z`. `icons/og.png` (1200 x 630) is the link preview card for chat
+  apps (Open Graph and `twitter:card` tags in `index.html`, absolute URLs): logo, tagline and a
+  level 7 screenshot, rendered from an HTML mockup with Playwright. Not in `SHELL`.
 - `.github/workflows/pages.yml`: runs `node --test` on pull requests and pushes; on push to
   `master` it deploys the site files to https://thomaslazar.github.io/splice/. New site files
   must be added to its copy step (`cp -r` of `index.html style.css manifest.webmanifest sw.js src

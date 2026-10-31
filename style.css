@@ -150,7 +150,8 @@ canvas { display: block; touch-action: none; }
 #plog { margin-top: 28px; display: flex; flex-direction: column; gap: 8px; }
 #plog h3 { margin: 0; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; opacity: .75; }
 #plog p { margin: 0; font-size: 12px; opacity: .75; }
-#pSw { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-#pOn { width: 20px; height: 20px; accent-color: currentColor; margin: 0; }
+#sSw { margin-top: 6px; }
+#pSw, #sSw { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+#pOn, #sOn { width: 20px; height: 20px; accent-color: currentColor; margin: 0; }
 #menu #plog button:disabled { opacity: .35; cursor: default; }
 #menu #mReset { margin-top: 28px; border-color: #ff2a4a; color: #ff2a4a; }

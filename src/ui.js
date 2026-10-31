@@ -8,6 +8,8 @@ import { ICONS } from './icons.js';
 import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, resolve, isItem, itemOf, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
 import * as P from './plays.js';
 import { BUILD } from './build.js';
+import { songFor } from './music.js';
+import * as SND from './audio.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -111,6 +113,16 @@ const rec = f => { if (plays.on) try { f(); } catch (e) {} };
 const tick = () => { const a = P.open(plays), n = performance.now(); if (a && tAt !== null) a.t = Math.round((a.t + (n - tAt) / 1000) * 10) / 10; tAt = document.hidden ? null : n; };
 const used = id => rec(() => { P.use(plays, id); savePlays(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) rec(() => { tick(); savePlays(); }); else tAt = performance.now(); });
+/* ---------- music ---------- */
+// One generated track per level (music.js), played by audio.js. Browsers start audio only from a user
+// gesture (touchend or pointerup for touch, not pointerdown), so every such event unlocks it. On by default.
+const SOUND_KEY = 'splice-sound'; let sound = true;
+try { sound = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) {}
+SND.setOn(sound);
+for (const ev of ['pointerup', 'touchend', 'keydown', 'pointerdown']) addEventListener(ev, SND.unlock, { capture: true, passive: true });
+document.addEventListener('visibilitychange', () => SND.setHidden(document.hidden));
+const moodOf = () => { const f = flagged(); return f.critical ? 2 : f.rising ? 1 : 0; };
+const music = () => { if (won(S) || lost(S)) return; SND.playSong(songFor(S.level, ice)); SND.setMood(moodOf()); };   // same song: keeps playing
 function load() {   // a valid save, or [level, fails] to begin: an invalid save keeps its level, unreadable means level 1
   let o; try { o = JSON.parse(localStorage.getItem(KEY)); if (validSave(o)) return fromSave(o); } catch (e) {}
   if (o && item(o.load)?.kind === 'shot') { deck = give(deck, o.load); saveDeck(); o.load = null; try { localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) {} }   // an item loaded in a save we cannot resume goes back
@@ -212,8 +224,8 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
   const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
   const f = flagged(); if (won(S)) f.rising = f.critical = false;   // no trace warning on the winning shot
   for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) {
-    seen[n] = true; log(text); if (n !== 'host') flash(n); }
-  if (lost(S)) log(t('logLost')); else if (won(S)) log(t('logRoot', { host: hostFor(S.level).owner }));
+    seen[n] = true; log(text); if (n !== 'host') { flash(n); SND.setMood(moodOf()); } }
+  if (lost(S)) { log(t('logLost')); SND.loseSong(); } else if (won(S)) { log(t('logRoot', { host: hostFor(S.level).owner })); SND.winSong(); }
 }
 /* ---------- ICE ---------- */
 // One type per level (iceFor). Its effects all live in FX: draw() asks fxOf() for the active one.
@@ -314,7 +326,7 @@ function start(s, fresh) {   // fresh: from begin(), a new attempt; else a saved
   pend = { sw: [], x: 0, ev: [] }; tAt = document.hidden ? null : performance.now();
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
   paid = null; win = won(S) ? { at: -Infinity, done: true } : null;   // a reload on a won board: sheet at once, host in the accent
-  setTheme(S.level);
+  setTheme(S.level); music();
   hud(); fit(); save(); sheet(); calm();
 }
 // Grace period after a sheet closes: a tap on its button can linger or repeat onto the board,
@@ -332,7 +344,7 @@ const wipeLog = () => { if (!plays.on && !plays.attempts.length) return; plays.a
 $('#sheetB').onclick = () => asking === 'clear' || asking === 'clearLog' ? (wipeLog(), keep(), menuText()) : asking === 'reset' ? resetAll() : asking === 'over' ? begin(1, 0) : asking ? begin(S.level, S.fails) : won(S) ? begin(S.level + 1, 0) : begin(S.level, S.fails + 1);
 $('#sheetO').onclick = () => {
   const d = take(deck, 'overclock'); if (!d || !useItem(S, 'overclock')) return;
-  deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm();
+  deck = d; prev = null; saveDeck(); save(); $('#sheet').hidden = true; hud(); calm(); music();   // the track starts over
   rec(() => { const a = plays.attempts.at(-1); if (a?.end === 'lost-shots' && a.level === S.level && a.fails === S.fails) a.end = a.left = null; });   // a rescue reopens the attempt
   used('overclock');
 };
@@ -353,6 +365,7 @@ function menuText() {   // every panel text; Info adds its own here
   $('#pHead').textContent = t('playLog'); $('#pTrack').textContent = t('playTrack'); $('#pOn').checked = plays.on; $('#pShare').textContent = t('playShare'); $('#pClear').textContent = t('playClear');
   const n = plays.attempts.length; $('#pCount').textContent = plays.on ? t('playCount', { n }) : t('playOffText'); $('#pShare').disabled = $('#pClear').disabled = !n;
   $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
+  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound;
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
 function tab(name) {
@@ -427,6 +440,7 @@ $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
 $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
 function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY, UNDO_KEY]) try { localStorage.removeItem(k); } catch (e) {} wipeLog(); deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
 $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
+$('#sOn').onchange = () => { sound = $('#sOn').checked; try { localStorage.setItem(SOUND_KEY, sound ? '1' : '0'); } catch (e) {} SND.setOn(sound); };
 $('#pOn').onchange = () => { P.setOn(plays, $('#pOn').checked); writePlays(); menuText(); };
 $('#pClear').onclick = () => { closeMenu(); ask('clear'); };
 $('#pShare').onclick = async () => {

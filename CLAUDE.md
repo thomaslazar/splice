@@ -20,7 +20,7 @@ Read before changing behaviour:
   `file://` does not work (ES modules, `fetch` for `lang/`). Avoid port 8000 on the owner's
   phone: Kiln's service worker controls that origin and mixes its files in.
   The service worker is network first (revalidates, 3 s timeout, cache only as offline
-  fallback). `CACHE` is `splice-6`. Rename it when `sw.js` changes how it caches or the `SHELL`
+  fallback). `CACHE` is `splice-7`. Rename it when `sw.js` changes how it caches or the `SHELL`
   list changes, so `activate` drops the old cache. The fonts are in `SHELL`.
 - Play log report: `node tools/plays.mjs <file> [file ...]` reads shared play log files and prints, per file and
   combined, shots left on wins per hardness band and ICE, tries per level, item use, swap signs and time.
@@ -59,6 +59,7 @@ Read before changing behaviour:
   `tests/bot.test.mjs`. `tools/sim.mjs`: balance report with it.
 - `src/plays.js`: the opt-in play log, pure (`logFrom`, `attemptOf`, `shot`, `use`, `close`, `trim`, `fileOf`). Tested in
   `tests/plays.test.mjs`. `src/build.js`: the build stamp shown in the log file. `tools/plays.mjs`: the report over log files.
+- `src/music.js`: `songFor(level, ice)`, one generated track per level (tempo, key, scale, drum, bass and arp patterns, arrangement, mix), pure. Tested in `tests/music.test.mjs`. `src/audio.js`: plays a song with Web Audio, every sound synthesised (no audio files). `tools/music.html`: a music lab to hear any level's track with any ICE, the trace moods and the win and loss endings (serve the repo, open `/tools/music.html`). Not in `SHELL`, not deployed.
 - `fonts/`: Chakra Petch (latin 400 and 600, woff2), self-hosted, with `OFL.txt`. `style.css`
   declares it; `index.html` preloads the 600 weight.
 - `manifest.webmanifest`, `sw.js`, `icons/`: PWA. `icons/icon.svg` is the source; the PNGs
@@ -379,7 +380,16 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
 ## Not built yet
 
 The deployed build is a prototype (a "Prototype, work in progress" line under the board).
-English only, no sound.
+English only, music but no sound effects.
+
+## Music (`src/music.js`, `src/audio.js`)
+
+Each level has its own dark techno track, generated from the level like everything else (seed `hash(level, 31)`), so a retry sounds the same and a new level sounds new. It uses its own seed: the music never shifts a level's other draws.
+
+- `songFor(level, ice)`: tempo from the security tier (`secFor`: 122, 126, 130, 134 bpm, plus 0 to 3), key from the palette (`ROOT_PC` per theme), scale from the host tier (small dorian or minor, corporate mostly minor, high and government phrygian or harmonic minor). A 4-bar chord progression (`PROGS`, mostly the tonic), four-on-the-floor kick (a ghost kick on harder levels), Euclidean hats (denser with hardness), open hats on the offbeats, clap on 2 and 4, a bass line (`offbeat`, `rolling` or `gallop`; root, octave, fifth or the second degree), two arp orders over the chord tones with a Euclidean gate, glitch blips. Arrangement (`ARRANGE`): intro, build, main, drive, break, main, drive in 8-bar sections, then it loops from main. A section names its layers and its filter (`cut`, a sweep when it is a pair); main and drive end with a clap fill.
+- ICE: black drops the arp, lock and seal hold it on one note (seal also thins it), scrambler gets four random orders (one per bar), blink cuts the arp for the end of each bar, jitter wobbles the pitch of the arp and pad, lag gets long echoes, jam has no echo and a stuttering bass on the last beat, static bitcrushes the arp and adds noise bursts, monochrome is darker with a triangle arp and a one-note pad.
+- `audio.js`: a lookahead scheduler (`LOOK` .12 s, every `TICK` 25 ms) on the audio clock. Drums go straight to the master; the synths go through a section filter (`toneTo`, chained linear ramps: repeated `setTargetAtTime` on it ran away in testing) and are ducked on every kick. API: `unlock` (from a gesture), `playSong` (the same song keeps playing; a new one fades the old out first; an ended one starts over), `setMood` (0 calm, 1 trace rising: open filter, 16th hats, glitches; 2 trace critical: also a two-tone alarm), `winSong` (a rising run, then a fade), `loseSong` (the filter closes under a falling tone), `stopSong`, `setOn`, `setHidden`, `position`.
+- UI: every `pointerup`, `touchend`, `keydown` and `pointerdown` calls `unlock` (iOS starts audio only from a gesture; touch counts on `touchend`, not `pointerdown`). `start()` plays the level's song (not on a won or lost board); trace rising and critical set the mood; the winning and losing shots end it; an Overclock rescue starts it over. A hidden page suspends the audio context. `navigator.audioSession.type = 'ambient'` where it exists (iOS Safari): the silent switch mutes the music and the player's own audio keeps playing. Music switch on the Info tab (`splice-sound`, on by default); Reset progress keeps it.
 
 ## Theme
 
@@ -420,7 +430,7 @@ the GitHub issues. Keep it current when work lands or a new idea is parked.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-6`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-sound`, `splice-7`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

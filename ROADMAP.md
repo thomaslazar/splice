@@ -12,9 +12,8 @@ What comes next for Splice, roughly in order. Issues live on
 - **Tutorial and first steps** ([#5](https://github.com/thomaslazar/splice/issues/5)). A short
   introduction that opens from the menu and on a fresh start or after Reset progress, possibly with
   a little story about the setting. Needs a brainstorm.
-- **Sound and music** ([#6](https://github.com/thomaslazar/splice/issues/6)). Generated synth music
-  in a cyberpunk, Tron-like style, plus sound effects for shots, pops, drops, items and ICE. Open:
-  whether it respects the phone's silent switch, and a mute control. Needs a brainstorm.
+- **Sound effects** ([#6](https://github.com/thomaslazar/splice/issues/6)). Shots, pops, drops, items
+  and ICE, synthesised in `src/audio.js` like the music. Music is in (see Done); tune it by playtest.
 - **Boss levels at chapter ends.** Super hard levels that can hardly be won without items (or
   without failing until the retry easing adds shots). Needs a brainstorm: how hard, how often, how
   they are announced.
@@ -47,6 +46,9 @@ What comes next for Splice, roughly in order. Issues live on
 
 ## Done
 
+- Music: one generated dark techno track per level, shaped by the host, the security tier and the ICE,
+  reacting to the trace warnings, with a win run and a flatline power-down. Music switch on the Info tab;
+  respects the silent switch on iOS. Hear any level in `tools/music.html`.
 - Small fixes: `?level=N` returns a loaded item to the deck; bubbles cleared by an item bubble stay
   visible until their pop; the Rollback point survives a reload.
 - Scrambler gets the medium shot factor 1.25 (a play log showed about 1.5x the bot's shots on it).

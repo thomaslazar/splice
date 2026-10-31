@@ -39,7 +39,7 @@
 <div id="load" hidden><div class="card"><h2 id="loadT"></h2><p id="loadM"></p></div></div>
 <div id="sheet" hidden><div class="card"><h2 id="sheetT"></h2><p id="sheetP" hidden></p><button id="sheetB"></button><button id="sheetO" hidden></button><button id="sheetC" hidden></button></div></div>
 <div id="menu" hidden>
-<nav id="tabs"><button data-tab="run"></button><button data-tab="shop"></button><button data-tab="info"></button></nav>
+<nav id="tabs"><button data-tab="run"></button><button data-tab="shop"></button><button data-tab="music"></button><button data-tab="info"></button></nav>
 <section data-tab="run">
 <div class="row"><span id="curL"></span><b id="curN"></b></div>
 <div class="row"><span id="bestL"></span><b id="bestN"></b></div>
@@ -58,6 +58,19 @@
 <h2 id="balN"></h2>
 <div id="shopList"></div>
 </section>
+<section data-tab="music" hidden>
+<p id="jHost"></p>
+<p id="jMeta"></p>
+<div id="jStep"><button id="jDn"></button><input id="jIn" type="text" inputmode="numeric" autocomplete="off"><button id="jUp"></button></div>
+<label class="pick"><span id="jIceL"></span><select id="jIce"></select></label>
+<button id="jPlay" class="primary"></button>
+<div id="jMood" class="seg"><button data-m="0"></button><button data-m="1"></button><button data-m="2"></button></div>
+<div id="jEnds" class="seg"><button id="jWin"></button><button id="jLose"></button></div>
+<p id="jWhere"></p>
+<div id="jArr"></div>
+<div id="jGrid"></div>
+<label id="sSw"><input id="sOn" type="checkbox"><span id="sMusic"></span></label>
+</section>
 <section data-tab="info" hidden>
 <h2 id="iName"></h2>
 <p id="iText"></p>
@@ -67,7 +80,6 @@
 <p id="iUrl" hidden></p>
 <small id="iLic"></small>
 <small id="iCred"></small>
-<label id="sSw"><input id="sOn" type="checkbox"><span id="sMusic"></span></label>
 <label class="pick"><span id="iLang"></span><select id="iSel"></select></label>
 </section>
 <button id="mKeep" class="primary"></button>

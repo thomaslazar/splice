@@ -8,7 +8,7 @@ import { ICONS } from './icons.js';
 import { ITEMS, PRICES, buy, item, deckFrom, give, take, owned, hits, resolve, isItem, itemOf, useItem, unload, payout, lootFor, UNLOCKS } from './items.js';
 import * as P from './plays.js';
 import { BUILD } from './build.js';
-import { songFor } from './music.js';
+import { songFor, STEPS, BARS, ARRANGE } from './music.js';
 import * as SND from './audio.js';
 
 const KEY = 'splice-v1', $ = s => document.querySelector(s);
@@ -355,7 +355,7 @@ const DEV = !location.hostname.endsWith('github.io');   // a local build: the le
 const maxPick = () => DEV ? 9999 : run.best;
 const picked = () => clampLevel($('#lvlIn').value, maxPick(), S.level);
 function menuText() {   // every panel text; Info adds its own here
-  const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabInfo');
+  const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabMusic'); tb[3].textContent = t('tabInfo');
   $('#curL').textContent = t('curLevel'); $('#curN').textContent = S.level; $('#bestL').textContent = t('bestLevel'); $('#bestN').textContent = run.best;
   $('#mRestart').textContent = t('restartLevel'); $('#mBack').textContent = t('backTo', { n: run.best }); $('#mBack').hidden = S.level >= run.best;
   $('#mOver').textContent = t('startOver'); $('#mReset').textContent = t('resetProgress'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
@@ -365,12 +365,13 @@ function menuText() {   // every panel text; Info adds its own here
   $('#pHead').textContent = t('playLog'); $('#pTrack').textContent = t('playTrack'); $('#pOn').checked = plays.on; $('#pShare').textContent = t('playShare'); $('#pClear').textContent = t('playClear');
   const n = plays.attempts.length; $('#pCount').textContent = plays.on ? t('playCount', { n }) : t('playOffText'); $('#pShare').disabled = $('#pClear').disabled = !n;
   $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
-  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound;
+  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound; jukeText();
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
 function tab(name) {
   for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === name);
   for (const s of document.querySelectorAll('#menu section')) s.hidden = s.dataset.tab !== name;
+  if (name === 'music') juke();
 }
 /* ---------- shop ---------- */
 const DESCS = { bomb: () => t('desc_bomb'), sweep: () => t('desc_sweep'), pierce: () => t('desc_pierce'), wildcard: () => t('desc_wildcard'),
@@ -432,8 +433,8 @@ $('#iSel').onchange = async () => {
   const code = $('#iSel').value; try { localStorage.setItem(LANG_KEY, code); } catch (e) {}
   await setLang(code); hud(); menuText(); $('#turnText').textContent = t('turnPhone');
 };
-function openMenu() { $('#lvlIn').value = S.level; menuText(); $('#iSel').value = document.documentElement.lang; $('#iUrl').hidden = true; tab('run'); $('#menu').hidden = false; }
-function closeMenu() { demoClose(); $('#menu').hidden = true; calm(); }
+function openMenu() { $('#lvlIn').value = $('#jIn').value = S.level; $('#jIce').value = 'auto'; menuText(); $('#iSel').value = document.documentElement.lang; $('#iUrl').hidden = true; tab('run'); $('#menu').hidden = false; }
+function closeMenu() { demoClose(); $('#menu').hidden = true; calm(); unjuke(); }
 $('#menuBtn').onclick = () => { closeDrawer(); if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
 $('#mKeep').onclick = closeMenu;
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
@@ -460,6 +461,70 @@ $('#lvlDn').onclick = () => step(-1); $('#lvlUp').onclick = () => step(1);
 $('#lvlIn').oninput = pick;
 $('#lvlIn').onchange = () => { $('#lvlIn').value = picked(); pick(); };
 $('#lvlIn').onkeydown = e => { if (e.key === 'Enter') { $('#lvlIn').blur(); $('#mPlay').click(); } };
+/* ---------- music tab ---------- */
+// A player for the track of any level up to the best one (any level locally), with its own ICE or another,
+// the trace moods and the win and loss endings, and the track's patterns lit as they play. It plays even
+// with "Music during levels" off; closing the menu goes back to the level's own track (or silence).
+let jMood = 0, juked = false, jSong = null, jLast = null;
+const JLANES = [['kick', () => t('laneKick')], ['hat', () => t('laneHats')], ['open', () => t('laneOpen')], ['clap', () => t('laneClap')],
+  ['bass', () => t('laneBass')], ['arp', () => t('laneArp')], ['perc', () => t('laneGlitch')]];
+const PARTS = { intro: () => t('partIntro'), build: () => t('partBuild'), main: () => t('partMain'), drive: () => t('partDrive'), break: () => t('partBreak') };
+const SCALE_NAMES = { minor: () => t('scaleMinor'), phrygian: () => t('scalePhrygian'), dorian: () => t('scaleDorian'), harmonic: () => t('scaleHarmonic') };
+const jLevel = () => clampLevel($('#jIn').value, maxPick(), S.level);
+const jIce = () => { const v = $('#jIce').value; return v === 'auto' ? (jLevel() === S.level ? ice : iceFor(jLevel())) : v === 'none' ? null : v; };
+const jLive = () => { const p = SND.position(); return p.state === 'play' && p.id === jSong?.id ? p : null; };
+function jukeText() {   // labels and the ICE list, in the current language
+  $('#jIceL').textContent = t('jukeIce'); $('#jDn').textContent = '\u2212'; $('#jUp').textContent = '+';
+  $('#jDn').ariaLabel = t('levelDown'); $('#jUp').ariaLabel = t('levelUp'); $('#jIn').ariaLabel = t('jukeLevel');
+  const v = $('#jIce').value || 'auto'; $('#jIce').replaceChildren(new Option(t('jukeOwn'), 'auto'), new Option(t('jukeNone'), 'none'), ...Object.keys(ICE).map(k => new Option(iceName(k), k)));
+  $('#jIce').value = v; [...$('#jMood').children].forEach((b, i) => { b.textContent = [t('jukeCalm'), t('alertTrace'), t('alertCritical')][i]; b.classList.toggle('on', i === jMood); });
+  $('#jWin').textContent = t('winTitle'); $('#jLose').textContent = t('loseTitle');
+}
+function juke() {   // the picked level's track: header, accent, pattern grid
+  const n = jLevel(); $('#jIn').value = n; jSong = songFor(n, jIce());
+  $('section[data-tab="music"]').style.setProperty('--acc', themeFor(n).a);
+  $('#jHost').textContent = hostFor(n).label;
+  const notes = t('noteNames').split(','), b = x => `<b>${x}</b>`;
+  $('#jMeta').innerHTML = t('jukeMeta', { bpm: b(jSong.bpm), key: b(notes[jSong.root % 12]), scale: b(SCALE_NAMES[jSong.scale]()) }) + (jSong.ice ? `, ${b(iceName(jSong.ice))}` : '');
+  $('#jArr').replaceChildren(...ARRANGE.map(() => document.createElement('i')));
+  const cells = [];
+  for (const [k, name] of JLANES) {
+    const l = document.createElement('span'); l.textContent = name(); l.dataset.k = k; cells.push(l);
+    const row = k === 'arp' ? jSong.gate.map(Number) : k === 'bass' ? jSong.bass.map(x => x === null ? 0 : x ? .7 : 1) : jSong[k].map(Number);
+    row.forEach((v, i) => { const c = document.createElement('i'); c.dataset.k = k; c.dataset.i = i; if (v) { c.className = 'on'; c.style.setProperty('--v', v); } cells.push(c); });
+  }
+  $('#jGrid').replaceChildren(...cells); jLast = null;
+  if (juked && SND.position().state !== 'idle') { SND.playSong(jSong); SND.setMood(jMood); }   // follow the picker while playing
+  jFrame();
+}
+function jFrame() {   // light the step that sounds now; runs while the music tab is open
+  if ($('#menu').hidden || $('section[data-tab="music"]').hidden) return;
+  const p = jLive(), key = p ? p.step : -1;
+  if (key !== jLast) {
+    jLast = key; const s = p ? p.step % STEPS : -1, X = p?.section, bar = p ? Math.floor(p.step / STEPS) : 0, n = Math.floor(bar / BARS);
+    for (const c of $('#jGrid').children) { c.classList.toggle('off', !!X && !X[c.dataset.k]); if (c.tagName === 'I') c.classList.toggle('now', +c.dataset.i === s); }
+    const idx = !p ? -1 : n < ARRANGE.length ? n : jSong.loop + (n - ARRANGE.length) % (ARRANGE.length - jSong.loop);
+    [...$('#jArr').children].forEach((e, i) => e.classList.toggle('now', i === idx));
+    $('#jWhere').innerHTML = p ? t('jukeWhere', { part: `<b>${PARTS[X.name]()}</b>`, n: bar % BARS + 1, of: BARS }) : t('jukeIdle');
+    $('#jPlay').textContent = p ? t('jukeStop') : t('jukePlay');
+  }
+  requestAnimationFrame(jFrame);
+}
+function unjuke() {   // leaving the menu: back to the level's own track, or silence on a finished board
+  if (!juked) return; juked = false; SND.setOn(sound);
+  if (won(S) || lost(S)) SND.stopSong(); else music();
+}
+$('#jPlay').onclick = () => {
+  SND.unlock(); juked = true;
+  if (jLive()) SND.stopSong(); else { SND.setOn(true); SND.playSong(jSong); SND.setMood(jMood); }
+};
+const jStep = d => { $('#jIn').value = Math.min(maxPick(), Math.max(1, jLevel() + d)); juke(); };
+$('#jDn').onclick = () => jStep(-1); $('#jUp').onclick = () => jStep(1);
+$('#jIn').onchange = juke; $('#jIce').onchange = juke;
+$('#jIn').onkeydown = e => { if (e.key === 'Enter') $('#jIn').blur(); };
+for (const b of $('#jMood').children) b.onclick = () => { jMood = +b.dataset.m; if (jLive()) SND.setMood(jMood); jukeText(); };
+$('#jWin').onclick = () => { if (jLive()) { juked = true; SND.winSong(); } };
+$('#jLose').onclick = () => { if (jLive()) { juked = true; SND.loseSong(); } };
 addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (!$('#menu').hidden) closeMenu(); else if (!$('#drawer').hidden) closeDrawer(); else if (asking) keep(); });
 
 /* ---------- deck ---------- */

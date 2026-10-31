@@ -48,7 +48,7 @@ What comes next for Splice, roughly in order. Issues live on
 
 - Music: one generated dark techno track per level, shaped by the host, the security tier and the ICE,
   reacting to the trace warnings, with a win run and a flatline power-down. Music switch on the Info tab;
-  respects the silent switch on iOS. Hear any level in `tools/music.html`.
+  respects the silent switch on iOS. A Music tab in the menu plays any reached level's track.
 - Small fixes: `?level=N` returns a loaded item to the deck; bubbles cleared by an item bubble stay
   visible until their pop; the Rollback point survives a reload.
 - Scrambler gets the medium shot factor 1.25 (a play log showed about 1.5x the bot's shots on it).

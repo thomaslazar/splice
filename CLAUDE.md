@@ -324,13 +324,14 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
 - Animation: the packet follows the traced `pts`; `land()` then adds pop, fall (glitch
   jitter seeded from the key) and a `-n` text (only for drops of 6 or more). With reduced motion, results show at once.
 - Menu (`#menu`, opened by the header button, which replaces Restart; ignored while a packet flies, loading or `busy()`): full-screen
-  panel with tabs Run, Shop (buying, with demo popups), Music (see Music) and Info; `menuText()` fills every text. Run: current and best level,
+  panel with tabs Run, Shop (buying, with demo popups), Music (see Music) and Info (Settings is a button on Info, owner: the tabs got tight; the Info tab stays lit there); `menuText()` fills every text. Run: current and best level,
   Restart level and Start over (each asks first on the sheet, `asking` = `'restart'` or `'over'`; only the confirm button acts,
   restart is not a fail), Back to best level (when below it), a level stepper (`clampLevel`, 1..best) with the host's label and
   Play, then Reset progress (red, asks first, `asking` = `'reset'`: deletes `splice-v1`, `splice-run`, `splice-deck` and `splice-undo`, keeps `splice-lang`, restarts at level 1 with an empty deck; Start over keeps the deck). Info: name, blurb, how to play, Share (`navigator.share`, else copy the link and flash a "Link copied" note
-  in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit and a language `<select>` from `LANGS`
-  (change writes `splice-lang`, calls `setLang`, redraws, stays on Info). Keep playing, Escape closes.
-- Play log (`splice-plays`, opt-in, off by default): a Play log block on the Run tab, above Reset progress, with a
+  in `#alert`, else show the URL to copy by hand), GitHub link, licence, font credit. Settings (owner: every setting in one place): Music
+  (`splice-sound`), Sound effects (`splice-sfx`, on by default; stored only until sound effects exist), a language `<select>` from `LANGS`
+  (change writes `splice-lang`, calls `setLang`, redraws, stays on Settings) and the Play log block. Reset progress keeps all of them. Keep playing, Escape closes.
+- Play log (`splice-plays`, opt-in, off by default): a Play log block on the Settings tab, with a
   Track plays switch, a count, Share log and Clear log. While on, each attempt is recorded (level, ICE, limit, bot need,
   deck at the start, every shot with swaps, aim time, result and progress, item uses, how it ended, time; each shot also has `ev`, its
   touch events in order: presses, cancels, swaps with their touch time and distance, releases from the strip that fired, and
@@ -390,7 +391,7 @@ Each level has its own dark techno track, generated from the level like everythi
 - ICE: black drops the arp, lock and seal hold it on one note (seal also thins it), scrambler gets four random orders (one per bar), blink cuts the arp for the end of each bar, jitter wobbles the pitch of the arp and pad, lag gets long echoes, jam has no echo and a stuttering bass on the last beat, static bitcrushes the arp and adds noise bursts, monochrome is darker with a triangle arp and a one-note pad.
 - `audio.js`: a lookahead scheduler (`LOOK` .12 s, every `TICK` 25 ms) on the audio clock. Drums go straight to the master; the synths go through a section filter (`toneTo`, chained linear ramps: repeated `setTargetAtTime` on it ran away in testing) and are ducked on every kick. API: `unlock` (from a gesture), `playSong` (the same song keeps playing; a new one fades the old out first; an ended one starts over), `setMood` (0 calm, 1 trace rising: open filter, 16th hats, glitches; 2 trace critical: also a two-tone alarm), `winSong` (a rising run, then a fade), `loseSong` (the filter closes under a falling tone), `stopSong`, `setOn`, `setHidden`, `position`.
 - UI: every `pointerup`, `touchend`, `keydown` and `pointerdown` calls `unlock` (iOS starts audio only from a gesture; touch counts on `touchend`, not `pointerdown`). `start()` plays the level's song (not on a won or lost board); trace rising and critical set the mood; the winning and losing shots end it; an Overclock rescue starts it over. A hidden page suspends the audio context. `navigator.audioSession.type = 'ambient'` where it exists (iOS Safari): the silent switch mutes the music and the player's own audio keeps playing.
-- Music tab (menu): a player for the track of any level up to the best one (any level on a local build, like the level picker), with the level's own ICE, none or any other, the three moods, Root access and Flatline endings, and the track's patterns lit step by step with the section and bar. It opens on the current level, so the running track shows live. The tab scopes `--acc` to the picked level's accent. It plays even with music off; closing the menu (`unjuke`) goes back to the level's own track, or silence on a won or lost board. The "Music during levels" switch sits at its bottom (`splice-sound`, on by default); Reset progress keeps it.
+- Music tab (menu): a player for the track of any level up to the best one (any level on a local build, like the level picker), with the level's own ICE, none or any other, the three moods, Root access and Flatline endings, and the track's patterns lit step by step with the section and bar. It opens on the current level, so the running track shows live. The tab scopes `--acc` to the picked level's accent. It plays even with music off; closing the menu (`unjuke`) goes back to the level's own track, or silence on a won or lost board. The Music switch (`splice-sound`, on by default) is on the Settings tab.
 
 ## Theme
 
@@ -431,7 +432,7 @@ the GitHub issues. Keep it current when work lands or a new idea is parked.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-sound`, `splice-7`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-sound`, `splice-sfx`, `splice-7`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

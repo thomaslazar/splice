@@ -119,6 +119,8 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) rec((
 const SOUND_KEY = 'splice-sound'; let sound = true;
 try { sound = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) {}
 SND.setOn(sound);
+const SFX_KEY = 'splice-sfx'; let sfx = true;   // ponytail: stored only; nothing plays sound effects yet (ROADMAP, issue #6)
+try { sfx = localStorage.getItem(SFX_KEY) !== '0'; } catch (e) {}
 for (const ev of ['pointerup', 'touchend', 'keydown', 'pointerdown']) addEventListener(ev, SND.unlock, { capture: true, passive: true });
 document.addEventListener('visibilitychange', () => SND.setHidden(document.hidden));
 const moodOf = () => { const f = flagged(); return f.critical ? 2 : f.rising ? 1 : 0; };
@@ -355,7 +357,7 @@ const DEV = !location.hostname.endsWith('github.io');   // a local build: the le
 const maxPick = () => DEV ? 9999 : run.best;
 const picked = () => clampLevel($('#lvlIn').value, maxPick(), S.level);
 function menuText() {   // every panel text; Info adds its own here
-  const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabMusic'); tb[3].textContent = t('tabInfo');
+  const tb = $('#tabs').children; tb[0].textContent = t('tabRun'); tb[1].textContent = t('tabShop'); tb[2].textContent = t('tabMusic'); tb[3].textContent = t('tabInfo'); $('#iSet').textContent = $('#sHead').textContent = t('settings');
   $('#curL').textContent = t('curLevel'); $('#curN').textContent = S.level; $('#bestL').textContent = t('bestLevel'); $('#bestN').textContent = run.best;
   $('#mRestart').textContent = t('restartLevel'); $('#mBack').textContent = t('backTo', { n: run.best }); $('#mBack').hidden = S.level >= run.best;
   $('#mOver').textContent = t('startOver'); $('#mReset').textContent = t('resetProgress'); $('#pickL').textContent = t('pickLevel'); $('#lvlDn').textContent = '\u2212'; $('#lvlUp').textContent = '+';
@@ -365,11 +367,11 @@ function menuText() {   // every panel text; Info adds its own here
   $('#pHead').textContent = t('playLog'); $('#pTrack').textContent = t('playTrack'); $('#pOn').checked = plays.on; $('#pShare').textContent = t('playShare'); $('#pClear').textContent = t('playClear');
   const n = plays.attempts.length; $('#pCount').textContent = plays.on ? t('playCount', { n }) : t('playOffText'); $('#pShare').disabled = $('#pClear').disabled = !n;
   $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
-  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound; jukeText();
+  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound; $('#fSfx').textContent = t('sfx'); $('#fOn').checked = sfx; jukeText();
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
 function tab(name) {
-  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === name);
+  for (const b of document.querySelectorAll('#tabs button')) b.classList.toggle('on', b.dataset.tab === (name === 'settings' ? 'info' : name));   // Settings opens from Info
   for (const s of document.querySelectorAll('#menu section')) s.hidden = s.dataset.tab !== name;
   if (name === 'music') juke();
 }
@@ -437,11 +439,13 @@ function openMenu() { $('#lvlIn').value = $('#jIn').value = S.level; $('#jIce').
 function closeMenu() { demoClose(); $('#menu').hidden = true; calm(); unjuke(); }
 $('#menuBtn').onclick = () => { closeDrawer(); if (!shut() || loading || busy() || fly) return; aim = aimId = null; openMenu(); };
 $('#mKeep').onclick = closeMenu;
+$('#iSet').onclick = () => tab('settings');
 $('#mRestart').onclick = () => { closeMenu(); ask('restart'); };
 $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
 function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY, UNDO_KEY]) try { localStorage.removeItem(k); } catch (e) {} wipeLog(); deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
 $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
 $('#sOn').onchange = () => { sound = $('#sOn').checked; try { localStorage.setItem(SOUND_KEY, sound ? '1' : '0'); } catch (e) {} SND.setOn(sound); };
+$('#fOn').onchange = () => { sfx = $('#fOn').checked; try { localStorage.setItem(SFX_KEY, sfx ? '1' : '0'); } catch (e) {} };
 $('#pOn').onchange = () => { P.setOn(plays, $('#pOn').checked); writePlays(); menuText(); };
 $('#pClear').onclick = () => { closeMenu(); ask('clear'); };
 $('#pShare').onclick = async () => {

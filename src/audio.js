@@ -85,14 +85,16 @@ function bass(t, m, len) {
   const e = env(t, .5, .004, len); f.connect(e).connect(N.bass);
   osc('sawtooth', hz(m), t, t + len + .02, f); osc('sine', hz(m - 12), t, t + len + .02, e);
 }
+// jitter ICE: the running wobble LFO bends the note; disconnect when it ends, or the live input keeps every old oscillator alive
+function wobble(o) { if (song.mix.wobble) { N.wobG.connect(o.detune); o.onended = () => N.wobG.disconnect(o.detune); } }
 function arp(t, m, v) {
   const e = env(t, v * .5, .003, .2); e.connect(N.crush);
-  const o = osc(song.mix.arpWave, hz(m), t, t + .25, e); if (song.mix.wobble) N.wobG.connect(o.detune);
+  const o = osc(song.mix.arpWave, hz(m), t, t + .25, e); wobble(o);
 }
 function pad(t, ms, len) {
   for (const m of ms) for (const dt of [-8, 8]) {
     const e = ctx.createGain(), p = e.gain; p.setValueAtTime(0, t); p.linearRampToValueAtTime(.16, t + .5); p.setValueAtTime(.16, t + len); p.linearRampToValueAtTime(0, t + len + .8);
-    e.connect(N.padF); const o = osc('sawtooth', hz(m), t, t + len + .85, e, dt); if (song.mix.wobble) N.wobG.connect(o.detune);
+    e.connect(N.padF); wobble(osc('sawtooth', hz(m), t, t + len + .85, e, dt));
   }
 }
 function blip(t, v) {   // a short falling glitch tone

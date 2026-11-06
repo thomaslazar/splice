@@ -20,6 +20,11 @@ What comes next for Splice, roughly in order. Issues live on
 
 ## Tuning (by playtest)
 
+- **ICE schedule.** ICE now starts at run position 6, about two levels in three, with overlapping
+  severities (harsh from 21); black and monochrome get the full board. Check whether the climb feels
+  right and whether black still needs 1.5x shots. Seal ICE (lock with a hidden next packet) is new
+  and harsh; if monochrome and seal feel apart from the other harsh types, consider a fourth
+  severity for them.
 - **Balance pass (2026-11-06), check by playtest.** From a play log of levels 74-139 (93% first-try
   wins, ICE levels and the end of each run the loosest): the ICE shot factor is per type, measured
   (monochrome, lag and blink 1, black 1.3, jitter 1.4), ICE levels get the full board, the human factor

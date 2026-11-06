@@ -20,11 +20,18 @@ What comes next for Splice, roughly in order. Issues live on
 
 ## Tuning (by playtest)
 
-- **ICE schedule.** ICE now starts at run position 6, about two levels in three, with overlapping
-  severities (harsh from 21); black and monochrome get the full board. Check whether the climb feels
-  right and whether black still needs 1.5x shots. Seal ICE (lock with a hidden next packet) is new
-  and harsh; if monochrome and seal feel apart from the other harsh types, consider a fourth
-  severity for them.
+- **Balance pass (2026-11-06), check by playtest.** From a play log of levels 74-139 (93% first-try
+  wins, ICE levels and the end of each run the loosest): the ICE shot factor is per type, measured
+  (monochrome, lag and blink 1, black 1.3, jitter 1.4), ICE levels get the full board, the human factor
+  falls from 1.4 to 1.34 over a run's hardness, and the bot counts only drops it can see. Replayed
+  against the log, about 16% of first tries would be lost (was 8%). Share a new log to retune
+  `ICE_K` (seal and monochrome had one level each) and `HUMAN_HARD`.
+- **Monochrome and black that bite.** With their factor near 1 they are harsh in name only (the
+  header still says Fortified). Ideas: monochrome shows symbols only near the aim line; black also
+  hides the far board. Needs a brainstorm.
+- **ICE-aware bot.** Let ICE hamper the bot instead of a flat factor: no swaps under lock, aim at the
+  average over colours for a hidden packet (scrambler, seal), aim error that grows per bounce under
+  black, jitter and jam. The cost would then follow each level's geometry.
 - **Shot limits on item levels.** The bot uses item bubbles, so levels with them get fewer shots. Since
   items are placed where they do the most, limits dropped further (level 25 from 71 to 59, 33 from 51
   to 36, 55 from 121 to 87). If they feel tight, give item levels their own factor so the limit

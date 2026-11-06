@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { solve, bestShot, needFor, limitFor, HUMAN_K, HUMAN_C } from '../src/bot.js';
+import { solve, bestShot, needFor, limitFor, HUMAN_K, HUMAN_HARD, HUMAN_C } from '../src/bot.js';
 import { startState, won, key } from '../src/core.js';
 import { resolve, valueOf, itemPlan } from '../src/items.js';
 import { shotsFor } from '../src/levels.js';
@@ -21,14 +21,21 @@ test('the shot limit is the bot\'s need times HUMAN_K plus HUMAN_C, eased by fai
   }
 });
 
-import { iceFor } from '../src/hosts.js';
+import { iceFor, ICE, ICE_K } from '../src/hosts.js';
+import { hardness } from '../src/levels.js';
 test('levels with ice get the ice factor in their limit', () => {
-  assert.equal(limitFor(10, 'black'), Math.ceil(10 * HUMAN_K * 1.5 + HUMAN_C));
-  assert.equal(limitFor(10, 'static'), Math.ceil(10 * HUMAN_K * 1.1 + HUMAN_C));
+  assert.equal(limitFor(10, 'black'), Math.ceil(10 * HUMAN_K * 1.3 + HUMAN_C));
+  assert.equal(limitFor(10, 'monochrome'), Math.ceil(10 * HUMAN_K + HUMAN_C));
   assert.equal(limitFor(10, 'scrambler'), Math.ceil(10 * HUMAN_K * 1.25 + HUMAN_C));
+  for (const t of Object.keys(ICE)) assert.ok(ICE_K[t] >= 1, t);
+  assert.ok(ICE_K.seal >= ICE_K.lock, 'seal is lock plus a hidden next packet');
   const lv = [...Array(200).keys()].map(i => i + 1).find(l => iceFor(l));
   const S = startState(lv, 0), probe = startState(lv, 0);
-  assert.equal(S.shots, shotsFor(limitFor(needFor(probe), iceFor(lv)), 0));
+  assert.equal(S.shots, shotsFor(limitFor(needFor(probe), iceFor(lv), hardness(lv)), 0));
+});
+test('the human factor falls with hardness', () => {
+  assert.equal(limitFor(100, null, 1), Math.ceil(100 * (HUMAN_K - HUMAN_HARD) + HUMAN_C));
+  assert.ok(limitFor(100, null, 1) < limitFor(100, null, 0));
 });
 test('the need is the middle of three runs with different colour luck', () => {
   const S = startState(12, 0), u = [0, 1, 2].map(s => solve(S, s).used);

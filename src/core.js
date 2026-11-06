@@ -30,7 +30,7 @@ export function connected(grid, cols, gone) {
 }
 
 /* ---------- shots ---------- */
-import { winRows, makeLayout, colourize, shotsFor } from './levels.js';   // circular: used only inside function bodies
+import { winRows, makeLayout, colourize, shotsFor, hardness } from './levels.js';   // circular: used only inside function bodies
 import { needFor, limitFor } from './bot.js';   // circular too
 import { iceFor } from './hosts.js';   // circular too
 import { ITEMS, resolve, ITEM_BASE, SHOTS, placeItems } from './items.js';   // circular too
@@ -86,7 +86,7 @@ export function startState(level, fails) {
   const id = `${level}/${fails}`;
   if (!need.has(id)) { need.set(id, needFor(S));
     if (need.size > 8) need.delete(need.keys().next().value); }
-  S.shots = shotsFor(limitFor(need.get(id), iceFor(level)), fails);
+  S.shots = shotsFor(limitFor(need.get(id), iceFor(level), hardness(level)), fails);
   S.need = need.get(id); S.maxShots = S.shots; S.startLow = lowRow(S.grid); return S;
 }
 // Bubbles the shooter can reach: on screen and touching the open space that connects to the

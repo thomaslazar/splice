@@ -139,8 +139,8 @@ function bodies, so keep it that way.
   (noise 25% of levels from level 3, never mixed). Columns are 8, 10 or 12, 3 to 6 colours.
   Designed levels stack screens of seeded shapes (hanging lines, rhombus, circle or ring,
   downward triangle, chevron, diagonal bar, shelf), optionally mirrored, each shape or band one group.
-  Hardness breaks groups up, using the board's share `h = boardHardness(level)` (hardness,
-  three quarters on levels with ICE except black and monochrome, so ICE does not stack on the hardest boards; all draws seeded): per shape, with
+  Hardness breaks groups up, using `h = hardness(level)` (the full hardness, also on levels with
+  ICE; all draws seeded): per shape, with
   probability `0.7 h` (`SPLIT`) the right half of a mirrored shape becomes its own group (axis cells stay
   left), and each shape is cut at x positions into 2 segments (3 with probability `0.7 h`); a
   group of 6 or more bubbles takes the cuts with probability `0.7 h`. `addStems` joins loose
@@ -155,19 +155,20 @@ function bodies, so keep it that way.
   strand draw from `hash`, not the level's `rnd`, so the shapes stay as they were. Noise is full rows, every bubble its own group.
 - `colourize(layout, level, fails)`: colours groups so touching groups differ where
   possible. Retry (`fails`) keeps the layout and reshuffles the colours. Noise is clumpy: a
-  bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * boardHardness`, else
+  bubble copies a coloured neighbour's colour with probability `0.45 - 0.20 * hardness`, else
   draws a random colour, so easy noise levels have big same-colour clumps and hard ones are
   nearly uniform.
 - Shot limit (`src/bot.js`, called from `startState`): the bot plays copies of the exact
   attempt (layout, colours) with no limit, three times with different colour luck
   (`solve(S, salt)`; `deal()` mixes `S.salt` into its seed), and `needFor(S)` takes the middle
   result, so one lucky or unlucky run does not set the limit (owner, issue #2). The limit is
-  `limitFor(need, ice)` = `ceil(need * HUMAN_K * k + HUMAN_C)` (1.4 and 3; `k` is
-  `ICE_K[ICE[ice]]` for a level with
-  ICE, else 1; the constant 3 is not scaled), then `shotsFor(base, fails)` adds 10% per fail
+  `limitFor(need, ice, h)` = `ceil(need * (HUMAN_K - HUMAN_HARD * h) * k + HUMAN_C)` (1.4, 0.06 and 3,
+  `h` the level's `hardness`, so the factor falls from 1.4 to 1.34 over a run and its end gets tight; `k` is
+  `ICE_K[ice]` for a level with ICE, else 1; the constant 3 is not scaled), then `shotsFor(base, fails)` adds 10% per fail
   from the 4th, capped at +40%. The bot tries 120 angles with and without a swap and scores
-  `popped + 2 * dropped`, minus a penalty near the loss line; it aims perfectly and sees
-  off-screen bubbles, hence the human factor. Results are cached per `(level, fails)` (restart
+  `popped + 2 * dropped`, minus a penalty near the loss line. It counts only drops from rows on screen
+  (`fallen`, from `S.top` down; owner: a player only guesses at what hangs above, so a big hidden drop is
+  luck, not something to aim for). It aims perfectly, hence the human factor. Results are cached per `(level, fails)` (restart
   replays; ICE depends on the level only, so the key is enough). It costs about 0.15 s early and up to about 1 s on the largest levels (Mac, node).
   This replaced a layout formula: the colour shuffle alone moved a level's need by 20 to 40%,
   so formula limits were too tight on some levels and far too loose on others. Tune
@@ -208,17 +209,18 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
 - Schedule (owner: ICE starts early and the severities overlap): by run position, none at 1-5; from 6 one level in each
   block of three (6-8, 9-11 ... 27-29) has none at a seeded spot, and 30 always has ICE, so 17 of every 30 levels have
   ICE, about two in three from 6 on. Mild 6-10, mild or medium 11-15, medium 16-20, medium or harsh 21-25, harsh 26-30;
-  across an overlap the higher severity's chance grows from 1/6 to 5/6. A
-  level with ICE gets a board at three quarters of its hardness (`boardHardness`), except black and
-  monochrome, which get the full board (owner: with them most shots still go where you tap, so they
-  barely bite).
+  across an overlap the higher severity's chance grows from 1/6 to 5/6. A level with ICE gets the full
+  board for its hardness (it had three quarters; a play log showed ICE levels, black and monochrome above
+  all, were the easiest).
 - Local playtest: `?ice=<type>` forces that ICE on every level (effects only; the limit stays the
   level's own) and `?level=N` starts level N fresh, e.g. `http://localhost:8080/?ice=black&level=12`. Off GitHub Pages (`DEV`, any host not ending in `github.io`) the menu's level picker goes up to 9999, not just the best level. A local build also unregisters the service worker and deletes the `splice-` caches, so a reload always shows the files on disk.
 - Types and severity (`ICE`): mild `static`, `lag`, `blink`; medium `scrambler`, `lock`, `jam`;
-  harsh `monochrome`, `black`, `jitter`, `seal` (owner: jitter is one of the hardest, so harsh, not mild). Shot-limit factor per severity (`ICE_K`): mild 1.1, medium
-  1.25, harsh 1.5, applied by `limitFor` in `src/bot.js`; scrambler gets the medium 1.25 like the others
-  (it had 1.1, but a play log showed people need about 1.5x the bot's shots on it) (the bot itself plays without ICE:
-  it aims perfectly and ignores every effect, so the factor only pays the human for it).
+  harsh `monochrome`, `black`, `jitter`, `seal` (owner: jitter is one of the hardest, so harsh, not mild). Severity sets the schedule
+  only. The shot-limit factor is per type (`ICE_K`), measured from a play log (2026-11-04: the player's shots over
+  the bot's, against levels without ICE): static 1.05, lag, blink and monochrome 1, scrambler, lock and seal 1.25,
+  jam and black 1.3, jitter 1.4, applied by `limitFor` in `src/bot.js`. Seal is never below lock (it is lock plus a
+  hidden next packet). The bot itself plays without ICE: it aims perfectly and ignores every effect, so the factor
+  only pays the human for it.
 - Which type: within the severity, the host's liked types weigh 1.5 and the others 1 (owner: flavour, but light)
   (`LIKES`: security `scrambler`, `lock`, `static`, `seal`; media
   `static`, `blink`; telecom `static`, `lag`; finance `scrambler`, `lag`; insurance `scrambler`, `blink`; ai `jitter`,

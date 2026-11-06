@@ -157,7 +157,10 @@ function settle(level, recent) {
 
 /* ---------- ICE ---------- */
 export const ICE = { static: 'mild', lag: 'mild', blink: 'mild', scrambler: 'medium', lock: 'medium', jam: 'medium', monochrome: 'harsh', black: 'harsh', jitter: 'harsh', seal: 'harsh' };
-export const ICE_K = { mild: 1.1, medium: 1.25, harsh: 1.5 };
+// Shot-limit factor per type, from what each one cost in a play log (2026-11-04: your shots / bot's,
+// against levels without ICE). Severity sets the schedule, not the factor: monochrome is harsh to look at
+// but cost nothing. Seal is lock plus a hidden next packet, so never below lock.
+export const ICE_K = { static: 1.05, lag: 1, blink: 1, scrambler: 1.25, lock: 1.25, jam: 1.3, monochrome: 1, black: 1.3, jitter: 1.4, seal: 1.25 };
 const SEVERITY = { mild: 1, medium: 2, harsh: 3 };
 const LIKES = { security: ['scrambler', 'lock', 'static', 'seal'], media: ['static', 'blink'], telecom: ['static', 'lag'],
   finance: ['scrambler', 'lag'], insurance: ['scrambler', 'blink'], ai: ['jitter', 'monochrome', 'lag'],

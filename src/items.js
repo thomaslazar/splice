@@ -33,8 +33,10 @@ export const secOf = (layout, grid) => {
   return Math.ceil(rows / layout.screens);
 };
 // Same on every try: seeded from the level only (scored on the fails 0 colours; a retry only reshuffles colours).
-// Normal screens get 0..2, full ones 3. Each item goes to one of the 3 reachable spots where it does the most, never next
-// to another item bubble, and never a second sweep in a row that has one (the first clears it, the second does nothing).
+// Normal screens get 0..2, full ones 3. Each item goes to one of the 3 reachable spots where it does the most on the board
+// the player first reaches it on (dug), and only where it fits there; if the drawn item fits nowhere, the next one in the
+// table is tried, and if none fits the screen gets one fewer. Never next to another item bubble, and never a second sweep
+// in a row that has one (the first clears it, the second does nothing).
 export function placeItems(layout, level, grid) {
   const plan = itemPlan(level), out = new Map(grid); if (plan.kind === 'none') return out;
   const rnd = mulberry32(hash(level, 24)), ids = unlocked(level).filter(id => SHOTS.includes(id)), cols = layout.cols;
@@ -45,12 +47,18 @@ export function placeItems(layout, level, grid) {
     const g = new Map([...base].filter(([k]) => (k >> 4) < (s + 1) * sec)), mine = [];   // this screen's item bubbles
     const n = Math.min(ks.length, plan.kind === 'full' ? plan.perScreen : Math.floor(rnd() * 3));
     for (let i = 0; i < n; i++) {
-      const id = ids[Math.floor(rnd() * ids.length)], pick = rnd(), best = [], open = openOf(g, cols);
+      const first = Math.floor(rnd() * ids.length), pick = rnd(), open = openOf(g, cols); let best = [], id;
       const wild = new Set(mine.filter(x => itemOf(g.get(x)) === 'wildcard').flatMap(x => [...area(g, cols, 'wildcard', x)]));   // splitting its group spoils it
-      const scored = ks.filter(k => isColour(g.get(k)) && !wild.has(k) && !nk(cols, k).some(x => isItem(g.get(x))) && !(id === 'sweep' && mine.some(x => itemOf(g.get(x)) === 'sweep' && x >> 4 === k >> 4))).map(k => [worth(g, cols, id, k), k]).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
-      for (const [, k] of scored) {   // it, and the ones already on this screen, must stay reachable
-        const v = g.get(k); g.set(k, valueOf(id)); if ([k, ...mine].every(x => reach(g, cols, x, open))) best.push(k); g.set(k, v);
-        if (best.length === 3) break;
+      for (let j = 0; j < ids.length && !best.length; j++) {
+        id = ids[(first + j) % ids.length];
+        // spots best first by their full-board worth, the first 3 that fit on the dug board
+        const cand = ks.filter(k => isColour(g.get(k)) && !wild.has(k) && !nk(cols, k).some(x => isItem(g.get(x))) && !(id === 'sweep' && mine.some(x => itemOf(g.get(x)) === 'sweep' && x >> 4 === k >> 4)))
+          .map(k => [worth(g, cols, id, k), k]).filter(([w]) => w >= MIN_WORTH).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+        for (const [, k] of cand.slice(0, TRIES)) {
+          const v = g.get(k); g.set(k, valueOf(id));   // it, and the ones already on this screen, must reach and fit
+          if (dugFit(g, cols, id, k, open) && mine.every(x => dugFit(g, cols, itemOf(g.get(x)), x, open))) best.push(k);
+          g.set(k, v); if (best.length === 3) break;
+        }
       }
       if (!best.length) continue;
       const k = best[Math.floor(pick * best.length)]; g.set(k, valueOf(id)); base.set(k, valueOf(id)); out.set(k, valueOf(id)); mine.push(k);
@@ -62,6 +70,30 @@ export function placeItems(layout, level, grid) {
 // item takes the colour of a neighbour. Falls do not count: with them every item went to the neck of its screen, where
 // one shot dropped the whole screen.
 export const worth = (g, cols, id, k) => area(g, cols, id, k).size;
+// fit on the board when the item bubble at k can first be hit: the cheapest dig to it (reach) taken out of g in place and put
+// back. 0 if k cannot be reached. (owner: judged on the full board, the dig often popped the group a wildcard was placed for.)
+// What the dig drops stays: k's neighbours hang with k, so only a wide item's reach can count a few bubbles that would fall.
+export function dugFit(g, cols, id, k, open) {
+  const gone = reach(g, cols, k, open); if (!gone) return 0;
+  const keep = [...gone].map(x => [x, g.get(x)]); gone.forEach(x => g.delete(x));
+  const w = fit(g, cols, id, k); keep.forEach(([x, v]) => g.set(x, v)); return w;
+}
+// What item id at k is worth on the dug board d, or 0 if it does not fit there: it must do at least MIN_WORTH, a wildcard
+// needs two colours next to it and a pair to join (owner: not one colour, not between two lone bubbles), a rainbow two
+// groups of 2 or more (with one it is a wildcard), a sweep a row at least half full.
+export const MIN_WORTH = 5;
+// ponytail: spots dug per item and screen, best full-board worth first; caps placement time (it runs at every level start).
+// Raise it if too many screens lose an item bubble.
+const TRIES = 30;
+export function fit(d, cols, id, k) {
+  const w = worth(d, cols, id, k); if (w < MIN_WORTH) return 0;
+  const nc = nk(cols, k).filter(x => isColour(d.get(x))), view = { cols, grid: d };
+  const grps = [...new Set(nc.map(x => d.get(x)))].map(c => flood(view, nc.filter(x => d.get(x) === c), c).length);
+  const r = k >> 4; let row = 0; for (let c = 0; c < cellsIn(cols, r); c++) row += d.has(key(r, c));
+  const ok = id === 'wildcard' ? grps.length >= 2 && Math.max(...grps) >= 2 : id === 'rainbow' ? grps.filter(n => n >= 2).length >= 2
+    : id === 'sweep' ? row >= cellsIn(cols, r) / 2 : true;
+  return ok ? w : 0;
+}
 function area(g, cols, id, k) {
   const v = g.get(k); g.delete(k);   // read g with k taken out, as a fired item bubble is
   const nc = nk(cols, k).filter(x => isColour(g.get(x))), hit = nc.length ? g.get(nc[0]) : null;
@@ -97,7 +129,7 @@ export function openOf(g, cols) {
 // those out and check that k
 // still reaches the ceiling.
 export function reach(g, cols, k, open) {
-  if (nk(cols, k).some(x => open.has(x))) return true;
+  if (nk(cols, k).some(x => open.has(x))) return new Set();
   const view = { cols, grid: g };
   for (const n of nk(cols, k)) {
     if (!g.has(n)) continue;
@@ -112,9 +144,9 @@ export function reach(g, cols, k, open) {
     }
     if (end === null) continue;
     const gone = new Set(); for (let x = end; x !== undefined; x = from.get(x)) if (!gone.has(x)) flood(view, [x], g.get(x)).forEach(y => gone.add(y));
-    if (hangs(g, cols, gone, k)) return true;
+    if (hangs(g, cols, gone, k)) return gone;
   }
-  return false;
+  return null;
 }
 
 /* ---------- loot ---------- */
@@ -166,6 +198,7 @@ export function within(cols, k, n) {
 }
 
 /* ---------- effects ---------- */
+const BOMB = 3;   // cells the bomb clears around it (owner: was 2)
 const centre = k => [1 + 2 * (k & 15) + ((k >> 4) % 2), 1 + (k >> 4) * RH];
 // Pierce flies from (x, y) along the unit vector (dx, dy), bouncing off the walls, and takes every bubble within HIT of its
 // line for PIERCE (10 rows straight up), empty space included (owner). wait: the length starts at the first bubble it
@@ -191,7 +224,7 @@ function effect(S, g, id, k, hit, dir) {
   const { cols } = S, [r0, c0] = rc(k), clear = new Set(), pop = new Set(), recolour = new Map(), occ = x => g.has(x);
   const nb = nk(cols, k).filter(occ), nbc = nb.filter(x => isColour(g.get(x))), view = { cols, grid: g };
   let land = null;
-  if (id === 'bomb') within(cols, k, 2).filter(occ).forEach(x => clear.add(x));
+  if (id === 'bomb') within(cols, k, BOMB).filter(occ).forEach(x => clear.add(x));
   else if (id === 'sweep') for (let c = 0; c < cellsIn(cols, r0); c++) occ(key(r0, c)) && clear.add(key(r0, c));
   else if (id === 'star') for (let d = 0; d < 6; d++) ray(cols, k, d, 4).filter(occ).forEach(x => clear.add(x));
   else if (id === 'lightning') {   // first to the neighbour with the lowest row (nearer column, then left), then up through the row above

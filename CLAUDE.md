@@ -368,7 +368,12 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
   of the 3 spots on its screen where its item does the most (`worth`: bubbles it clears, pops or recolours; falls do not count,
   or every item went to the neck of its screen), never next to another item bubble, never a second sweep in a row that has one, never in the group an earlier Wildcard on its screen pops (it would split it), and only where it can be reached
   (`reach`): on the board with the screens below cleared, the cheapest dig from a neighbour to open space (`openOf`, at most 3
-  groups) must leave it hanging, and the screen's earlier item bubbles must stay reachable too. Screens: designed levels use row bands
+  groups) must leave it hanging, and the screen's earlier item bubbles must stay reachable too. It must also fit the board
+  as the player first reaches it, that dig taken out (`dugFit`, `fit`; owner: on the full board the dig often popped the
+  group a Wildcard was placed for): it does at least `MIN_WORTH` (5) there, a Wildcard has two colours next to it and a
+  group of 2 or more to join, a Rainbow two groups of 2 or more, a Sweep a row at least half full; earlier item bubbles
+  on the screen must still fit. Spots are tried best first by full-board worth, at most `TRIES` (30), and the first 3
+  that fit are the choice; if the drawn item fits nowhere, the next item in the table is tried. Screens: designed levels use row bands
   `[s*sec, (s+1)*sec)` with `sec = round(1.6 * cols)`; noise splits its occupied rows into `layout.screens` bands. An item bubble goes off
   when a landed packet or a shot touches it; its effect is the item's, centred on it. A packet that touches item bubbles sets them off on the board as it is, then its whole same-colour group pops (owner), so an item's reach counts the packet's colour too. Pierce reaches 10 rows of length (`PIERCE`) along its line, empty space included, from the first bubble it hits (deck) or from its own cell (a Pierce bubble). Chains: breadth first, each item bubble
   once, so two that reach each other cannot loop. Colour pops never set off item bubbles (only a landing next to one, or a shot or chain reaching it). A deck Wildcard always fires; any other deck item whose effect changes

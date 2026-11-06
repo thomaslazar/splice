@@ -108,7 +108,7 @@
   "balance": "Frags",
   "unlockAt": "From level {n}",
   "close": "Close",
-  "desc_bomb": "Blasts everything within 2 cells.",
+  "desc_bomb": "Blasts everything within 3 cells.",
   "desc_sweep": "Clears the whole row it lands in.",
   "desc_pierce": "Cuts a line 10 bubbles long from where it hits, bouncing off walls.",
   "desc_wildcard": "Joins the biggest group it touches.",

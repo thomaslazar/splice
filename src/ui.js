@@ -690,15 +690,15 @@ function draw() {
   g.fillStyle = theme.bg; g.fillRect(0, -PAD, W, H + PAD);
   if (!fly) { const tg = target(), d = tg - view; view = reduced || Math.abs(d) < .05 ? tg : view + Math.sign(d) * Math.max(Math.abs(d) * .08, .02); }   // ease, min speed, snap
   for (const [k, col] of fly ? fly.pre : S.grid) { if (fly?.gone.has(k)) continue; const p = centre(...rc(k)), y = Y(p.y); if (y > -sc && y < H + sc) bubble(X(p.x), y, col); }
-  g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is
   // loss line: between the loss row and the row above it; tied to the screen, not S.top, so it
   // stays put while the view eases after a scroll (lossRow(S) - S.top is constant)
   const ly = Y(1 + (view + lossRow(S) - S.top - .5) * RH);
+  track(ly);   // before the lines: its gutter fill would cut them short on the right
+  g.fillStyle = theme.a; g.fillRect(0, Y(0) - 3, W, 3);   // ceiling line, on screen only when row 0 is
   const w = warn();   // the loss line turns amber, then pulses red, as shots run out
   g.strokeStyle = WARN[w] || theme.a; g.globalAlpha = w === 'crit' && !reduced ? .45 + .4 * Math.sin(performance.now() / 160) : .5;
   g.lineWidth = 2; g.setLineDash([8, 6]);
   g.beginPath(); g.moveTo(0, ly); g.lineTo(W, ly); g.stroke(); g.setLineDash([]); g.globalAlpha = 1;
-  track(ly);
   let ov = false; const over = () => { if (!ov) { ov = true; fxOf().over?.(now, ly - 2); } };   // static ICE covers the board and the landing rings, not the aim line
   const f0 = fxOf(), a0 = clampAim(aim ?? 0), a = a0 === null || !f0.ang ? a0 : (drawn = bend());   // shoot() fires exactly this angle
   if (aimId !== null && a !== null && ready()) {

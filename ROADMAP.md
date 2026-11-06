@@ -58,6 +58,10 @@ What comes next for Splice, roughly in order. Issues live on
 
 ## Done
 
+- Item bubbles placed by what they do once the player can reach them (a Wildcard with two colours
+  and a group to join, a Rainbow with two groups, a Sweep in a row at least half full, every one
+  worth 5 or more there). Logic bomb radius 3 (was 2). Ceiling and loss lines run the full width.
+
 - Music: one generated dark techno track per level, shaped by the host, the security tier and the ICE,
   reacting to the trace warnings, with a win run and a flatline power-down. Music switch on the Info tab;
   respects the silent switch on iOS. A Music tab in the menu plays any reached level's track.

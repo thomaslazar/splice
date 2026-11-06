@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { resolve, ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems, worth, openOf, reach } from '../src/items.js';
+import { resolve, ITEMS, PRICES, unlocked, lootFor, deckFrom, buy, take, give, owned, dist, ray, within, hits, useItem, payout, ITEM_BASE, SHOTS, isItem, itemOf, valueOf, itemPlan, secOf, placeItems, worth, openOf, reach, fit, dugFit, MIN_WORTH } from '../src/items.js';
 import { hash, key, nbrs, nk, isColour, trace, fire, won, lost, lossRow, deal, settle, ITEM_DROP, startState, toSave, fromSave, validSave } from '../src/core.js';
 import { tierFor, iceFor, ICE } from '../src/hosts.js';
 import { isLong, makeLayout, colourize } from '../src/levels.js';
@@ -71,10 +71,10 @@ test('ray goes straight in six directions and stops at the edge', () => {
   for (let d = 0; d < 6; d++) { const r = ray(8, key(5, 3), d, 4); assert.ok(r.length >= 2);
     for (let i = 1; i < r.length; i++) assert.ok(nbrs(8, r[i - 1] >> 4, r[i - 1] & 15).some(([a, b]) => key(a, b) === r[i])); }
 });
-test('bomb clears everything within 2 cells of its landing cell', () => {
+test('bomb clears everything within 3 cells of its landing cell', () => {
   const S = board(full(8)); S.grid.delete(key(7, 3)); S.grid.delete(key(7, 4));
   const h = hits(S, 'bomb', aimAt(S, 7, 3)), k = key(...h.cell);
-  same(h.clear, within(8, k, 2).filter(x => S.grid.has(x))); assert.equal(h.land, null);
+  same(h.clear, within(8, k, 3).filter(x => S.grid.has(x))); assert.equal(h.land, null);
 });
 test('sweep clears its whole row', () => {
   const S = board(full(6)); S.grid.delete(key(5, 3));
@@ -230,21 +230,28 @@ test('per screen: at most 2 on normal levels, at most 4 on full ones', () => {
   assert.ok(seen > 0);
 });
 
-test('item bubbles sit where their item removes more than most reachable spots, and pops can open them while they hang', () => {
+test('item bubbles can be reached while they hang and fit the board they are first reached on', () => {
   let seen = 0;
-  for (let lv = 3; lv <= 60; lv++) {
+  for (let lv = 3; lv <= 120; lv++) {
     const { L, grid } = placed(lv), sec = secOf(L, grid), items = [...grid].filter(([, v]) => isItem(v)); if (!items.length) continue;
     for (const [k, v] of items) {
       const s = Math.floor((k >> 4) / sec), g = new Map([...grid].filter(([x]) => (x >> 4) < (s + 1) * sec)), open = openOf(g, L.cols);   // screens below cleared
-      seen++; const id = itemOf(v), band = [...g.keys()].filter(x => Math.floor((x >> 4) / sec) === Math.floor((k >> 4) / sec) && isColour(g.get(x)) && reach(g, L.cols, x, open));
-      const ws = band.map(x => worth(g, L.cols, id, x)).sort((a, b) => a - b), mine = worth(g, L.cols, id, k);
-      const mid = ws[Math.floor(ws.length / 2)];   // placement takes one of the 3 best; later item bubbles shift the scores a little
-      assert.ok(ws.length < 6 || mine >= mid, `level ${lv} ${id}: ${mine} below the reachable median ${mid}`);
+      seen++; const id = itemOf(v);
       assert.ok(reach(grid, L.cols, k, open), `level ${lv} ${id} at ${k} cannot be reached`);
+      assert.ok(dugFit(g, L.cols, id, k, open) >= MIN_WORTH, `level ${lv} ${id} at ${k} does not fit once dug to`);
       if (id === 'sweep') for (const [x, w] of items) assert.ok(x === k || w !== v || x >> 4 !== k >> 4, `level ${lv}: two sweeps in row ${k >> 4}`);
     }
   }
   assert.ok(seen > 0);
+});
+test('a wildcard needs two colours next to it, a rainbow two groups of 2 or more', () => {
+  const cols = 8, k = key(3, 3), g = new Map();
+  for (let r = 0; r < 3; r++) for (let c = 0; c < (r % 2 ? 7 : 8); c++) g.set(key(r, c), 0);   // one big group above
+  g.set(k, valueOf('wildcard'));
+  assert.equal(fit(g, cols, 'wildcard', k), 0, 'one colour next to it');
+  g.set(key(3, 2), 1); assert.ok(fit(g, cols, 'wildcard', k) >= MIN_WORTH, 'two colours, a group to join');
+  assert.equal(fit(g, cols, 'rainbow', k), 0, 'the second colour is a lone bubble');
+  g.set(key(3, 1), 1); assert.ok(fit(g, cols, 'rainbow', k) >= MIN_WORTH, 'two groups of 2 or more');
 });
 test('an item inside a ring that is its only hold cannot be reached; a hanging one with space below can', () => {
   const cols = 10, k = key(4, 4), g = new Map([[k, 6]]);

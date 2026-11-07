@@ -229,15 +229,17 @@ runs), never `ice` directly, except the breaker's own end message and drawer but
   government hosts from `GOV_LIKES` by tier (small none, corporate `scrambler`, `static`,
   `lock`, high `monochrome`, `black`, `lock`, `seal`). Over levels 1-3000 each type is 25% to 45% of its severity
   (`tests/hosts.test.mjs`).
+- Disruption (issue #8): a shot that drops `DISRUPT` (10) or more bubbles, `DISRUPT_HARSH` (14) under harsh ICE
+  (owner: slightly more), and does not win or lose, knocks the ICE out for `DISRUPT_SHOTS` (3) shots. It sets
+  `S.breaker`, so it works like the ICE breaker item (saved, `iceOn()` null, `{ice} back online` when it runs out),
+  and only while the ICE is on (it does not stack on a running breaker). Logged `ice disrupted (3 shots)` and
+  flashed "ICE disrupted: 3 shots" in the accent colour. It replaced jam's own restore.
 - UI (`ui.js`, `FX` table, `fxOf()` returns the active type's hooks; only drawing and
   swapping change, firing, landing and dealing are the same as without ICE):
   - `jam`: the aim line stops at the first wall bounce or after `JAM_LEN` (8 radii, about four
     bubbles), whichever is shorter (`short`), so it also bites on levels without bounces, and the
-    landing ring is hidden while jammed. Dropping `JAM_DROP` (10) or more bubbles (not on a winning or losing
-    shot) restores the full line for the next 3 shots (`restore`), logged as `targeting
-    restored (n)`, flashed mid-screen ("Targeting restored: 3 shots", accent colour) and, when
-    the count runs out, `targeting jammed`. A reload starts jammed. The jammed line is steel grey
-    (`JAMMED`), broken and flickering (steady with reduced motion); restored it is the accent again.
+    landing ring is hidden while jammed. The jammed line is steel grey (`JAMMED`), broken and
+    flickering (steady with reduced motion); while the ICE is disrupted it is the accent again.
   - `jitter`: the aim angle wobbles a few degrees (two slow sines, `bend`); the line, the landing
     ring and the shot all use the angle on screen at release (`drawn`), so the line never lies
     and the challenge is timing (owner, issue #4). With reduced motion it is steady and the line
@@ -396,9 +398,9 @@ Each level has its own dark techno track, generated from the level like everythi
 
 - `songFor(level, ice)`: tempo from the security tier (`secFor`: 122, 126, 130, 134 bpm, plus 0 to 3), key from the palette (`ROOT_PC` per theme), scale from the host tier (small dorian or minor, corporate mostly minor, high and government phrygian or harmonic minor). A 4-bar chord progression (`PROGS`, mostly the tonic), four-on-the-floor kick (a ghost kick on harder levels), Euclidean hats (denser with hardness), open hats on the offbeats, clap on 2 and 4, a bass line (`offbeat`, `rolling` or `gallop`; root, octave, fifth or the second degree), two arp orders over the chord tones with a Euclidean gate, glitch blips. Arrangement (`ARRANGE`): intro, build, main, drive, break, main, drive in 8-bar sections, then it loops from main. A section names its layers and its filter (`cut`, a sweep when it is a pair); main and drive end with a clap fill.
 - ICE: black drops the arp, lock and seal hold it on one note (seal also thins it), scrambler gets four random orders (one per bar), blink cuts the arp for the end of each bar, jitter wobbles the pitch of the arp and pad, lag gets long echoes, jam has no echo and a stuttering bass on the last beat, static bitcrushes the arp and adds noise bursts, monochrome is darker with a triangle arp and a one-note pad.
-- `audio.js`: a lookahead scheduler (`LOOK` .12 s, every `TICK` 25 ms) on the audio clock. Drums go straight to the master; the synths go through a section filter (`toneTo`, chained linear ramps: repeated `setTargetAtTime` on it ran away in testing) and are ducked on every kick. API: `unlock` (from a gesture), `playSong` (the same song keeps playing; a new one fades the old out first; an ended one starts over), `setMood` (0 calm, 1 trace rising: open filter, 16th hats, glitches; 2 trace critical: also a two-tone alarm), `winSong` (a rising run, then a fade), `loseSong` (the filter closes under a falling tone), `stopSong`, `setOn`, `setHidden`, `position`.
+- `audio.js`: a lookahead scheduler (`LOOK` .12 s, every `TICK` 25 ms) on the audio clock. Drums go straight to the master; the synths go through a section filter (`toneTo`, chained linear ramps: repeated `setTargetAtTime` on it ran away in testing) and are ducked on every kick. API: `unlock` (from a gesture), `playSong` (the same song keeps playing; a new one fades the old out first; an ended one starts over), `setMood` (0 calm, 1 trace rising: open filter, 16th hats, glitches; 2 trace critical: also a two-tone alarm), `winSong` (a rising run, then a fade), `loseSong` (the filter closes under a falling tone), `stopSong`, `setOn`, `setHidden` (fades the output out over `FADE` .06 s before it suspends the context, and back in on return: a hard suspend squeaked on iOS, issue #6), `setVolume` (0..1 on an output gain `N.out` after the compressor), `position`.
 - UI: every `pointerup`, `touchend`, `keydown` and `pointerdown` calls `unlock` (iOS starts audio only from a gesture; touch counts on `touchend`, not `pointerdown`). `start()` plays the level's song (not on a won or lost board); trace rising and critical set the mood; the winning and losing shots end it; an Overclock rescue starts it over. A hidden page suspends the audio context. `navigator.audioSession.type = 'ambient'` where it exists (iOS Safari): the silent switch mutes the music and the player's own audio keeps playing.
-- Music tab (menu): a player for the track of any level up to the best one (any level on a local build, like the level picker), with the level's own ICE, none or any other, the three moods, Root access and Flatline endings, and the track's patterns lit step by step with the section and bar. It opens on the current level, so the running track shows live. The tab scopes `--acc` to the picked level's accent. It plays even with music off; closing the menu (`unjuke`) goes back to the level's own track, or silence on a won or lost board. The Music switch (`splice-sound`, on by default) is on the Settings tab.
+- Music tab (menu): a player for the track of any level up to the best one (any level on a local build, like the level picker), with the level's own ICE, none or any other, the three moods, Root access and Flatline endings, and the track's patterns lit step by step with the section and bar. It opens on the current level, so the running track shows live. The tab scopes `--acc` to the picked level's accent. It plays even with music off; closing the menu (`unjuke`) goes back to the level's own track, or silence on a won or lost board. The Music switch (`splice-sound`, on by default) and a Music volume slider (`splice-volume`, 0 to 100 in steps of 5, default 100) are on the Settings tab.
 
 ## Theme
 
@@ -439,7 +441,7 @@ the GitHub issues. Keep it current when work lands or a new idea is parked.
 ## Working rules
 
 - Splice shares its origin (thomaslazar.github.io) with Kiln: every `localStorage` key and
-  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-sound`, `splice-sfx`, `splice-7`), and
+  cache name must start with `splice-` (now `splice-v1`, `splice-lang`, `splice-run`, `splice-deck`, `splice-plays`, `splice-undo`, `splice-sound`, `splice-volume`, `splice-sfx`, `splice-7`), and
   `sw.js` only deletes `splice-` caches.
 - Always ask before committing. Conventional Commits. Never add `Co-Authored-By:` or
   "Generated with" lines to commits or PR bodies.

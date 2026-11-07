@@ -58,6 +58,9 @@ What comes next for Splice, roughly in order. Issues live on
 
 ## Done
 
+- A big drop (10 or more, 14 under harsh ICE) disrupts any ICE for 3 shots
+  ([#8](https://github.com/thomaslazar/splice/issues/8)). Music volume slider and no squeak when
+  leaving the app ([#6](https://github.com/thomaslazar/splice/issues/6)).
 - Item bubbles placed by what they do once the player can reach them (a Wildcard with two colours
   and a group to join, a Rainbow with two groups, a Sweep in a row at least half full, every one
   worth 5 or more there). Logic bomb radius 3 (was 2). Ceiling and loss lines run the full width.

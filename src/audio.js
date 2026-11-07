@@ -4,8 +4,8 @@
 import { mulberry32 } from './core.js';
 import { STEPS, BARS } from './music.js';
 
-const LOOK = .12, TICK = 25, VOL = .7;
-let ctx = null, on = true, hidden = false, song = null, want = null, wantAt = 0, state = 'idle', step = 0, at = 0, timer = 0, mood = 0;
+const LOOK = .12, TICK = 25, VOL = .7, FADE = .06;   // FADE: seconds to fade out before suspending (a hard suspend squeaked on iOS, issue #6)
+let ctx = null, on = true, hidden = false, vol = 1, nap = 0, song = null, want = null, wantAt = 0, state = 'idle', step = 0, at = 0, timer = 0, mood = 0;
 let N = {};   // the node graph, built once
 const hz = m => 440 * 2 ** ((m - 69) / 12), rnd = mulberry32(0x5911ce);   // seeded, like everything in src/
 let toneV = 18000;   // where the section filter is headed: ramps chain from it (repeated setTargetAtTime can run away)
@@ -20,7 +20,7 @@ function build() {
   const g = (v = 1) => { const n = ctx.createGain(); n.gain.value = v; return n; };
   const f = (type, freq, Q = .7) => { const n = ctx.createBiquadFilter(); n.type = type; n.frequency.value = freq; n.Q.value = Q; return n; };
   N.master = g(0); N.comp = ctx.createDynamicsCompressor(); N.comp.threshold.value = -14; N.comp.ratio.value = 4;
-  N.master.connect(N.comp).connect(ctx.destination);
+  N.out = g(0); N.master.connect(N.comp).connect(N.out).connect(ctx.destination);   // out: the volume setting and the fade around a suspend
   N.tone = f('lowpass', 18000, .5); N.tone.connect(N.master);   // the synths' section filter, moods and stings (drums bypass it)
   N.drums = g(.9); N.drums.connect(N.master);
   N.duck = g(1); N.duck.connect(N.tone);   // the synths, ducked on every kick
@@ -156,9 +156,11 @@ function start() {
 }
 function wake() {
   if (!ctx) return;
-  const run = on && !hidden;
-  if (run && ctx.state !== 'running') ctx.resume(); else if (!run && ctx.state === 'running') ctx.suspend();
-  clearInterval(timer); timer = run ? setInterval(pump, TICK) : 0;
+  const run = on && !hidden, o = N.out.gain, t = ctx.currentTime;
+  clearTimeout(nap); clearInterval(timer); timer = run ? setInterval(pump, TICK) : 0;
+  o.cancelScheduledValues(t); o.setValueAtTime(o.value, t);
+  if (run) { if (ctx.state !== 'running') ctx.resume(); o.linearRampToValueAtTime(vol, t + FADE); }
+  else if (ctx.state === 'running') { o.linearRampToValueAtTime(0, t + FADE); nap = setTimeout(() => ctx.suspend(), FADE * 1000 + 40); }
 }
 
 /* ---------- api ---------- */
@@ -182,6 +184,8 @@ export function loseSong() {   // a power-down: the filter closes, a falling ton
 export function stopSong() { want = null; if (song && ctx) fade(ctx.currentTime, .4); }
 export function setOn(v) { on = !!v; if (ctx && song) { const g = N.master.gain; g.cancelScheduledValues(ctx.currentTime); g.setTargetAtTime(on ? VOL : 0, ctx.currentTime, .1); } wake(); }
 export function setHidden(v) { hidden = !!v; wake(); }
+// 0..1, on top of the mix level (VOL); the Music volume slider
+export function setVolume(v) { vol = Math.max(0, Math.min(1, v)); wake(); }
 export function position() {   // what sounds now: the scheduler runs up to LOOK seconds ahead
   if (!song || !ctx) return { state: want ? 'starting' : state };
   const n = Math.max(0, step - Math.round(Math.max(0, at - ctx.currentTime) * song.bpm / 15));

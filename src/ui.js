@@ -119,6 +119,9 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) rec((
 const SOUND_KEY = 'splice-sound'; let sound = true;
 try { sound = localStorage.getItem(SOUND_KEY) !== '0'; } catch (e) {}
 SND.setOn(sound);
+const VOL_KEY = 'splice-volume'; let volume = 100;   // percent of the mix level (issue #6: too loud next to an audiobook)
+try { const v = parseInt(localStorage.getItem(VOL_KEY), 10); if (v >= 0 && v <= 100) volume = v; } catch (e) {}
+SND.setVolume(volume / 100);
 const SFX_KEY = 'splice-sfx'; let sfx = true;   // ponytail: stored only; nothing plays sound effects yet (ROADMAP, issue #6)
 try { sfx = localStorage.getItem(SFX_KEY) !== '0'; } catch (e) {}
 for (const ev of ['pointerup', 'touchend', 'keydown', 'pointerdown']) addEventListener(ev, SND.unlock, { capture: true, passive: true });
@@ -202,7 +205,7 @@ let lines = [], seen = {}, logTop = 0, logPct = 0;
 // A trace warning also flashes once, big, in the middle of the screen (amber, then red).
 let alertT;
 function flash(kind) {
-  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'restored' ? t('alertRestored', { n: restore }) : kind === 'note' ? t('linkCopied') : kind === 'breaker' ? t('alertBreaker') : kind === 'unlock' ? t('alertUnlock') : kind === 'ice' ? t('alertIce', { ice: iceName(ice) }) : t('alertTrace'); a.dataset.kind = kind;
+  const a = $('#alert'); a.textContent = kind === 'critical' ? t('alertCritical') : kind === 'disrupted' ? t('alertDisrupted', { n: DISRUPT_SHOTS }) : kind === 'note' ? t('linkCopied') : kind === 'breaker' ? t('alertBreaker') : kind === 'unlock' ? t('alertUnlock') : kind === 'ice' ? t('alertIce', { ice: iceName(ice) }) : t('alertTrace'); a.dataset.kind = kind;
   a.hidden = true; void a.offsetWidth; a.hidden = false;   // restart the animation
   clearTimeout(alertT); alertT = setTimeout(() => { a.hidden = true; }, 2800);
 }
@@ -222,7 +225,8 @@ function logStart() {   // clear, connect, and set the once-flags that already h
 }
 function logShot(dropped) {   // events in the spec's order, after a landed shot
   if (dropped >= 6) log(t('logBreach', { n: dropped }));
-  if (iceOn() === 'jam' && dropped >= JAM_DROP && !won(S) && !lost(S)) { restore = 3; log(t('logRestored', { n: restore })); flash('restored'); }
+  // a big drop knocks any ICE out for DISRUPT_SHOTS shots, as the ICE breaker does (issue #8); harsh ICE needs a bigger one
+  if (iceOn() && dropped >= (ICE[ice] === 'harsh' ? DISRUPT_HARSH : DISRUPT) && !won(S) && !lost(S)) { S.breaker = DISRUPT_SHOTS; save(); log(t('logDisrupted', { n: DISRUPT_SHOTS })); flash('disrupted'); }
   const p = pct(); if (S.top !== logTop && p !== logPct) log(t('logDeeper', { pct: p })); logTop = S.top; logPct = p;
   const f = flagged(); if (won(S)) f.rising = f.critical = false;   // no trace warning on the winning shot
   for (const [n, text] of [['host', t('logHost')], ['rising', t('logTrace')], ['critical', t('logCritical')]]) if (f[n] && !seen[n]) {
@@ -240,7 +244,7 @@ function logShot(dropped) {   // events in the spec's order, after a landed shot
 // Local playtest: ?ice=<type> forces that ICE on every level (effects only; the shot limit keeps
 // the level's own), ?level=N starts level N fresh. Not linked anywhere in the game.
 const PLAY = Object.fromEntries(new URLSearchParams(location.search));
-let ice = null, restore = 0;   // jam: full aim line for the next `restore` shots; a reload starts jammed
+let ice = null;
 // scrambler: each new packet arrives hidden with chance SCRAMBLE (seeded from the draw count);
 // a hidden packet stays "?" in the next slot and at the shooter and shows only in flight.
 // hid = [cur, next]; a swap swaps them; a reload shows the shooter packet.
@@ -257,7 +261,8 @@ const cut = pts => pts.slice(0, 2);   // to the first wall bounce, or the end if
 // bites on levels that need no bounces
 const JAM_LEN = 8, short = pts => { const [a, b] = cut(pts), d = Math.hypot(b.x - a.x, b.y - a.y);
   return d <= JAM_LEN ? [a, b] : [a, { x: a.x + (b.x - a.x) * JAM_LEN / d, y: a.y + (b.y - a.y) * JAM_LEN / d }]; };
-const JAM_DROP = 10, JAMMED = '#8a93a6';   // jam: a drop of JAM_DROP or more restores the line; the jammed line's colour
+const JAMMED = '#8a93a6';   // the jammed line's colour
+const DISRUPT = 10, DISRUPT_HARSH = 14, DISRUPT_SHOTS = 3;   // dropped bubbles that disrupt ICE (harsh ICE: more), and for how many shots
 // lag: the line eases toward the aim (time constant LAG_MS); the shot takes the angle on screen, so holding still is exact
 const LAG_MS = 120; let lagA = null, lagT = 0;
 const lagged = a => { const n = performance.now(); lagA = lagA === null ? a : lagA + (a - lagA) * (1 - Math.exp(-(n - lagT) / LAG_MS)); lagT = n; return lagA; };
@@ -266,7 +271,7 @@ const BLINK = 1500, BLINK_OFF = 600;
 const FX = {
   lag: { ang: lagged },
   blink: { faint: () => reduced ? .25 : performance.now() % BLINK < BLINK_OFF ? 0 : null },
-  jam: { aim: pts => restore > 0 ? pts : short(pts) },
+  jam: { aim: short },
   // a few degrees, smooth: two slow sines; reduced motion: steady, cut at the first bounce instead
   jitter: reduced ? { aim: cut } : { ang: a => { const s = performance.now() / 1000; return a + .06 * Math.sin(s * 2.3) + .03 * Math.sin(s * 5.1 + 1); } },
   static: { over: glitchBlocks },
@@ -323,7 +328,7 @@ function glitchBlocks(now, bottom) {
   }
 }
 function start(s, fresh) {   // fresh: from begin(), a new attempt; else a saved board resumes its attempt
-  S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); restore = clearHid = 0; prev = null; hid = [false, iceOn() === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
+  S = s; ice = PLAY.ice in ICE ? PLAY.ice : iceFor(S.level); clearHid = 0; prev = null; hid = [false, iceOn() === 'scrambler' && scrambled()]; logStart(); view = target(); fly = null; fx = []; aim = aimId = null; asking = false;
   rec(() => { tick(); if (fresh) P.startAttempt(plays, P.attemptOf(S, { ice, deck, at: new Date().toISOString() })); else if (P.resume(plays, S) && lost(S)) P.close(plays, S.shots <= 0 ? 'lost-shots' : 'lost-line', S); savePlays(); });
   pend = { sw: [], x: 0, ev: [] }; tAt = document.hidden ? null : performance.now();
   stripAt = S.top === 0 ? -Infinity : null; strip = S.top === 0 ? 1 : 0;   // open at once at the ceiling
@@ -367,7 +372,7 @@ function menuText() {   // every panel text; Info adds its own here
   $('#pHead').textContent = t('playLog'); $('#pTrack').textContent = t('playTrack'); $('#pOn').checked = plays.on; $('#pShare').textContent = t('playShare'); $('#pClear').textContent = t('playClear');
   const n = plays.attempts.length; $('#pCount').textContent = plays.on ? t('playCount', { n }) : t('playOffText'); $('#pShare').disabled = $('#pClear').disabled = !n;
   $('#iSrc').textContent = t('sourceCode'); $('#iLic').textContent = t('license'); $('#iCred').textContent = t('credits'); $('#iLang').textContent = t('language');
-  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound; $('#fSfx').textContent = t('sfx'); $('#fOn').checked = sfx; jukeText();
+  $('#sMusic').textContent = t('music'); $('#sOn').checked = sound; $('#sVolL').textContent = t('volume'); $('#sVol').value = volume; $('#fSfx').textContent = t('sfx'); $('#fOn').checked = sfx; jukeText();
 }
 function pick() { const n = picked(); $('#pickHost').textContent = hostFor(n).label; $('#mPlay').textContent = t('playLevel', { n }); }
 function tab(name) {
@@ -445,6 +450,7 @@ $('#mBack').onclick = () => { closeMenu(); begin(run.best, 0); };
 function resetAll() { if (S) S.load = null; for (const k of [KEY, RUN_KEY, DECK_KEY, UNDO_KEY]) try { localStorage.removeItem(k); } catch (e) {} wipeLog(); deck = deckFrom(null); run = { best: 1, fails: 0 }; saveRun(); begin(1, 0); }
 $('#mReset').onclick = () => { closeMenu(); ask('reset'); };
 $('#sOn').onchange = () => { sound = $('#sOn').checked; try { localStorage.setItem(SOUND_KEY, sound ? '1' : '0'); } catch (e) {} SND.setOn(sound); };
+$('#sVol').oninput = () => { volume = +$('#sVol').value; SND.setVolume(volume / 100); try { localStorage.setItem(VOL_KEY, String(volume)); } catch (e) {} };
 $('#fOn').onchange = () => { sfx = $('#fOn').checked; try { localStorage.setItem(SFX_KEY, sfx ? '1' : '0'); } catch (e) {} };
 $('#pOn').onchange = () => { P.setOn(plays, $('#pOn').checked); writePlays(); menuText(); };
 $('#pClear').onclick = () => { closeMenu(); ask('clear'); };
@@ -577,7 +583,7 @@ function decrypt(col) {
 function unloadItem() { const id = S.load; unload(S); deck = give(deck, id); saveDeck(); save(); hud(); }
 function rollback() {
   const d = take(deck, 'rollback'); if (!d || !prev || won(S) || lost(S)) return;
-  S = fromSave(prev.s); S.load = null; deck = prev.id ? give(d, prev.id) : d; restore = prev.restore; prev = null;   // the fired item goes back to the deck
+  S = fromSave(prev.s); S.load = null; deck = prev.id ? give(d, prev.id) : d; prev = null;   // the fired item goes back to the deck
   hid = [false, iceOn() === 'scrambler' && scrambled()]; fx = []; asking = false; win = won(S) ? { at: -Infinity, done: true } : null; logTop = S.top; logPct = pct();
   if (S.top) { stripAt = null; strip = 0; }   // the ceiling may be out of view again
   refit = true; saveDeck(); save(); hud(); log(t('logRollback')); closeDrawer(); used('rollback');
@@ -586,21 +592,20 @@ function rollback() {
 /* ---------- moves ---------- */
 function shoot() {
   if (!ready() || aim === null) return;
-  const pre = new Map(S.grid), col = S.cur, it = S.load, nx = S.next, snap = toSave(S), rs = restore, ang = shotAngle(), m = fire(S, ang); aim = null; drawn = null;
+  const pre = new Map(S.grid), col = S.cur, it = S.load, nx = S.next, snap = toSave(S), ang = shotAngle(), m = fire(S, ang); aim = null; drawn = null;
   if (!m) return;
   const rd = S.grid.size && S.cur !== (it ? col : nx); if (rd) redealAt = performance.now();   // its colour left the board: show the new one
   if (won(S)) {   // pay at the winning shot, before the save: a reload during the flight keeps it, run.paid keeps it single
     const p = payout(deck, S, run.best, run.paid); paid = { frags: p.frags, loot: p.loot, replay: !pays() };
     deck = p.deck; if (S.level === run.best) run.paid = S.level; saveDeck(); saveRun();
   }
-  prev = { s: snap, id: it, restore: rs };
+  prev = { s: snap, id: it };
   rec(() => { const n = performance.now(), ms = v => Math.round(n - v);
     tick(); P.shot(plays, { n: P.open(plays)?.shots.filter(e => !e.u).length + 1, s: snap.shots, c: it || col, sw: pend.sw.map(([w, v]) => [w, ms(v)]), st: +!!tapAt, x: pend.x, ev: pend.ev.map(([w, v, ...o]) => [w, ms(v), ...o]),
       am: ms(pressAt), a: Math.round(ang * 1000) / 1000, l: m.cell ?? null, p: m.popped.length, d: m.dropped.length, f: m.fired.length, b: S.grid.size, pc: pct() });
     if (won(S)) P.close(plays, 'won', S, paid); savePlays(); });
   pend = { sw: [], x: 0, ev: [] }; if (plays.on && rd) pend.ev.push(['r', redealAt]);   // a re-deal belongs to the next shot's events
   if (!it) hid = [hid[1], iceOn() === 'scrambler' && (clearHid > 0 ? (clearHid--, false) : scrambled())];   // the next one moves up as it was; a new one arrives (an item leaves the queue alone)
-  if (iceOn() === 'jam' && restore > 0 && --restore === 0) log(t('logJammed'));
   if (S.breaker > 0 && --S.breaker === 0 && ice) { log(t('logIceBack', { ice: iceName(ice) })); flash('ice'); }
   save(); fly = { m, pre, col, it, i: 0, p: { ...m.pts[0] }, gone: new Set() }; hud();
   if (reduced) land();
@@ -704,7 +709,7 @@ function draw() {
   if (aimId !== null && a !== null && ready()) {
     const L = S.load, t0 = L ? null : trace(S.grid, S.cols, a, S.top), h = L ? hits(S, L, a) : !f0.hide?.('cur') && t0.cell && nk(S.cols, key(...t0.cell)).some(x => isItem(S.grid.get(x))) ? resolve(S, { ang: a }) : null;   // a normal shot that touches item bubbles previews them too, unless the packet is hidden (it would give its colour away)
     const tr = L ? h || { pts: trace(S.grid, S.cols, a, S.top).pts, cell: null } : t0, pts = fxOf().aim ? fxOf().aim(tr.pts) : tr.pts;
-    const jammed = iceOn() === 'jam' && restore === 0, n = performance.now();
+    const jammed = iceOn() === 'jam', n = performance.now();
     g.globalAlpha = f0.faint?.() ?? .7; g.lineWidth = 2;   // the rings share the line's alpha
     // the ring is accurate under jitter too (the shot takes the drawn angle); neutral when the packet is hidden
     if (pts?.length === tr.pts.length && !jammed) {
@@ -725,7 +730,7 @@ function draw() {
       g.setLineDash([]);
     }
     g.globalAlpha = 1; over();
-    // a jammed line (jam ICE, not restored) is steel grey, broken and flickering; restored it is the accent again
+    // a jammed line is steel grey, broken and flickering; while the ICE is down it is the accent again
     g.strokeStyle = jammed ? JAMMED : theme.a; g.lineWidth = 2;
     if (jammed && !reduced) { const f = hash(n / 70 | 0, 9) % 100 / 100; g.globalAlpha = f < .15 ? .2 : .5 + .45 * f; g.setLineDash([3, 4 + f * 6]); g.lineDashOffset = -n / 40; }
     else { g.globalAlpha = f0.faint?.() ?? .7; g.setLineDash([2, 6]); }

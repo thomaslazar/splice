@@ -48,7 +48,7 @@ small { display: block; font-size: 10px; letter-spacing: .08em; text-transform: 
   font-size: 30px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #ffb020; text-shadow: 0 0 18px #ffb020;
   animation: flash 2.8s ease-out forwards; }
 #alert[data-kind=critical] { color: #ff2a4a; text-shadow: 0 0 18px #ff2a4a; }
-#alert[data-kind=restored], #alert[data-kind=ice], #alert[data-kind=unlock], #alert[data-kind=breaker] { color: var(--acc); text-shadow: 0 0 18px var(--acc); }
+#alert[data-kind=disrupted], #alert[data-kind=ice], #alert[data-kind=unlock], #alert[data-kind=breaker] { color: var(--acc); text-shadow: 0 0 18px var(--acc); }
 #alert[data-kind=note] { font-size: 16px; color: var(--acc); text-shadow: 0 0 12px var(--acc); letter-spacing: .08em; }
 #alert[hidden] { display: none; }
 @keyframes flash { 0% { opacity: 0; transform: scale(1.25); } 6% { opacity: 1; transform: scale(1); } 11% { opacity: .35; } 16% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
@@ -180,3 +180,5 @@ canvas { display: block; touch-action: none; }
 #jGrid i.now { box-shadow: 0 0 0 1px var(--acc); }
 #jGrid i.now.on:not(.off) { background: var(--acc); box-shadow: 0 0 8px var(--acc); }
 .sw { font-size: 14px; }
+.vol { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.vol input { flex: 1; min-width: 0; accent-color: currentColor; margin: 0; }

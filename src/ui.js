@@ -689,6 +689,10 @@ function draw() {
   const now = performance.now();
   // fit() clears the canvases, so code that runs mid-frame sets refit and fit() runs here, before any drawing
   if (stripAt !== null && strip < 1) { const k = reduced ? 1 : Math.min(1, (now - stripAt) / STRIP_MS); strip = 1 - (1 - k) ** 2; refit = true; }   // ease out
+  // a lost and restored canvas context (Android Chrome, Safari: memory pressure, background) comes back
+  // with an identity transform, so the board drew at 1/dpr size; a dpr change needs a refit too
+  const dpr = devicePixelRatio || 1;
+  if (g.getTransform().a !== dpr || sg.getTransform().a !== dpr) refit = true;
   if (refit) { refit = false; fit(); }
   if (busy() && now - win.at >= QUIET + (reduced ? 0 : GLITCH)) { win.done = true; sheet(); }
   drawStrip(now);
